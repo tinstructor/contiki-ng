@@ -1,0 +1,13 @@
+CONTIKI_PROJECT = ranger
+all: $(CONTIKI_PROJECT)
+
+MODULES += examples/ranger/$(TARGET)/$(BOARD)
+
+PROJECT_SOURCEFILES += ranger-net.c
+
+MAKE_MAC = MAKE_MAC_CSMA
+MAKE_NET = MAKE_NET_OTHER
+MAKE_ROUTING = MAKE_ROUTING_NULLROUTING
+
+CONTIKI = ../../..
+include $(CONTIKI)/Makefile.include

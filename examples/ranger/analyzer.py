@@ -1,0 +1,250 @@
+
+#!/usr/bin/env python3
+
+import io
+import sys
+import re
+import unittest
+import argparse
+
+################################################################################
+
+class message:
+
+    def __init__(self, nr, packetlen, rssi):
+        self.nr = nr
+        self.packetlen = packetlen
+        self.rssi = rssi
+
+class received_messages:
+
+    def __init__(self):
+        self.messages = []
+
+    def add(self, message):
+        for m in self.messages:
+            if (m.nr == message.nr):
+                raise ValueError("A message with sequence number {} has already been added".format(message.nr))
+
+        self.messages.append(message)
+
+    def average_rssi(self, amount):
+
+        if (not self.messages):
+            raise RuntimeError("There are no received messages")
+
+        if (amount < 0):
+            raise ValueError("Cannot process a negative amount of messages")
+
+        if (amount > len(self.messages)):
+            raise ValueError("There are not enough messages to process")
+
+        avg_rssi = 0;
+
+        for m in self.messages[:amount]:
+            avg_rssi += m.rssi
+
+        avg_rssi /= amount
+
+        return avg_rssi
+
+    def average_rssi_all(self):
+        return self.average_rssi(len(self.messages))
+
+    def packet_loss(self, amount):
+
+        if (not self.messages):
+            raise RuntimeError("There are no received messages")
+
+        if (amount < 0):
+            raise ValueError("Cannot process a negative amount of messages")
+
+        if (amount > len(self.messages)):
+            raise ValueError("There are not enough messages to process")
+
+        packets_lost = 0
+
+        for i in range(1, amount):
+            m = self.messages[i]
+            previous_m = self.messages[i - 1]
+            packets_lost += m.nr - previous_m.nr - 1
+
+        total = self.messages[amount - 1].nr - self.messages[0].nr + 1
+
+        return packets_lost / total
+
+    def packet_loss_all(self):
+        return self.packet_loss(len(self.messages))
+
+    def amount(self):
+        return len(self.messages)
+
+################################################################################
+
+# python3 -m unittest analyzer.py
+
+# 28 64 -18
+# 29 lost
+# 30 lost
+# 31 64 -78
+# 32 lost
+# 33 64 55
+# 34 lost
+# 35 lost
+# 36 lost
+# 37 64 -30
+# -----
+# 10 packets
+# 4 received, 6 lost, packet loss 0.6 (6/10)
+# average RSSI -45.25
+# -----
+# 38 lost
+# 39 64 -96
+# 40 64 -85
+# 41 lost
+# 42 lost
+# 43 64 -76
+# 44 lost
+# 45 64 -51
+# 46 lost
+# 47 64 -99
+# -----
+# 20 packets
+# 9 received, 11 lost, packet loss 0.55 (11/20)
+# average RSSI -65.34
+
+class test_received_messages(unittest.TestCase):
+
+    def setUp(self):
+        self.rm = received_messages()
+        self.rm.add(message(28, 64, -18))
+        self.rm.add(message(31, 64, -78))
+        self.rm.add(message(33, 64, -55))
+        self.rm.add(message(37, 64, -30))
+        self.rm.add(message(39, 64, -96))
+        self.rm.add(message(40, 64, -85))
+        self.rm.add(message(43, 64, -76))
+        self.rm.add(message(45, 64, -51))
+        self.rm.add(message(47, 64, -99))
+
+    def test_add_duplicate_nr(self):
+        with self.assertRaises(ValueError):
+            self.rm.add(message(33, 32, -20))
+
+    def test_average_rssi(self):
+        self.assertEqual(self.rm.average_rssi(4), -45.25)
+
+    def test_average_rssi_empty(self):
+        with self.assertRaises(RuntimeError):
+            received_messages().average_rssi(4)
+
+    def test_average_rssi_negative_amount(self):
+        with self.assertRaises(ValueError):
+            self.rm.average_rssi(-1);
+
+    def test_average_rssi_too_large_amount(self):
+        with self.assertRaises(ValueError):
+            self.rm.average_rssi(100);
+
+    def test_average_rssi_all(self):
+        self.assertAlmostEqual(self.rm.average_rssi_all(), -(588/9))
+
+    def test_average_rssi_all_empty(self):
+        with self.assertRaises(RuntimeError):
+            received_messages().average_rssi_all()
+
+    def test_packet_loss(self):
+        self.assertEqual(self.rm.packet_loss(4), 0.6)
+
+    def test_packet_loss_empty(self):
+        with self.assertRaises(RuntimeError):
+            received_messages().packet_loss(4)
+
+    def test_packet_loss_negative_amount(self):
+        with self.assertRaises(ValueError):
+            self.rm.packet_loss(-1)
+
+    def test_packet_loss_too_large_amount(self):
+        with self.assertRaises(ValueError):
+            self.rm.packet_loss(100)
+
+    def test_packet_loss_all(self):
+        self.assertEqual(self.rm.packet_loss_all(), 0.55)
+
+    def test_packet_loss_all_empty(self):
+        with self.assertRaises(RuntimeError):
+            received_messages().packet_loss_all()
+
+################################################################################
+################################################################################
+################################################################################
+
+parser = argparse.ArgumentParser()
+parser.add_argument("logfile", help="The logfile to parse, generated by the scratch program.")
+parser.add_argument("-n", "--number", help="The amount of received packets used for calculating the average RSSI and packet loss. When NUMBER of received packets is processed, the program prints the average RSSI and packet loss and disregards all remaining packets. If there aren't enough packets, an error will be thrown.")
+parser.add_argument("-v", "--verbose", help="Print verbose output.", action="store_true")
+args = parser.parse_args()
+
+# option verbose
+
+LOG_REGEXP = re.compile("^.*?csv-log: (?P<nr>\d+), (?P<len>\d+), (?P<rssi>[+-]\d+)")
+
+log_filename = args.logfile
+log = open(log_filename, "r")
+messages = received_messages()
+
+for line in log:
+    chomped_line = line.rstrip()
+
+    match = re.match(LOG_REGEXP, chomped_line)
+    if (match):
+
+        if (args.verbose):
+            print(chomped_line)
+
+        nr = int(match.group("nr"))
+        packetlen = int(match.group("len"))
+        rssi = int(match.group("rssi"))
+
+        if (args.verbose):
+            print("Message (nr: {}, length: {}, rssi {})".format(nr, packetlen, rssi))
+
+        try:
+            messages.add(message(nr, packetlen, rssi))
+        except ValueError as e:
+            print(e);
+
+print()
+print("Results for {}".format(log_filename))
+print("-" * 80)
+
+if (messages.amount() > 0):
+
+    print("Amount of received_messages:", messages.amount())
+
+    calculated_average_rssi = 0
+    calculated_packet_loss = 0
+
+    if (args.number):
+
+        amount_to_process = int(args.number)
+
+        print("{} of those packets have been processed".format(args.number))
+
+        calculated_average_rssi = messages.average_rssi(amount_to_process)
+        calculated_packet_loss = messages.packet_loss(amount_to_process)
+
+    else:
+
+        calculated_average_rssi = messages.average_rssi_all()
+        calculated_packet_loss = messages.packet_loss_all()
+
+    print("Average RSSI: {:.2f}".format(calculated_average_rssi))
+    print("Packet loss rate: {:.2f} %".format(calculated_packet_loss * 100))
+
+else:
+
+    print("No messages received")
+
+print()
+
