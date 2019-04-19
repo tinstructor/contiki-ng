@@ -92,29 +92,6 @@ static void print_buffer(const char* buffer, int size, const char* specifier)
     }
 }
 
-static void fill_message_content(char* buffer, int size)
-{
-    if (SEND_MESSAGE_TYPE == USE_PRESET_MESSAGE)
-    {
-        memset(buffer, 0, size);
-        strncpy(buffer, "martijn.saelens@ugent.be", size);
-    }
-    else if (SEND_MESSAGE_TYPE == USE_RANDOM_MESSAGE)
-    {
-        for (int i = 0; i < size; i++)
-        {
-            buffer[i] = rand() % 256;
-        }
-    }
-    else if (SEND_MESSAGE_TYPE == USE_RANDOM_ASCII_MESSAGE)
-    {
-        for (int i = 0; i < size; i++)
-        {
-            buffer[i] = (32 + rand() % 95);
-        }
-    }
-}
-
 static void send_message(const linkaddr_t* dest_addr)
 {
     leds_on(TX_SEND_LEDS);
@@ -323,11 +300,6 @@ PROCESS_THREAD(ranger_process, ev, data)
     static bool long_press_flag = false; // static storage class => retain value between yielding
 
     PROCESS_BEGIN();
-    
-    LOG_INFO("Waiting for TAISC initialisation\n");
-    etimer_set(&taisc_init_delay_tmr, CLOCK_SECOND*2);
-    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&taisc_init_delay_tmr));
-    LOG_INFO("TAISC is initialised\n");
 
     if (ENABLE_SEND_PIN)
     {
