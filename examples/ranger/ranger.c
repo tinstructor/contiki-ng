@@ -48,14 +48,6 @@ extern gpio_hal_pin_t send_pin;
 static process_event_t send_pin_event;
 static gpio_hal_event_handler_t send_pin_event_handler;
 
-static enum
-{
-    RADIO_CFG_0,
-    RADIO_CFG_1,
-    RADIO_CFG_2,
-    RADIO_CFG_AMOUNT,
-} current_radio_cfg;
-
 static enum 
 {
     RX,
@@ -286,9 +278,6 @@ static void print_diagnostics(void)
     LOG_INFO("Payload size: %zu byte(s)\n", sizeof(message));
     LOG_INFO("Transmission power: %d dBm\n", TX_POWER_DBM);
     LOG_INFO("Channel: %d\n", CHANNEL);
-    //LOG_INFO("Radio configuration: %"PRIu16"\n", get_radio_cfg());
-    //LOG_INFO("Bitrate: %lu\n", get_bitrate());
-    //LOG_INFO("Base frequency: %lu\n", get_base_frequency());
     LOG_INFO("Timer period: %d s\n", MAIN_INTERVAL_SECONDS);
 }
 
@@ -307,7 +296,6 @@ PROCESS_THREAD(ranger_process, ev, data)
     
     set_tx_power(TX_POWER_DBM);
     set_channel(CHANNEL);
-    //set_radio_cfg(RADIO_CFG_0);
 
     print_diagnostics();
     LOG_INFO("Started ranger process\n");
@@ -344,7 +332,7 @@ PROCESS_THREAD(ranger_process, ev, data)
                 if (btn == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON))
                 {
                     LOG_INFO("Released user button\n");
-                    //set_radio_cfg((current_radio_cfg + 1) % RADIO_CFG_AMOUNT);
+                    //set next radio config
                 }
             }
             else
