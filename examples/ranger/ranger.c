@@ -225,9 +225,6 @@ static void set_tx_power(int tx_power)
         assert(result == RADIO_RESULT_OK);
         LOG_INFO("TX power set to %d dBm\n", tx_power);
     }
-
-    package_nr_to_send = 0;
-    LOG_INFO("Package number of TX messages reset to 0 after RF config change.\n");
 }
 
 static void set_channel(int channel)
@@ -301,6 +298,9 @@ static void set_rf_cfg(int rf_cfg_index)
         LOG_INFO("RF config index changed to %d.\n", rf_cfg_index);
         LOG_INFO("New RF config has descriptor \"%s\".\n", rf_cfg_ptrs[rf_cfg_index]->cfg_descriptor);
     }
+    
+    package_nr_to_send = 0;
+    LOG_INFO("Package number of TX messages reset to 0 after RF config change.\n");
 }
 
 static void send_handler(gpio_hal_pin_mask_t pin_mask)
