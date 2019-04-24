@@ -1468,7 +1468,7 @@ get_object(radio_param_t param, void *dest, size_t size)
     if(size != sizeof(cc1200_rf_cfg_t) || !dest) {
       return RADIO_RESULT_INVALID_VALUE;
     }
-    //(cc1200_rf_cfg_t *)dest = cc1200_rf_cfg_ptr;
+    *(cc1200_rf_cfg_t *)dest = *cc1200_rf_cfg_ptr;
     return RADIO_RESULT_OK;
   }
 

@@ -48,6 +48,16 @@ AUTOSTART_PROCESSES(&ranger_process);
 
 /*----------------------------------------------------------------------------*/
 extern const cc1200_rf_cfg_t cc1200_868_fsk_1_2kbps;
+extern const cc1200_rf_cfg_t cc1200_868_4gfsk_1000kbps;
+extern const cc1200_rf_cfg_t cc1200_802154g_863_870_fsk_50kbps;
+
+static const cc1200_rf_cfg_t *rf_cfg_ptrs[] = {&cc1200_868_fsk_1_2kbps, 
+                                               &cc1200_802154g_863_870_fsk_50kbps,
+                                               &cc1200_868_4gfsk_1000kbps};
+
+enum {RF_CFG_AMOUNT = sizeof(rf_cfg_ptrs)/sizeof(rf_cfg_ptrs[0]),};
+
+static uint8_t current_rf_cfg = 0;
 
 extern gpio_hal_pin_t send_pin;
 static process_event_t send_pin_event;
@@ -299,6 +309,8 @@ PROCESS_THREAD(ranger_process, ev, data)
         init_send_pin();
     }
     
+    //TODO: set current_rf_cfg index to index of active rf_cfg at startup
+
     set_tx_power(TX_POWER_DBM);
     set_channel(CHANNEL);
 
@@ -337,8 +349,7 @@ PROCESS_THREAD(ranger_process, ev, data)
                 if (btn == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON))
                 {
                     LOG_INFO("Released user button\n");
-                    NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, &cc1200_868_fsk_1_2kbps, sizeof(cc1200_868_fsk_1_2kbps));
-                    //set next radio config
+                    NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, rf_cfg_ptrs[current_rf_cfg++ % RF_CFG_AMOUNT], sizeof(cc1200_rf_cfg_t));
                 }
             }
             else
