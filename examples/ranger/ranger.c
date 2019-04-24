@@ -57,7 +57,7 @@ static const cc1200_rf_cfg_t *rf_cfg_ptrs[] = {&cc1200_868_fsk_1_2kbps,
 
 enum {RF_CFG_AMOUNT = sizeof(rf_cfg_ptrs)/sizeof(rf_cfg_ptrs[0]),};
 
-static uint8_t current_rf_cfg = 0;
+static uint8_t current_rf_cfg_index = 0;
 
 extern gpio_hal_pin_t send_pin;
 static process_event_t send_pin_event;
@@ -79,6 +79,7 @@ typedef struct
 
 static struct etimer message_send_tmr;
 
+static uint32_t package_nr_to_send = 0;
 static int message_counter = 0;
 
 // node labelled "gateway" has link-addr: 0012.4b00.09df.4dee
@@ -101,8 +102,6 @@ static void print_buffer(const char* buffer, int size, const char* specifier)
 static void send_message(const linkaddr_t* dest_addr)
 {
     leds_on(TX_SEND_LEDS);
-
-    static uint32_t package_nr_to_send = 0;
 
     LOG_INFO("Sending message to ");
     LOG_INFO_LLADDR(dest_addr);
@@ -226,6 +225,9 @@ static void set_tx_power(int tx_power)
         assert(result == RADIO_RESULT_OK);
         LOG_INFO("TX power set to %d dBm\n", tx_power);
     }
+
+    package_nr_to_send = 0;
+    LOG_INFO("Package number of TX messages reset to 0 after RF config change.\n");
 }
 
 static void set_channel(int channel)
@@ -262,6 +264,42 @@ static void set_channel(int channel)
         result = NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
         assert(result == RADIO_RESULT_OK);
         LOG_INFO("Channel changed to nr %d\n", channel);
+    }
+}
+
+static void set_rf_cfg(int rf_cfg_index)
+{
+    radio_result_t result;
+
+    if(rf_cfg_index > RF_CFG_AMOUNT)
+    {
+        LOG_WARN("Requested RF config index %d is larger than maximum RF config index %d.\n", 
+                 rf_cfg_index, RF_CFG_AMOUNT);
+        
+        result = NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, rf_cfg_ptrs[RF_CFG_AMOUNT - 1],
+                                           sizeof(cc1200_rf_cfg_t));
+        assert(result == RADIO_RESULT_OK);
+        LOG_INFO("RF config index changed to maximum RF config index %d.\n", RF_CFG_AMOUNT - 1);
+        LOG_INFO("New RF config has descriptor \"%s\".\n", rf_cfg_ptrs[RF_CFG_AMOUNT - 1]->cfg_descriptor);
+    }
+    else if(rf_cfg_index < 0)
+    {
+        LOG_WARN("Requested RF config index %d is lower than minimum RF config index %d.\n", 
+                 rf_cfg_index, 0);
+        
+        result = NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, rf_cfg_ptrs[0],
+                                           sizeof(cc1200_rf_cfg_t));
+        assert(result == RADIO_RESULT_OK);
+        LOG_INFO("RF config index changed to minimum RF config index %d.\n", 0);
+        LOG_INFO("New RF config has descriptor \"%s\".\n", rf_cfg_ptrs[0]->cfg_descriptor);
+    }
+    else
+    {
+        result = NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, rf_cfg_ptrs[rf_cfg_index],
+                                           sizeof(cc1200_rf_cfg_t));
+        assert(result == RADIO_RESULT_OK);
+        LOG_INFO("RF config index changed to %d.\n", rf_cfg_index);
+        LOG_INFO("New RF config has descriptor \"%s\".\n", rf_cfg_ptrs[rf_cfg_index]->cfg_descriptor);
     }
 }
 
@@ -309,7 +347,7 @@ PROCESS_THREAD(ranger_process, ev, data)
         init_send_pin();
     }
     
-    //TODO: set current_rf_cfg index to index of active rf_cfg at startup
+    //TODO: set current_rf_cfg_index to index of active rf_cfg at startup
 
     set_tx_power(TX_POWER_DBM);
     set_channel(CHANNEL);
@@ -349,7 +387,10 @@ PROCESS_THREAD(ranger_process, ev, data)
                 if (btn == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON))
                 {
                     LOG_INFO("Released user button\n");
-                    NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, rf_cfg_ptrs[current_rf_cfg++ % RF_CFG_AMOUNT], sizeof(cc1200_rf_cfg_t));
+                    /*NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, 
+                                              rf_cfg_ptrs[current_rf_cfg_index++ % RF_CFG_AMOUNT], 
+                                              sizeof(cc1200_rf_cfg_t));*/
+                    set_rf_cfg(current_rf_cfg_index++ % RF_CFG_AMOUNT);
                     set_tx_power(TX_POWER_DBM);
                     set_channel(CHANNEL);
                 }
