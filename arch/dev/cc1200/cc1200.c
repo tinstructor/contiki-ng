@@ -2377,6 +2377,14 @@ set_rf_cfg(const cc1200_rf_cfg_t *const rf_cfg_ptr) {
 
   cc1200_rf_cfg_ptr = rf_cfg_ptr;
 
+  /* Set output power */
+  new_txpower = cc1200_rf_cfg_ptr->max_txpower;
+  update_txpower(new_txpower);
+
+  /* Adjust CAA threshold */
+  new_cca_threshold = cc1200_rf_cfg_ptr->cca_threshold;
+  update_cca_threshold(new_cca_threshold);
+
   /* Turn on RX again unless we turn off anyway */
   if(!was_off) {
 #ifdef RF_FORCE_CALIBRATION

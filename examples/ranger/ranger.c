@@ -48,8 +48,8 @@ AUTOSTART_PROCESSES(&ranger_process);
 
 /*----------------------------------------------------------------------------*/
 extern const cc1200_rf_cfg_t cc1200_868_fsk_1_2kbps;
-extern const cc1200_rf_cfg_t cc1200_868_4gfsk_1000kbps;
 extern const cc1200_rf_cfg_t cc1200_802154g_863_870_fsk_50kbps;
+extern const cc1200_rf_cfg_t cc1200_868_4gfsk_1000kbps;
 
 static const cc1200_rf_cfg_t *rf_cfg_ptrs[] = {&cc1200_868_fsk_1_2kbps, 
                                                &cc1200_802154g_863_870_fsk_50kbps,
@@ -350,6 +350,8 @@ PROCESS_THREAD(ranger_process, ev, data)
                 {
                     LOG_INFO("Released user button\n");
                     NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, rf_cfg_ptrs[current_rf_cfg++ % RF_CFG_AMOUNT], sizeof(cc1200_rf_cfg_t));
+                    set_tx_power(TX_POWER_DBM);
+                    set_channel(CHANNEL);
                 }
             }
             else
