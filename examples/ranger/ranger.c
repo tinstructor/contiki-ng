@@ -58,6 +58,7 @@ static const cc1200_rf_cfg_t *rf_cfg_ptrs[] = {&cc1200_868_fsk_1_2kbps,
 enum {RF_CFG_AMOUNT = sizeof(rf_cfg_ptrs)/sizeof(rf_cfg_ptrs[0]),};
 
 static uint8_t current_rf_cfg_index = 0;
+static cc1200_rf_cfg_t current_rf_cfg;
 
 extern gpio_hal_pin_t send_pin;
 static process_event_t send_pin_event;
@@ -157,6 +158,11 @@ static void received_message(const message* current_message, uint16_t datalen)
 
     LOG_INFO("|-- RSSI: %" PRIi8 "\n", rssi);
     LOG_INFO("\\-- LQI: %" PRIu16 "\n", lqi);
+
+    radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_RF_CFG, &current_rf_cfg, 
+                                                      sizeof(cc1200_rf_cfg_t));
+    assert(result == RADIO_RESULT_OK);
+    LOG_INFO("Current RF config descriptor: %s\n", current_rf_cfg.cfg_descriptor);
 
     printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi8 "\n", current_message->package_nr, datalen, rssi);
 
@@ -298,7 +304,7 @@ static void set_rf_cfg(int rf_cfg_index)
         LOG_INFO("RF config index changed to %d.\n", rf_cfg_index);
         LOG_INFO("New RF config has descriptor \"%s\".\n", rf_cfg_ptrs[rf_cfg_index]->cfg_descriptor);
     }
-    
+
     package_nr_to_send = 0;
     LOG_INFO("Package number of TX messages reset to 0 after RF config change.\n");
 }
