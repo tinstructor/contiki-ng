@@ -387,9 +387,6 @@ PROCESS_THREAD(ranger_process, ev, data)
                 if (btn == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON))
                 {
                     LOG_INFO("Released user button\n");
-                    /*NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, 
-                                              rf_cfg_ptrs[current_rf_cfg_index++ % RF_CFG_AMOUNT], 
-                                              sizeof(cc1200_rf_cfg_t));*/
                     set_rf_cfg(current_rf_cfg_index++ % RF_CFG_AMOUNT);
                     set_tx_power(TX_POWER_DBM);
                     set_channel(CHANNEL);
