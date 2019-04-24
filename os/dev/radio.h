@@ -101,6 +101,11 @@ enum {
    */
   RADIO_PARAM_CHANNEL,
 
+  /*
+   * Radio configuration.
+   */
+  RADIO_PARAM_RF_CFG,
+
   /* Personal area network identifier, which is used by the address filter. */
   RADIO_PARAM_PAN_ID,
 

@@ -17,6 +17,9 @@
 #include "net/packetbuf.h"
 #include "ranger-net.h"
 
+#include "arch/dev/cc1200/cc1200-conf.h"
+#include "arch/dev/cc1200/cc1200-rf-cfg.h"
+
 #ifndef LOG_CONF_LEVEL_RANGER
 #define LOG_CONF_LEVEL_RANGER LOG_LEVEL_NONE
 #endif
