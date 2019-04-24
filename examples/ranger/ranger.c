@@ -47,6 +47,8 @@ PROCESS(ranger_process, "Ranger process");
 AUTOSTART_PROCESSES(&ranger_process);
 
 /*----------------------------------------------------------------------------*/
+extern const cc1200_rf_cfg_t cc1200_868_fsk_1_2kbps;
+
 extern gpio_hal_pin_t send_pin;
 static process_event_t send_pin_event;
 static gpio_hal_event_handler_t send_pin_event_handler;
@@ -335,6 +337,7 @@ PROCESS_THREAD(ranger_process, ev, data)
                 if (btn == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON))
                 {
                     LOG_INFO("Released user button\n");
+                    NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, &cc1200_868_fsk_1_2kbps, sizeof(cc1200_868_fsk_1_2kbps));
                     //set next radio config
                 }
             }

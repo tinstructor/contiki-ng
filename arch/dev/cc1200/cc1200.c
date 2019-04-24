@@ -2267,6 +2267,7 @@ static int
 set_rf_cfg(const cc1200_rf_cfg_t *const rf_cfg_ptr) {
 
   uint8_t was_off = 0;
+  uint8_t reg;
 
   if(SPI_IS_LOCKED() || (rf_flags & RF_TX_ACTIVE) || receiving_packet()) {
 
@@ -2293,7 +2294,86 @@ set_rf_cfg(const cc1200_rf_cfg_t *const rf_cfg_ptr) {
 
   idle();
 
-  //single_write();
+  /* Let's assure that the chip is in a clean state */
+  reset();
+
+  /* Write the configuration exported from SmartRF Studio */
+  write_reg_settings(rf_cfg_ptr->register_settings,
+                     rf_cfg_ptr->size_of_register_settings);
+
+  /* Write frequency offset */
+#if CC1200_FREQ_OFFSET
+  /* MSB */
+  single_write(CC1200_FREQOFF1, (uint8_t)(CC1200_FREQ_OFFSET >> 8));
+  /* LSB */
+  single_write(CC1200_FREQOFF0, (uint8_t)(CC1200_FREQ_OFFSET));
+#endif
+
+  /* RSSI offset */
+  single_write(CC1200_AGC_GAIN_ADJUST, (int8_t)rf_cfg_ptr->rssi_offset);
+
+  /* GPIOx configuration */
+  single_write(CC1200_IOCFG3, GPIO3_IOCFG);
+  single_write(CC1200_IOCFG2, GPIO2_IOCFG);
+  single_write(CC1200_IOCFG0, GPIO0_IOCFG);
+
+  reg = single_read(CC1200_SETTLING_CFG);
+
+  /* Turn of auto calibration, same as in configure(). */
+  reg &= ~(3 << 3);
+#if CC1200_AUTOCAL
+  /* We calibrate when going from idle to RX or TX */
+  reg |= (1 << 3);
+#endif
+  single_write(CC1200_SETTLING_CFG, reg);
+
+  /* Configure RXOFF_MODE */
+  reg = single_read(CC1200_RFEND_CFG1);
+  reg &= ~(3 << 4);                         /* RXOFF_MODE = IDLE */
+#if RXOFF_MODE_RX
+  reg |= (3 << 4);                          /* RXOFF_MODE = RX */
+#endif
+  reg |= 0x0F;                              /* Disable RX timeout */
+  single_write(CC1200_RFEND_CFG1, reg);
+
+  /* Configure TXOFF_MODE */
+  reg = single_read(CC1200_RFEND_CFG0);
+  reg &= ~(3 << 4);                         /* TXOFF_MODE = IDLE */
+#if TXOFF_MODE_RX
+  reg |= (3 << 4);                          /* TXOFF_MODE = RX */
+#endif
+  single_write(CC1200_RFEND_CFG0, reg);
+
+  /*
+   * CCA Mode 0: Always give clear channel indication.
+   * CCA is done "by hand". Keep in mind: automatic CCA would also
+   * affect the transmission of the ACK and is not implemented yet!
+   */
+#if CC1200_802154G
+  single_write(CC1200_PKT_CFG2, (1 << 5));
+#else
+  single_write(CC1200_PKT_CFG2, 0x00);
+#endif
+
+  /* Configure appendix */
+  reg = single_read(CC1200_PKT_CFG1);
+#if APPEND_STATUS
+  reg |= (1 << 0);
+#else
+  reg &= ~(1 << 0);
+#endif
+  single_write(CC1200_PKT_CFG1, reg);
+
+  /* Variable packet length mode */
+  reg = single_read(CC1200_PKT_CFG0);
+  reg &= ~(3 << 5);
+  reg |= (1 << 5);
+  single_write(CC1200_PKT_CFG0, reg);
+
+#ifdef FIFO_THRESHOLD
+  /* FIFO threshold */
+  single_write(CC1200_FIFO_CFG, FIFO_THRESHOLD);
+#endif
 
   cc1200_rf_cfg_ptr = rf_cfg_ptr;
 
