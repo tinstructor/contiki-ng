@@ -159,6 +159,7 @@ static void received_message(const message* current_message, uint16_t datalen)
     LOG_INFO("|-- RSSI: %" PRIi8 "\n", rssi);
     LOG_INFO("\\-- LQI: %" PRIu16 "\n", lqi);
 
+    // Is it a good idea to call the radio here? Takes valuable time!
     radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_RF_CFG, &current_rf_cfg, 
                                                       sizeof(cc1200_rf_cfg_t));
     assert(result == RADIO_RESULT_OK);
@@ -393,9 +394,12 @@ PROCESS_THREAD(ranger_process, ev, data)
                 if (btn == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON))
                 {
                     LOG_INFO("Released user button\n");
-                    set_rf_cfg(current_rf_cfg_index++ % RF_CFG_AMOUNT);
+                    
+                    set_rf_cfg(current_rf_cfg_index);
                     set_tx_power(TX_POWER_DBM);
                     set_channel(CHANNEL);
+
+                    current_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
                 }
             }
             else
