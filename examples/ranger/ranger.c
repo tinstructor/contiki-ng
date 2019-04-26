@@ -1,9 +1,12 @@
 
 #include <stdio.h>
-#include <assert.h>
 #include <inttypes.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdarg.h>
+
+#define NDEBUG
+#include <assert.h>
 
 #include "contiki.h"
 #include "sys/process.h"
@@ -33,12 +36,13 @@
 
 #define MAIN_INTERVAL_SECONDS   1
 #define MAIN_INTERVAL           (CLOCK_SECOND * MAIN_INTERVAL_SECONDS)
-#define CONTENT_SIZE            32
+#define CONTENT_SIZE            28
 #define TX_POWER_DBM            14
 #define CHANNEL                 26
 
+#define ENABLE_CFG_HANDSHAKE    0
 #define ENABLE_SEND_PIN         0
-#define UNIQUE_ID               UINT32_C(0x931de41a)
+#define UNIQUE_ID               UINT32_C(0x30695444)
 #define RX_RECEIVE_LEDS         LEDS_GREEN
 #define TX_SEND_LEDS            LEDS_RED
 
@@ -64,6 +68,13 @@ extern gpio_hal_pin_t send_pin;
 static process_event_t send_pin_event;
 static gpio_hal_event_handler_t send_pin_event_handler;
 
+typedef enum
+{
+    DATA,
+    CFG_REQ,
+    CFG_ACK,
+} ranger_message_t;
+
 static enum 
 {
     RX,
@@ -73,10 +84,24 @@ static enum
 
 typedef struct
 {
-    char content[CONTENT_SIZE];
-    uint32_t package_nr;
     uint32_t unique_id;
+    ranger_message_t message_type;
+    union
+    {
+        struct
+        {
+            char content[CONTENT_SIZE];
+            uint32_t package_nr;
+        };
+        struct
+        {
+            uint8_t rf_cfg_index;
+            uint32_t request_id;
+        };
+    };
 } message;
+
+static const message empty_message;
 
 static struct etimer message_send_tmr;
 
@@ -85,6 +110,21 @@ static int message_counter = 0;
 
 // node labelled "gateway" has link-addr: 0012.4b00.09df.4dee
 // static const linkaddr_t src_linkaddr = {{0x00, 0x12, 0x4b, 0x00, 0x09, 0xdf, 0x4d, 0xee}};
+
+/*----------------------------------------------------------------------------*/
+
+static void print_buffer(const char* buffer, int size, const char* specifier);
+static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_type, ...);
+static void received_ranger_net_message_callback(const void* data, uint16_t datalen,
+                                                 const linkaddr_t* src,
+                                                 const linkaddr_t* dest);
+static void toggle_mode(void);
+static void set_tx_power(int tx_power);
+static void set_channel(int channel);
+static void set_rf_cfg(int rf_cfg_index);
+static void send_handler(gpio_hal_pin_mask_t pin_mask);
+static void init_send_pin(void);
+static void print_diagnostics(void);
 
 /*----------------------------------------------------------------------------*/
 
@@ -100,27 +140,62 @@ static void print_buffer(const char* buffer, int size, const char* specifier)
     }
 }
 
-static void send_message(const linkaddr_t* dest_addr)
+static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_type, ...)
 {
+    va_list argptr;
+    va_start(argptr, message_type);
+
     leds_on(TX_SEND_LEDS);
 
     LOG_INFO("Sending message to ");
     LOG_INFO_LLADDR(dest_addr);
     LOG_INFO("\n");
 
-    message new_message;
-    memset(new_message.content, 0, CONTENT_SIZE);
-    strncpy(new_message.content, "hello world!", CONTENT_SIZE);
-    new_message.package_nr = package_nr_to_send;
+    message new_message = empty_message;
     new_message.unique_id = UNIQUE_ID;
-    package_nr_to_send++;
+    new_message.message_type = message_type;
 
-    LOG_INFO("Message with payload length %d\n", sizeof(new_message));
-    LOG_INFO("|-- Content (hex)  : ");
-    print_buffer(new_message.content, CONTENT_SIZE, "%02X ");
-    LOG_INFO("|-- Content (ascii): ");
-    print_buffer(new_message.content, CONTENT_SIZE, "%2c ");
-    LOG_INFO("\\-- Package number: %" PRIu32 "\n", new_message.package_nr);
+    switch (message_type)
+    {
+        case DATA:
+            {
+                memset(new_message.content, 0, CONTENT_SIZE);
+                strncpy(new_message.content, "hello world!", CONTENT_SIZE);
+                new_message.package_nr = package_nr_to_send;
+                package_nr_to_send++;
+
+                LOG_INFO("Data message with payload length %d\n", sizeof(new_message));
+                LOG_INFO("|-- Content (hex)  : ");
+                print_buffer(new_message.content, CONTENT_SIZE, "%02X ");
+                LOG_INFO("|-- Content (ascii): ");
+                print_buffer(new_message.content, CONTENT_SIZE, "%2c ");
+                LOG_INFO("\\-- Package number: %" PRIu32 "\n", new_message.package_nr);
+            }
+            break;
+        case CFG_REQ:
+            {
+                new_message.rf_cfg_index = va_arg(argptr, int);
+                new_message.request_id = va_arg(argptr, unsigned int);
+
+                LOG_INFO("Configuration request with payload length %d\n", sizeof(new_message));
+                LOG_INFO("|-- Requested configuration index: %" PRIu8 "\n", new_message.rf_cfg_index);
+                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", new_message.request_id);
+
+            }
+            break;
+        case CFG_ACK:
+            {
+                new_message.rf_cfg_index = va_arg(argptr, int);
+                new_message.request_id = va_arg(argptr, unsigned int);
+
+                LOG_INFO("Configuration acknowledgement with payload length %d\n", sizeof(new_message));
+                LOG_INFO("|-- Acknowledged configuration index: %" PRIu8 "\n", new_message.rf_cfg_index);
+                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", new_message.request_id);
+            }
+            break;
+        default:
+            break;
+    }
 
     ranger_net_buf = (uint8_t*) &new_message;
     ranger_net_len = sizeof(new_message);
@@ -130,46 +205,8 @@ static void send_message(const linkaddr_t* dest_addr)
     LOG_INFO("Message sent\n");
 
     leds_off(LEDS_ALL);
-}
 
-static void received_message(const message* current_message, uint16_t datalen)
-{
-    if (current_message->unique_id != UNIQUE_ID)
-    {
-        LOG_WARN("Received message with wrong unique id: got %" PRIx32 ", but expected %" PRIx32 ". Message ignored.\n",
-                 current_message->unique_id, 
-                 UNIQUE_ID);
-        return;
-    }
-
-    leds_on(RX_RECEIVE_LEDS);
-
-    message_counter++;
-
-    LOG_INFO("Message\n");
-    LOG_INFO("|-- Content (hex)  : ");
-    print_buffer(current_message->content, CONTENT_SIZE, "%02X ");
-    LOG_INFO("|-- Content (ascii): ");
-    print_buffer(current_message->content, CONTENT_SIZE, "%2c ");
-    LOG_INFO("|-- Package number: %" PRIu32 "\n", current_message->package_nr);
-
-    int8_t rssi = (int8_t) packetbuf_attr(PACKETBUF_ATTR_RSSI);
-    uint16_t lqi = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
-
-    LOG_INFO("|-- RSSI: %" PRIi8 "\n", rssi);
-    LOG_INFO("\\-- LQI: %" PRIu16 "\n", lqi);
-
-    // Is it a good idea to call the radio here? Takes valuable time!
-    radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_RF_CFG, &current_rf_cfg, 
-                                                      sizeof(cc1200_rf_cfg_t));
-    assert(result == RADIO_RESULT_OK);
-    LOG_INFO("Current RF config descriptor: %s\n", current_rf_cfg.cfg_descriptor);
-
-    printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi8 "\n", current_message->package_nr, datalen, rssi);
-
-    LOG_INFO("Total messages received: %d\n", message_counter);
-
-    leds_off(LEDS_ALL);
+    va_end(argptr);
 }
 
 static void received_ranger_net_message_callback(const void* data,
@@ -183,7 +220,70 @@ static void received_ranger_net_message_callback(const void* data,
     LOG_INFO_LLADDR(dest);
     LOG_INFO_(" with payload length %" PRIu16 "\n", datalen);
 
-    received_message((message*) data, datalen);
+    message *current_message = (message *)data;
+
+    if (current_message->unique_id != UNIQUE_ID)
+    {
+        LOG_WARN("Received message with wrong unique id: got %" PRIx32 ", but expected %" PRIx32 ". Message ignored.\n",
+                 current_message->unique_id, 
+                 UNIQUE_ID);
+        return;
+    }
+
+    leds_on(RX_RECEIVE_LEDS);
+
+    message_counter++;
+    
+    switch (current_message->message_type)
+    {
+        case DATA:
+            {
+                LOG_INFO("Data message\n");
+                LOG_INFO("|-- Content (hex)  : ");
+                print_buffer(current_message->content, CONTENT_SIZE, "%02X ");
+                LOG_INFO("|-- Content (ascii): ");
+                print_buffer(current_message->content, CONTENT_SIZE, "%2c ");
+                LOG_INFO("|-- Package number: %" PRIu32 "\n", current_message->package_nr);
+
+                int8_t rssi = (int8_t) packetbuf_attr(PACKETBUF_ATTR_RSSI);
+                uint16_t lqi = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
+
+                LOG_INFO("|-- RSSI: %" PRIi8 "\n", rssi);
+                LOG_INFO("\\-- LQI: %" PRIu16 "\n", lqi);
+
+                // Is it a good idea to call the radio here? Takes valuable time!
+                radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_RF_CFG, &current_rf_cfg, 
+                                                                sizeof(cc1200_rf_cfg_t));
+                assert(result == RADIO_RESULT_OK);
+                LOG_INFO("Current RF config descriptor: %s\n", current_rf_cfg.cfg_descriptor);
+
+                printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi8 "\n", current_message->package_nr, datalen, rssi);
+            }
+            break;
+        case CFG_REQ:
+            {
+                LOG_INFO("Configuration request\n");
+                LOG_INFO("|-- Requested configuration index: %" PRIu8 "\n", current_message->rf_cfg_index);
+                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message->request_id);
+                set_rf_cfg(current_message->rf_cfg_index);
+                send_message(src, CFG_ACK, (int)current_message->rf_cfg_index, 
+                            (unsigned int)current_message->request_id);
+            }
+            break;
+        case CFG_ACK:
+            {
+                LOG_INFO("Configuration acknowledgement\n");
+                LOG_INFO("|-- Acknowledged configuration index: %" PRIu8 "\n", current_message->rf_cfg_index);
+                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message->request_id);
+            }
+            break;
+        default:
+            break;
+    }
+
+    LOG_INFO("Total messages received: %d\n", message_counter);
+
+    leds_off(LEDS_ALL);
 }
 
 static void toggle_mode(void)
@@ -349,10 +449,9 @@ PROCESS_THREAD(ranger_process, ev, data)
 
     PROCESS_BEGIN();
 
-    if (ENABLE_SEND_PIN)
-    {
-        init_send_pin();
-    }
+    #if ENABLE_SEND_PIN
+    init_send_pin();
+    #endif
     
     //TODO: set current_rf_cfg_index to index of active rf_cfg at startup
 
@@ -395,6 +494,10 @@ PROCESS_THREAD(ranger_process, ev, data)
                 {
                     LOG_INFO("Released user button\n");
                     
+                    #if ENABLE_CFG_HANDSHAKE
+                    send_message(&linkaddr_null, CFG_REQ, (int)current_rf_cfg_index, (unsigned int)UNIQUE_ID);
+                    #endif
+
                     set_rf_cfg(current_rf_cfg_index);
                     set_tx_power(TX_POWER_DBM);
                     set_channel(CHANNEL);
@@ -409,13 +512,13 @@ PROCESS_THREAD(ranger_process, ev, data)
         }
         else if (ENABLE_SEND_PIN && ev == send_pin_event) 
         {
-            send_message(&linkaddr_null);
+            send_message(&linkaddr_null, DATA);
         }
         else if (etimer_expired(&message_send_tmr))
         {
             if (current_mode == TX)
             {
-                send_message(&linkaddr_null);
+                send_message(&linkaddr_null, DATA);
             }
             
             etimer_reset(&message_send_tmr);
