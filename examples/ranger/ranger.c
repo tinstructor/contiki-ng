@@ -40,7 +40,7 @@
 #define TX_POWER_DBM            14
 #define CHANNEL                 26
 
-#define ENABLE_CFG_HANDSHAKE    0
+#define ENABLE_CFG_HANDSHAKE    1
 #define ENABLE_SEND_PIN         0
 #define UNIQUE_ID               UINT32_C(0x30695444)
 #define RX_RECEIVE_LEDS         LEDS_GREEN
@@ -149,7 +149,7 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
 
     LOG_INFO("Sending message to ");
     LOG_INFO_LLADDR(dest_addr);
-    LOG_INFO("\n");
+    print_buffer(NULL, 0, NULL); // abuse of print_buffer() to print newline
 
     message new_message = empty_message;
     new_message.unique_id = UNIQUE_ID;
@@ -178,6 +178,7 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
                 new_message.request_id = va_arg(argptr, unsigned int);
 
                 LOG_INFO("Configuration request with payload length %d\n", sizeof(new_message));
+                LOG_INFO("|-- Current configuration index: %" PRIu8 "\n", current_rf_cfg_index);
                 LOG_INFO("|-- Requested configuration index: %" PRIu8 "\n", new_message.rf_cfg_index);
                 LOG_INFO("\\-- ID of request: %" PRIu32 "\n", new_message.request_id);
 
@@ -189,6 +190,7 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
                 new_message.request_id = va_arg(argptr, unsigned int);
 
                 LOG_INFO("Configuration acknowledgement with payload length %d\n", sizeof(new_message));
+                LOG_INFO("|-- Current configuration index: %" PRIu8 "\n", current_rf_cfg_index);
                 LOG_INFO("|-- Acknowledged configuration index: %" PRIu8 "\n", new_message.rf_cfg_index);
                 LOG_INFO("\\-- ID of request: %" PRIu32 "\n", new_message.request_id);
             }
@@ -220,12 +222,13 @@ static void received_ranger_net_message_callback(const void* data,
     LOG_INFO_LLADDR(dest);
     LOG_INFO_(" with payload length %" PRIu16 "\n", datalen);
 
-    message *current_message = (message *)data;
+    message current_message = empty_message;
+    memcpy(&current_message, data, sizeof(message));
 
-    if (current_message->unique_id != UNIQUE_ID)
+    if (current_message.unique_id != UNIQUE_ID)
     {
         LOG_WARN("Received message with wrong unique id: got %" PRIx32 ", but expected %" PRIx32 ". Message ignored.\n",
-                 current_message->unique_id, 
+                 current_message.unique_id, 
                  UNIQUE_ID);
         return;
     }
@@ -234,16 +237,16 @@ static void received_ranger_net_message_callback(const void* data,
 
     message_counter++;
     
-    switch (current_message->message_type)
+    switch (current_message.message_type)
     {
         case DATA:
             {
                 LOG_INFO("Data message\n");
                 LOG_INFO("|-- Content (hex)  : ");
-                print_buffer(current_message->content, CONTENT_SIZE, "%02X ");
+                print_buffer(current_message.content, CONTENT_SIZE, "%02X ");
                 LOG_INFO("|-- Content (ascii): ");
-                print_buffer(current_message->content, CONTENT_SIZE, "%2c ");
-                LOG_INFO("|-- Package number: %" PRIu32 "\n", current_message->package_nr);
+                print_buffer(current_message.content, CONTENT_SIZE, "%2c ");
+                LOG_INFO("|-- Package number: %" PRIu32 "\n", current_message.package_nr);
 
                 int8_t rssi = (int8_t) packetbuf_attr(PACKETBUF_ATTR_RSSI);
                 uint16_t lqi = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
@@ -257,24 +260,29 @@ static void received_ranger_net_message_callback(const void* data,
                 assert(result == RADIO_RESULT_OK);
                 LOG_INFO("Current RF config descriptor: %s\n", current_rf_cfg.cfg_descriptor);
 
-                printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi8 "\n", current_message->package_nr, datalen, rssi);
+                printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi8 "\n", current_message.package_nr, datalen, rssi);
             }
             break;
         case CFG_REQ:
             {
                 LOG_INFO("Configuration request\n");
-                LOG_INFO("|-- Requested configuration index: %" PRIu8 "\n", current_message->rf_cfg_index);
-                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message->request_id);
-                set_rf_cfg(current_message->rf_cfg_index);
-                send_message(src, CFG_ACK, (int)current_message->rf_cfg_index, 
-                            (unsigned int)current_message->request_id);
+                LOG_INFO("|-- Current configuration index: %" PRIu8 "\n", current_rf_cfg_index);
+                LOG_INFO("|-- Requested configuration index: %" PRIu8 "\n", current_message.rf_cfg_index);
+                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
+
+                send_message(src, CFG_ACK, (int)current_message.rf_cfg_index, 
+                            (unsigned int)current_message.request_id);
+
+                set_rf_cfg(current_message.rf_cfg_index);
+                set_tx_power(TX_POWER_DBM);
+                set_channel(CHANNEL);
             }
             break;
         case CFG_ACK:
             {
                 LOG_INFO("Configuration acknowledgement\n");
-                LOG_INFO("|-- Acknowledged configuration index: %" PRIu8 "\n", current_message->rf_cfg_index);
-                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message->request_id);
+                LOG_INFO("|-- Acknowledged configuration index: %" PRIu8 "\n", current_message.rf_cfg_index);
+                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
             }
             break;
         default:
@@ -383,6 +391,7 @@ static void set_rf_cfg(int rf_cfg_index)
         result = NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, rf_cfg_ptrs[RF_CFG_AMOUNT - 1],
                                            sizeof(cc1200_rf_cfg_t));
         assert(result == RADIO_RESULT_OK);
+        current_rf_cfg_index = RF_CFG_AMOUNT - 1;
         LOG_INFO("RF config index changed to maximum RF config index %d.\n", RF_CFG_AMOUNT - 1);
         LOG_INFO("New RF config has descriptor \"%s\".\n", rf_cfg_ptrs[RF_CFG_AMOUNT - 1]->cfg_descriptor);
     }
@@ -394,6 +403,7 @@ static void set_rf_cfg(int rf_cfg_index)
         result = NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, rf_cfg_ptrs[0],
                                            sizeof(cc1200_rf_cfg_t));
         assert(result == RADIO_RESULT_OK);
+        current_rf_cfg_index = 0;
         LOG_INFO("RF config index changed to minimum RF config index %d.\n", 0);
         LOG_INFO("New RF config has descriptor \"%s\".\n", rf_cfg_ptrs[0]->cfg_descriptor);
     }
@@ -402,6 +412,7 @@ static void set_rf_cfg(int rf_cfg_index)
         result = NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, rf_cfg_ptrs[rf_cfg_index],
                                            sizeof(cc1200_rf_cfg_t));
         assert(result == RADIO_RESULT_OK);
+        current_rf_cfg_index = rf_cfg_index;
         LOG_INFO("RF config index changed to %d.\n", rf_cfg_index);
         LOG_INFO("New RF config has descriptor \"%s\".\n", rf_cfg_ptrs[rf_cfg_index]->cfg_descriptor);
     }
@@ -446,6 +457,7 @@ PROCESS_THREAD(ranger_process, ev, data)
 {
     button_hal_button_t *btn;
     static bool long_press_flag = false; // static storage class => retain value between yielding
+    static struct etimer rf_cfg_delay_tmr;
 
     PROCESS_BEGIN();
 
@@ -493,16 +505,25 @@ PROCESS_THREAD(ranger_process, ev, data)
                 if (btn == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON))
                 {
                     LOG_INFO("Released user button\n");
-                    
+
                     #if ENABLE_CFG_HANDSHAKE
-                    send_message(&linkaddr_null, CFG_REQ, (int)current_rf_cfg_index, (unsigned int)UNIQUE_ID);
+                    send_message(&linkaddr_null, CFG_REQ, 
+                                 (int)((current_rf_cfg_index + 1) % RF_CFG_AMOUNT), 
+                                 (unsigned int)UNIQUE_ID);
+
+                    etimer_stop(&message_send_tmr);
+                    //TODO: find out why this delay is so finnecky
+                    etimer_set(&rf_cfg_delay_tmr, CLOCK_SECOND/10);
+                    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&rf_cfg_delay_tmr));
                     #endif
 
-                    set_rf_cfg(current_rf_cfg_index);
+                    set_rf_cfg((current_rf_cfg_index + 1) % RF_CFG_AMOUNT);
                     set_tx_power(TX_POWER_DBM);
                     set_channel(CHANNEL);
 
-                    current_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
+                    #ifdef ENABLE_CFG_HANDSHAKE
+                    etimer_reset(&message_send_tmr);
+                    #endif
                 }
             }
             else

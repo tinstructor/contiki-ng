@@ -5,7 +5,7 @@
 #define IEEE802154_CONF_PANID   0x1cc5
 
 //#define LOG_CONF_LEVEL_MAC          LOG_LEVEL_INFO
-//#define LOG_CONF_LEVEL_RANGER       LOG_LEVEL_INFO
+#define LOG_CONF_LEVEL_RANGER       LOG_LEVEL_INFO
 //#define LOG_CONF_LEVEL_RANGER_NET   LOG_LEVEL_INFO
 
 #define NETSTACK_CONF_NETWORK   ranger_net_driver
@@ -15,7 +15,7 @@
 #undef NETSTACK_CONF_RADIO
 #ifndef RADIO_2400MHZ
     #define NETSTACK_CONF_RADIO             cc1200_driver
-    #define CC1200_CONF_RF_CFG              cc1200_868_4gfsk_1000kbps
+    #define CC1200_CONF_RF_CFG              cc1200_868_fsk_1_2kbps
     #define ANTENNA_SW_SELECT_DEF_CONF      ANTENNA_SW_SELECT_SUBGHZ
     #define CC1200_CONF_USE_GPIO2           0
     #define CC1200_CONF_USE_RX_WATCHDOG     0
