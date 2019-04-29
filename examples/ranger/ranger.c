@@ -73,6 +73,7 @@ typedef enum
     DATA,
     CFG_REQ,
     CFG_ACK,
+    CFG_ERQ,
 } ranger_message_t;
 
 static enum 
@@ -104,10 +105,12 @@ typedef struct
 static const message empty_message;
 
 static struct etimer message_send_tmr;
+static struct etimer rf_cfg_delay_tmr;
 
 static uint32_t package_nr_to_send = 0;
 static int message_counter = 0;
 
+static const linkaddr_t empty_linkaddr;
 // node labelled "gateway" has link-addr: 0012.4b00.09df.4dee
 // static const linkaddr_t src_linkaddr = {{0x00, 0x12, 0x4b, 0x00, 0x09, 0xdf, 0x4d, 0xee}};
 
@@ -195,6 +198,15 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
                 LOG_INFO("\\-- ID of request: %" PRIu32 "\n", new_message.request_id);
             }
             break;
+        case CFG_ERQ:
+            {
+                new_message.rf_cfg_index = va_arg(argptr, int);
+                new_message.request_id = va_arg(argptr, unsigned int);
+
+                LOG_INFO("Configuration end of request with payload length %d\n", sizeof(new_message));
+                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", new_message.request_id);
+            }
+            break;
         default:
             break;
     }
@@ -216,10 +228,16 @@ static void received_ranger_net_message_callback(const void* data,
                                               const linkaddr_t* src,
                                               const linkaddr_t* dest)
 {
+    linkaddr_t src_addr = empty_linkaddr;
+    linkaddr_t dest_addr = empty_linkaddr;
+
+    linkaddr_copy(&src_addr, src);
+    linkaddr_copy(&dest_addr,dest);
+    
     LOG_INFO("Received message from ");
-    LOG_INFO_LLADDR(src);
+    LOG_INFO_LLADDR(&src_addr);
     LOG_INFO_(" to ");
-    LOG_INFO_LLADDR(dest);
+    LOG_INFO_LLADDR(&dest_addr);
     LOG_INFO_(" with payload length %" PRIu16 "\n", datalen);
 
     message current_message = empty_message;
@@ -270,12 +288,8 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("|-- Requested configuration index: %" PRIu8 "\n", current_message.rf_cfg_index);
                 LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
 
-                send_message(src, CFG_ACK, (int)current_message.rf_cfg_index, 
+                send_message(&src_addr, CFG_ACK, (int)current_message.rf_cfg_index, 
                             (unsigned int)current_message.request_id);
-
-                set_rf_cfg(current_message.rf_cfg_index);
-                set_tx_power(TX_POWER_DBM);
-                set_channel(CHANNEL);
             }
             break;
         case CFG_ACK:
@@ -283,6 +297,21 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("Configuration acknowledgement\n");
                 LOG_INFO("|-- Acknowledged configuration index: %" PRIu8 "\n", current_message.rf_cfg_index);
                 LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
+
+                send_message(&src_addr, CFG_ERQ, (int)current_message.rf_cfg_index, 
+                            (unsigned int)current_message.request_id);
+            }
+            break;
+        case CFG_ERQ:
+            {
+                LOG_INFO("Configuration end of request\n");
+                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
+
+                etimer_stop(&message_send_tmr);
+                set_rf_cfg(current_message.rf_cfg_index);
+                set_tx_power(TX_POWER_DBM);
+                set_channel(CHANNEL);
+                etimer_reset(&message_send_tmr);
             }
             break;
         default:
@@ -383,10 +412,10 @@ static void set_rf_cfg(int rf_cfg_index)
 {
     radio_result_t result;
 
-    if(rf_cfg_index > RF_CFG_AMOUNT)
+    if(rf_cfg_index >= RF_CFG_AMOUNT)
     {
         LOG_WARN("Requested RF config index %d is larger than maximum RF config index %d.\n", 
-                 rf_cfg_index, RF_CFG_AMOUNT);
+                 rf_cfg_index, RF_CFG_AMOUNT - 1);
         
         result = NETSTACK_RADIO.set_object(RADIO_PARAM_RF_CFG, rf_cfg_ptrs[RF_CFG_AMOUNT - 1],
                                            sizeof(cc1200_rf_cfg_t));
@@ -457,7 +486,6 @@ PROCESS_THREAD(ranger_process, ev, data)
 {
     button_hal_button_t *btn;
     static bool long_press_flag = false; // static storage class => retain value between yielding
-    static struct etimer rf_cfg_delay_tmr;
 
     PROCESS_BEGIN();
 
@@ -512,16 +540,17 @@ PROCESS_THREAD(ranger_process, ev, data)
                                  (unsigned int)UNIQUE_ID);
 
                     etimer_stop(&message_send_tmr);
-                    //TODO: find out why this delay is so finnecky
                     etimer_set(&rf_cfg_delay_tmr, CLOCK_SECOND/10);
-                    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&rf_cfg_delay_tmr));
-                    #endif
-
+                    PROCESS_WAIT_EVENT_UNTIL(ev == etimer_expired(&rf_cfg_delay_tmr));
                     set_rf_cfg((current_rf_cfg_index + 1) % RF_CFG_AMOUNT);
                     set_tx_power(TX_POWER_DBM);
                     set_channel(CHANNEL);
-
-                    #ifdef ENABLE_CFG_HANDSHAKE
+                    etimer_reset(&message_send_tmr);
+                    #else
+                    etimer_stop(&message_send_tmr);
+                    set_rf_cfg((current_rf_cfg_index + 1) % RF_CFG_AMOUNT);
+                    set_tx_power(TX_POWER_DBM);
+                    set_channel(CHANNEL);
                     etimer_reset(&message_send_tmr);
                     #endif
                 }
@@ -531,10 +560,12 @@ PROCESS_THREAD(ranger_process, ev, data)
                 long_press_flag = false;
             }
         }
-        else if (ENABLE_SEND_PIN && ev == send_pin_event) 
+        #if ENABLE_SEND_PIN
+        else if (ev == send_pin_event) 
         {
             send_message(&linkaddr_null, DATA);
         }
+        #endif
         else if (etimer_expired(&message_send_tmr))
         {
             if (current_mode == TX)

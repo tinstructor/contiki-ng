@@ -15,7 +15,7 @@
 #undef NETSTACK_CONF_RADIO
 #ifndef RADIO_2400MHZ
     #define NETSTACK_CONF_RADIO             cc1200_driver
-    #define CC1200_CONF_RF_CFG              cc1200_868_fsk_1_2kbps
+    #define CC1200_CONF_RF_CFG              cc1200_802154g_863_870_fsk_50kbps
     #define ANTENNA_SW_SELECT_DEF_CONF      ANTENNA_SW_SELECT_SUBGHZ
     #define CC1200_CONF_USE_GPIO2           0
     #define CC1200_CONF_USE_RX_WATCHDOG     0
