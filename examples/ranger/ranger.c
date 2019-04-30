@@ -48,6 +48,7 @@
 
 /*----------------------------------------------------------------------------*/
 PROCESS(ranger_process, "Ranger process");
+PROCESS(handshake_delay_process, "Handshake delay process");
 AUTOSTART_PROCESSES(&ranger_process);
 
 /*----------------------------------------------------------------------------*/
@@ -62,7 +63,8 @@ static const cc1200_rf_cfg_t *rf_cfg_ptrs[] = {&cc1200_868_fsk_1_2kbps,
 enum {RF_CFG_AMOUNT = sizeof(rf_cfg_ptrs)/sizeof(rf_cfg_ptrs[0]),};
 
 static uint8_t current_rf_cfg_index = 0;
-static cc1200_rf_cfg_t current_rf_cfg;
+static uint8_t next_rf_cfg_index = 0;
+static const cc1200_rf_cfg_t *current_rf_cfg = &CC1200_CONF_RF_CFG;
 
 extern gpio_hal_pin_t send_pin;
 static process_event_t send_pin_event;
@@ -105,7 +107,9 @@ typedef struct
 static const message empty_message;
 
 static struct etimer message_send_tmr;
-static struct etimer rf_cfg_delay_tmr;
+static struct ctimer handshake_delay_tmr;
+
+static process_event_t handshake_delay_event = 0;
 
 static uint32_t package_nr_to_send = 0;
 static int message_counter = 0;
@@ -128,6 +132,7 @@ static void set_rf_cfg(int rf_cfg_index);
 static void send_handler(gpio_hal_pin_mask_t pin_mask);
 static void init_send_pin(void);
 static void print_diagnostics(void);
+static void handshake_delay_callback(void *ptr);
 
 /*----------------------------------------------------------------------------*/
 
@@ -273,10 +278,10 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("\\-- LQI: %" PRIu16 "\n", lqi);
 
                 // Is it a good idea to call the radio here? Takes valuable time!
-                radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_RF_CFG, &current_rf_cfg, 
-                                                                sizeof(cc1200_rf_cfg_t));
-                assert(result == RADIO_RESULT_OK);
-                LOG_INFO("Current RF config descriptor: %s\n", current_rf_cfg.cfg_descriptor);
+                // radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_RF_CFG, current_rf_cfg, 
+                //                                                   sizeof(cc1200_rf_cfg_t));
+                // assert(result == RADIO_RESULT_OK);
+                // LOG_INFO("Current RF config descriptor: %s\n", current_rf_cfg->cfg_descriptor);
 
                 printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi8 "\n", current_message.package_nr, datalen, rssi);
             }
@@ -307,11 +312,10 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("Configuration end of request\n");
                 LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
 
-                etimer_stop(&message_send_tmr);
-                set_rf_cfg(current_message.rf_cfg_index);
-                set_tx_power(TX_POWER_DBM);
-                set_channel(CHANNEL);
-                etimer_reset(&message_send_tmr);
+                next_rf_cfg_index = current_message.rf_cfg_index;
+                LOG_INFO("Huh what?\n");
+                process_post(&handshake_delay_process, handshake_delay_event, 
+                             &next_rf_cfg_index);
             }
             break;
         default:
@@ -479,6 +483,14 @@ static void print_diagnostics(void)
     LOG_INFO("Transmission power: %d dBm\n", TX_POWER_DBM);
     LOG_INFO("Channel: %d\n", CHANNEL);
     LOG_INFO("Timer period: %d s\n", MAIN_INTERVAL_SECONDS);
+    LOG_INFO("Current RF config index: %" PRIu8 "\n", current_rf_cfg_index);
+}
+
+static void handshake_delay_callback(void *ptr)
+{
+    set_rf_cfg(*(uint8_t *)ptr);
+    set_tx_power(TX_POWER_DBM);
+    set_channel(CHANNEL);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -493,13 +505,25 @@ PROCESS_THREAD(ranger_process, ev, data)
     init_send_pin();
     #endif
     
-    //TODO: set current_rf_cfg_index to index of active rf_cfg at startup
-
+    bool found_rf_cfg_index = false;
+    for(size_t i = 0; i < RF_CFG_AMOUNT && !found_rf_cfg_index; i++)
+    {
+        if (current_rf_cfg->cfg_descriptor == rf_cfg_ptrs[i]->cfg_descriptor
+            && current_rf_cfg->register_settings == rf_cfg_ptrs[i]->register_settings) 
+        {
+            current_rf_cfg_index = i;
+            found_rf_cfg_index = true;
+        }
+    }
+    
     set_tx_power(TX_POWER_DBM);
     set_channel(CHANNEL);
 
     print_diagnostics();
     LOG_INFO("Started ranger process\n");
+
+    handshake_delay_event = process_alloc_event();
+    process_start(&handshake_delay_process, NULL);
 
     leds_off(LEDS_ALL);
 
@@ -538,20 +562,14 @@ PROCESS_THREAD(ranger_process, ev, data)
                     send_message(&linkaddr_null, CFG_REQ, 
                                  (int)((current_rf_cfg_index + 1) % RF_CFG_AMOUNT), 
                                  (unsigned int)UNIQUE_ID);
-
-                    etimer_stop(&message_send_tmr);
-                    etimer_set(&rf_cfg_delay_tmr, CLOCK_SECOND/10);
-                    PROCESS_WAIT_EVENT_UNTIL(ev == etimer_expired(&rf_cfg_delay_tmr));
-                    set_rf_cfg((current_rf_cfg_index + 1) % RF_CFG_AMOUNT);
-                    set_tx_power(TX_POWER_DBM);
-                    set_channel(CHANNEL);
-                    etimer_reset(&message_send_tmr);
+                                 
+                    next_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
+                    process_post(&handshake_delay_process, handshake_delay_event, 
+                                 &next_rf_cfg_index);
                     #else
-                    etimer_stop(&message_send_tmr);
                     set_rf_cfg((current_rf_cfg_index + 1) % RF_CFG_AMOUNT);
                     set_tx_power(TX_POWER_DBM);
                     set_channel(CHANNEL);
-                    etimer_reset(&message_send_tmr);
                     #endif
                 }
             }
@@ -577,7 +595,29 @@ PROCESS_THREAD(ranger_process, ev, data)
         }
     }
 
-    LOG_INFO("Done...\n");
+    LOG_INFO("Ranger process done...\n");
+
+    PROCESS_END();
+}
+
+PROCESS_THREAD(handshake_delay_process, ev, data)
+{
+    PROCESS_BEGIN();
+
+    LOG_INFO("Started handshake delay process\n");
+
+    while(1) 
+    {
+        PROCESS_YIELD();
+        if(ev == handshake_delay_event)
+        {
+            LOG_INFO("Handshake delay event was triggered!\n");
+            ctimer_set(&handshake_delay_tmr, CLOCK_SECOND, 
+                       handshake_delay_callback, data);
+        }
+    }
+
+    LOG_INFO("Handshake delay process done...\n");
 
     PROCESS_END();
 }
