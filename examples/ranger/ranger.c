@@ -23,6 +23,8 @@
 
 #include "ranger-net.h"
 #include "ranger-constants.h"
+#include "ranger-types.h"
+#include "ranger-functions.h"
 
 #ifndef LOG_CONF_LEVEL_RANGER
 #define LOG_CONF_LEVEL_RANGER LOG_LEVEL_NONE
@@ -32,38 +34,12 @@
 #define LOG_LEVEL LOG_CONF_LEVEL_RANGER
 
 /*----------------------------------------------------------------------------*/
-// Change these for your own use case
-// Make sure that the interval is long enough to send and receive your messages
-
-#define MAIN_INTERVAL_SECONDS   1
-#define MAIN_INTERVAL           (CLOCK_SECOND * MAIN_INTERVAL_SECONDS)
-#define CONTENT_SIZE            28
-#define TX_POWER_DBM            14
-#define CHANNEL                 26
-
-#define ENABLE_CFG_HANDSHAKE    1
-#define ENABLE_SEND_PIN         0
-#define UNIQUE_ID               UINT32_C(0x30695444)
-#define RX_RECEIVE_LEDS         LEDS_GREEN
-#define TX_SEND_LEDS            LEDS_RED
-
-/*----------------------------------------------------------------------------*/
 
 PROCESS(ranger_process, "Ranger process");
 PROCESS(handshake_delay_process, "Handshake delay process");
 AUTOSTART_PROCESSES(&ranger_process);
 
 /*----------------------------------------------------------------------------*/
-
-extern const cc1200_rf_cfg_t cc1200_868_fsk_1_2kbps;
-extern const cc1200_rf_cfg_t cc1200_802154g_863_870_fsk_50kbps;
-extern const cc1200_rf_cfg_t cc1200_868_4gfsk_1000kbps;
-
-static const cc1200_rf_cfg_t *rf_cfg_ptrs[] = {&cc1200_868_fsk_1_2kbps, 
-                                               &cc1200_802154g_863_870_fsk_50kbps,
-                                               &cc1200_868_4gfsk_1000kbps};
-
-enum {RF_CFG_AMOUNT = sizeof(rf_cfg_ptrs)/sizeof(rf_cfg_ptrs[0]),};
 
 static uint8_t current_rf_cfg_index = 0;
 static uint8_t next_rf_cfg_index = 0;
@@ -73,41 +49,12 @@ extern gpio_hal_pin_t send_pin;
 static process_event_t send_pin_event;
 static gpio_hal_event_handler_t send_pin_event_handler;
 
-typedef enum
-{
-    DATA,
-    CFG_REQ,
-    CFG_ACK,
-    CFG_ERQ,
-} ranger_message_t;
-
 static enum 
 {
     RX,
     TX,
     MODE_AMOUNT,
 } current_mode;
-
-typedef struct
-{
-    uint32_t unique_id;
-    ranger_message_t message_type;
-    union
-    {
-        struct
-        {
-            char content[CONTENT_SIZE];
-            uint32_t package_nr;
-        };
-        struct
-        {
-            uint8_t rf_cfg_index;
-            uint32_t request_id;
-        };
-    };
-} message;
-
-static const message empty_message;
 
 static struct etimer message_send_tmr;
 static struct etimer handshake_delay_tmr;
@@ -120,26 +67,6 @@ static uint32_t package_nr_to_send = 0;
 static int message_counter = 0;
 
 static bool reset_mode_flag = false;
-
-static const linkaddr_t empty_linkaddr;
-// node labelled "gateway" has link-addr: 0012.4b00.09df.4dee
-// static const linkaddr_t src_linkaddr = {{0x00, 0x12, 0x4b, 0x00, 0x09, 0xdf, 0x4d, 0xee}};
-
-/*----------------------------------------------------------------------------*/
-
-static void print_buffer(const char* buffer, int size, const char* specifier);
-static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_type, ...);
-static void received_ranger_net_message_callback(const void* data, uint16_t datalen,
-                                                 const linkaddr_t* src,
-                                                 const linkaddr_t* dest);
-static void toggle_mode(void);
-static void set_mode(int mode);
-static void set_tx_power(int tx_power);
-static void set_channel(int channel);
-static void set_rf_cfg(int rf_cfg_index);
-static void send_handler(gpio_hal_pin_mask_t pin_mask);
-static void init_send_pin(void);
-static void print_diagnostics(void);
 
 /*----------------------------------------------------------------------------*/
 
@@ -507,7 +434,7 @@ static void init_send_pin(void)
 static void print_diagnostics(void)
 {
     LOG_INFO("Device: %s\n", BOARD_STRING);
-    LOG_INFO("Payload size: %zu byte(s)\n", sizeof(message));
+    LOG_INFO("Payload size: %d byte(s)\n", sizeof(message));
     LOG_INFO("Transmission power: %d dBm\n", TX_POWER_DBM);
     LOG_INFO("Channel: %d\n", CHANNEL);
     LOG_INFO("Timer period: %d s\n", MAIN_INTERVAL_SECONDS);
