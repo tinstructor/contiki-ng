@@ -4,13 +4,17 @@
 #undef  IEEE802154_CONF_PANID
 #define IEEE802154_CONF_PANID   0x1cc5
 
-//#define LOG_CONF_LEVEL_MAC          LOG_LEVEL_INFO
+#define LOG_CONF_LEVEL_MAIN         LOG_LEVEL_DBG
+#define LOG_CONF_LEVEL_MAC          LOG_LEVEL_DBG
 #define LOG_CONF_LEVEL_RANGER       LOG_LEVEL_INFO
 //#define LOG_CONF_LEVEL_RANGER_NET   LOG_LEVEL_INFO
 
 #define NETSTACK_CONF_NETWORK   ranger_net_driver
 
 #define BUTTON_HAL_CONF_WITH_DESCRIPTION    1
+
+//REVIEW: make sure this doesn't have severe consequences elsewhere
+#define WATCHDOG_CONF_ENABLE                1
 
 #undef NETSTACK_CONF_RADIO
 #ifndef RADIO_2400MHZ

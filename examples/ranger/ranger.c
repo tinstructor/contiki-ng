@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <inttypes.h>
 #include <stdlib.h>
@@ -18,10 +17,12 @@
 #include "dev/radio.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
-#include "ranger-net.h"
 
 #include "arch/dev/cc1200/cc1200-conf.h"
 #include "arch/dev/cc1200/cc1200-rf-cfg.h"
+
+#include "ranger-net.h"
+#include "ranger-constants.h"
 
 #ifndef LOG_CONF_LEVEL_RANGER
 #define LOG_CONF_LEVEL_RANGER LOG_LEVEL_NONE
@@ -47,11 +48,13 @@
 #define TX_SEND_LEDS            LEDS_RED
 
 /*----------------------------------------------------------------------------*/
+
 PROCESS(ranger_process, "Ranger process");
 PROCESS(handshake_delay_process, "Handshake delay process");
 AUTOSTART_PROCESSES(&ranger_process);
 
 /*----------------------------------------------------------------------------*/
+
 extern const cc1200_rf_cfg_t cc1200_868_fsk_1_2kbps;
 extern const cc1200_rf_cfg_t cc1200_802154g_863_870_fsk_50kbps;
 extern const cc1200_rf_cfg_t cc1200_868_4gfsk_1000kbps;
@@ -249,6 +252,7 @@ static void received_ranger_net_message_callback(const void* data,
     LOG_INFO_LLADDR(&dest_addr);
     LOG_INFO_(" with payload length %" PRIu16 "\n", datalen);
 
+    //TODO: see if this operation has much influence on performance
     message current_message = empty_message;
     memcpy(&current_message, data, sizeof(message));
 
@@ -297,9 +301,11 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("|-- Requested configuration index: %" PRIu8 "\n", current_message.rf_cfg_index);
                 LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
 
-                send_message(&src_addr, CFG_ACK, (int)current_message.rf_cfg_index, 
-                            (unsigned int)current_message.request_id);
+                // send_message(&src_addr, CFG_ACK, (int)current_message.rf_cfg_index, 
+                //             (unsigned int)current_message.request_id);
 
+                //REVIEW: do we put the rf cfg here and make everything async?
+                //REVIEW: do we keep the ACK and ERQ messages in case of async?
                 next_rf_cfg_index = current_message.rf_cfg_index;
                 process_post(&handshake_delay_process, handshake_rx_delay_event, 
                              &next_rf_cfg_index);
@@ -311,8 +317,9 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("|-- Acknowledged configuration index: %" PRIu8 "\n", current_message.rf_cfg_index);
                 LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
 
-                send_message(&src_addr, CFG_ERQ, (int)current_message.rf_cfg_index, 
-                            (unsigned int)current_message.request_id);
+                //TODO: filter on request ID of current handshake session
+                // send_message(&src_addr, CFG_ERQ, (int)current_message.rf_cfg_index, 
+                //             (unsigned int)current_message.request_id);
             }
             break;
         case CFG_ERQ:
@@ -580,6 +587,7 @@ PROCESS_THREAD(ranger_process, ev, data)
                         toggle_mode();
                         reset_mode_flag = true;
                     }
+                    //TODO: use random value instead of unique ID
                     send_message(&linkaddr_null, CFG_REQ, 
                                  (int)((current_rf_cfg_index + 1) % RF_CFG_AMOUNT), 
                                  (unsigned int)UNIQUE_ID);
@@ -631,6 +639,8 @@ PROCESS_THREAD(ranger_process, ev, data)
     PROCESS_END();
 }
 
+/*----------------------------------------------------------------------------*/
+
 PROCESS_THREAD(handshake_delay_process, ev, data)
 {
     static uint8_t rf_cfg_to_set = 0;
@@ -645,7 +655,7 @@ PROCESS_THREAD(handshake_delay_process, ev, data)
         {
             rf_cfg_to_set = *(uint8_t *) data;
             LOG_INFO("TX handshake delay event was triggered!\n");
-            etimer_set(&handshake_delay_tmr, 2*CLOCK_SECOND);
+            etimer_set(&handshake_delay_tmr, 2*(CLOCK_SECOND/10)+2*CLOCK_SECOND);
             PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&handshake_delay_tmr));
             set_rf_cfg(rf_cfg_to_set);
             set_tx_power(TX_POWER_DBM);
@@ -656,7 +666,7 @@ PROCESS_THREAD(handshake_delay_process, ev, data)
         {
             rf_cfg_to_set = *(uint8_t *) data;
             LOG_INFO("RX handshake delay event was triggered!\n");
-            etimer_set(&handshake_delay_tmr, 5*(CLOCK_SECOND/10)+CLOCK_SECOND);
+            etimer_set(&handshake_delay_tmr, 8*(CLOCK_SECOND/10)+1*CLOCK_SECOND);
             PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&handshake_delay_tmr));
             set_rf_cfg(rf_cfg_to_set);
             set_tx_power(TX_POWER_DBM);
