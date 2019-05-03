@@ -17,6 +17,7 @@
 #include "dev/radio.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
+#include "random.h"
 
 #include "arch/dev/cc1200/cc1200-conf.h"
 #include "arch/dev/cc1200/cc1200-rf-cfg.h"
@@ -41,9 +42,9 @@ AUTOSTART_PROCESSES(&ranger_process);
 
 /*----------------------------------------------------------------------------*/
 
-static uint8_t current_rf_cfg_index = 0;
-static uint8_t next_rf_cfg_index = 0;
-static const cc1200_rf_cfg_t *current_rf_cfg = &CC1200_CONF_RF_CFG;
+static uint8_t current_rf_cfg_index;
+static uint8_t next_rf_cfg_index;
+static const cc1200_rf_cfg_t *current_rf_cfg = &CC1200_CONF_RF_CFG; //NOTE: pointer to const != constant
 
 extern gpio_hal_pin_t send_pin;
 static process_event_t send_pin_event;
@@ -59,14 +60,16 @@ static enum
 static struct etimer message_send_tmr;
 static struct etimer handshake_delay_tmr;
 
-static process_event_t handshake_tx_delay_event = 0;
-static process_event_t handshake_rx_delay_event = 0;
-static process_event_t reset_mode_event = 0;
+static process_event_t handshake_tx_delay_event;
+static process_event_t handshake_rx_delay_event;
+static process_event_t reset_mode_event;
 
-static uint32_t package_nr_to_send = 0;
-static int message_counter = 0;
+static uint32_t package_nr_to_send;
+static int message_counter;
 
 static bool reset_mode_flag = false;
+
+static uint32_t current_request_id;
 
 /*----------------------------------------------------------------------------*/
 
@@ -82,6 +85,7 @@ static void print_buffer(const char* buffer, int size, const char* specifier)
     }
 }
 
+//TODO: return an error when arguments are invalid
 static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_type, ...)
 {
     va_list argptr;
@@ -163,9 +167,9 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
 }
 
 static void received_ranger_net_message_callback(const void* data,
-                                              uint16_t datalen,
-                                              const linkaddr_t* src,
-                                              const linkaddr_t* dest)
+                                                 uint16_t datalen,
+                                                 const linkaddr_t* src,
+                                                 const linkaddr_t* dest)
 {
     linkaddr_t src_addr = empty_linkaddr;
     linkaddr_t dest_addr = empty_linkaddr;
@@ -212,11 +216,7 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("|-- RSSI: %" PRIi8 "\n", rssi);
                 LOG_INFO("\\-- LQI: %" PRIu16 "\n", lqi);
 
-                // Is it a good idea to call the radio here? Takes valuable time!
-                // radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_RF_CFG, current_rf_cfg, 
-                //                                                   sizeof(cc1200_rf_cfg_t));
-                // assert(result == RADIO_RESULT_OK);
-                // LOG_INFO("Current RF config descriptor: %s\n", current_rf_cfg->cfg_descriptor);
+                printf("Current RF config descriptor: %s\n", current_rf_cfg->cfg_descriptor);
 
                 printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi8 "\n", current_message.package_nr, datalen, rssi);
             }
@@ -228,14 +228,20 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("|-- Requested configuration index: %" PRIu8 "\n", current_message.rf_cfg_index);
                 LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
 
-                // send_message(&src_addr, CFG_ACK, (int)current_message.rf_cfg_index, 
-                //             (unsigned int)current_message.request_id);
+                if (current_message.request_id != current_request_id) 
+                {
+                    //REVIEW: do we keep the ACK messages in case of async?
+                    //FIXME: trying to send when messages are incoming may trip the watchdog
+                    // send_message(&src_addr, CFG_ACK, (int)current_message.rf_cfg_index, 
+                    //              (unsigned int)current_message.request_id);
 
-                //REVIEW: do we put the rf cfg here and make everything async?
-                //REVIEW: do we keep the ACK and ERQ messages in case of async?
-                next_rf_cfg_index = current_message.rf_cfg_index;
-                process_post(&handshake_delay_process, handshake_rx_delay_event, 
-                             &next_rf_cfg_index);
+                    //REVIEW: do we put the rf cfg here and make everything async?
+                    next_rf_cfg_index = current_message.rf_cfg_index;
+                    process_post(&handshake_delay_process, handshake_rx_delay_event, 
+                                 &next_rf_cfg_index);
+                }
+
+                current_request_id = current_message.request_id;
             }
             break;
         case CFG_ACK:
@@ -244,9 +250,12 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("|-- Acknowledged configuration index: %" PRIu8 "\n", current_message.rf_cfg_index);
                 LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
 
-                //TODO: filter on request ID of current handshake session
-                // send_message(&src_addr, CFG_ERQ, (int)current_message.rf_cfg_index, 
-                //             (unsigned int)current_message.request_id);
+                //REVIEW: do we keep the ERQ messages in case of async?
+                // if (current_message.request_id == current_request_id)
+                // {
+                //     send_message(&src_addr, CFG_ERQ, (int)current_message.rf_cfg_index, 
+                //                  (unsigned int)current_message.request_id);
+                // }
             }
             break;
         case CFG_ERQ:
@@ -278,7 +287,7 @@ static void set_mode(int mode)
     }
     else if (mode < 0)
     {
-        LOG_WARN("Requested lesser than minimum!\n");
+        LOG_WARN("Requested mode lesser than minimum!\n");
         current_mode = 0;
     }
     else
@@ -289,6 +298,7 @@ static void set_mode(int mode)
     leds_off(LEDS_ALL);
 }
 
+//TODO: return error values instead of using assert statements
 static void set_tx_power(int tx_power)
 {
     LOG_INFO("Setting TX power to %d dBm\n", tx_power);
@@ -330,6 +340,7 @@ static void set_tx_power(int tx_power)
     }
 }
 
+//TODO: return error values instead of using assert statements
 static void set_channel(int channel)
 {
     LOG_INFO("Changing channel to nr %d\n", channel);
@@ -367,6 +378,7 @@ static void set_channel(int channel)
     }
 }
 
+//TODO: return error values instead of using assert statements
 static void set_rf_cfg(int rf_cfg_index)
 {
     radio_result_t result;
@@ -405,6 +417,7 @@ static void set_rf_cfg(int rf_cfg_index)
         LOG_INFO("New RF config has descriptor \"%s\".\n", rf_cfg_ptrs[rf_cfg_index]->cfg_descriptor);
     }
 
+    current_rf_cfg = rf_cfg_ptrs[current_rf_cfg_index];
     package_nr_to_send = 0;
     LOG_INFO("Package number of TX messages reset to 0 after RF config change.\n");
 }
@@ -452,6 +465,8 @@ PROCESS_THREAD(ranger_process, ev, data)
     #if ENABLE_SEND_PIN
     init_send_pin();
     #endif
+
+    current_request_id = random_rand();
     
     bool found_rf_cfg_index = false;
     for(size_t i = 0; i < RF_CFG_AMOUNT && !found_rf_cfg_index; i++)
@@ -514,10 +529,14 @@ PROCESS_THREAD(ranger_process, ev, data)
                         toggle_mode();
                         reset_mode_flag = true;
                     }
-                    //TODO: use random value instead of unique ID
-                    send_message(&linkaddr_null, CFG_REQ, 
-                                 (int)((current_rf_cfg_index + 1) % RF_CFG_AMOUNT), 
-                                 (unsigned int)UNIQUE_ID);
+
+                    current_request_id = random_rand();
+                    for(size_t i = 0; i < BURST_AMOUNT; i++)
+                    {
+                        send_message(&linkaddr_null, CFG_REQ, 
+                                     (int)((current_rf_cfg_index + 1) % RF_CFG_AMOUNT), 
+                                     (unsigned int)current_request_id);
+                    }
                                  
                     next_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
                     process_post(&handshake_delay_process, handshake_tx_delay_event, 
@@ -549,7 +568,6 @@ PROCESS_THREAD(ranger_process, ev, data)
             
             etimer_reset(&message_send_tmr);
         }
-        #if ENABLE_CFG_HANDSHAKE
         else if (ev == reset_mode_event)
         {
             if (reset_mode_flag)
@@ -558,7 +576,6 @@ PROCESS_THREAD(ranger_process, ev, data)
                 reset_mode_flag = false;
             }
         }
-        #endif
     }
 
     LOG_INFO("Ranger process done...\n");

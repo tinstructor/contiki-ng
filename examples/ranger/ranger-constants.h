@@ -16,6 +16,7 @@
 
 #define ENABLE_CFG_HANDSHAKE    1
 #define ENABLE_SEND_PIN         0
+#define BURST_AMOUNT            3
 #define UNIQUE_ID               UINT32_C(0x30695444)
 #define RX_RECEIVE_LEDS         LEDS_GREEN
 #define TX_SEND_LEDS            LEDS_RED
