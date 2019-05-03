@@ -2,6 +2,7 @@
 #define RANGER_TYPES_H_
 
 #include <inttypes.h>
+#include "contiki.h"
 
 #ifndef CONTENT_SIZE
 #define CONTENT_SIZE 28
@@ -33,5 +34,11 @@ typedef struct
         };
     };
 } message;
+
+typedef struct
+{
+    uint8_t next_rf_cfg_index;
+    clock_time_t handshake_delay;
+} handshake_delay_t;
 
 #endif /* RANGER_TYPES_H_ */

@@ -34,8 +34,9 @@ static const cc1200_rf_cfg_t * const rf_cfg_ptrs[] = {&cc1200_868_fsk_1_2kbps,
 enum {RF_CFG_AMOUNT = sizeof(rf_cfg_ptrs)/sizeof(rf_cfg_ptrs[0]),};
 
 static const message empty_message;
-
+static const handshake_delay_t empty_handshake_delay;
 static const linkaddr_t empty_linkaddr;
+
 // node labelled "gateway" has link-addr: 0012.4b00.09df.4dee
 // static const linkaddr_t src_linkaddr = {{0x00, 0x12, 0x4b, 0x00, 0x09, 0xdf, 0x4d, 0xee}};
 

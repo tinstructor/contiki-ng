@@ -43,7 +43,7 @@ AUTOSTART_PROCESSES(&ranger_process);
 /*----------------------------------------------------------------------------*/
 
 static uint8_t current_rf_cfg_index;
-static uint8_t next_rf_cfg_index;
+static handshake_delay_t current_handshake_delay;
 static const cc1200_rf_cfg_t *current_rf_cfg = &CC1200_CONF_RF_CFG; //NOTE: pointer to const != constant
 
 extern gpio_hal_pin_t send_pin;
@@ -60,8 +60,7 @@ static enum
 static struct etimer message_send_tmr;
 static struct etimer handshake_delay_tmr;
 
-static process_event_t handshake_tx_delay_event;
-static process_event_t handshake_rx_delay_event;
+static process_event_t handshake_delay_event;
 static process_event_t reset_mode_event;
 
 static uint32_t package_nr_to_send;
@@ -236,9 +235,11 @@ static void received_ranger_net_message_callback(const void* data,
                     //              (unsigned int)current_message.request_id);
 
                     //REVIEW: do we put the rf cfg here and make everything async?
-                    next_rf_cfg_index = current_message.rf_cfg_index;
-                    process_post(&handshake_delay_process, handshake_rx_delay_event, 
-                                 &next_rf_cfg_index);
+                    current_handshake_delay = empty_handshake_delay;
+                    current_handshake_delay.next_rf_cfg_index = current_message.rf_cfg_index;
+                    current_handshake_delay.handshake_delay = 8*(CLOCK_SECOND/10)+1*CLOCK_SECOND;
+                    process_post(&handshake_delay_process, handshake_delay_event, 
+                                 &current_handshake_delay);
                 }
 
                 current_request_id = current_message.request_id;
@@ -486,8 +487,8 @@ PROCESS_THREAD(ranger_process, ev, data)
     LOG_INFO("Started ranger process\n");
 
     reset_mode_event = process_alloc_event();
-    handshake_tx_delay_event = process_alloc_event();
-    handshake_rx_delay_event = process_alloc_event();
+    handshake_delay_event = process_alloc_event();
+    handshake_delay_event = process_alloc_event();
     process_start(&handshake_delay_process, NULL);
 
     leds_off(LEDS_ALL);
@@ -537,10 +538,12 @@ PROCESS_THREAD(ranger_process, ev, data)
                                      (int)((current_rf_cfg_index + 1) % RF_CFG_AMOUNT), 
                                      (unsigned int)current_request_id);
                     }
-                                 
-                    next_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
-                    process_post(&handshake_delay_process, handshake_tx_delay_event, 
-                                 &next_rf_cfg_index);
+
+                    current_handshake_delay = empty_handshake_delay;         
+                    current_handshake_delay.next_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
+                    current_handshake_delay.handshake_delay = 2*(CLOCK_SECOND/10)+2*CLOCK_SECOND;
+                    process_post(&handshake_delay_process, handshake_delay_event, 
+                                 &current_handshake_delay);
                     #else
                     set_rf_cfg((current_rf_cfg_index + 1) % RF_CFG_AMOUNT);
                     set_tx_power(TX_POWER_DBM);
@@ -588,6 +591,7 @@ PROCESS_THREAD(ranger_process, ev, data)
 PROCESS_THREAD(handshake_delay_process, ev, data)
 {
     static uint8_t rf_cfg_to_set = 0;
+    static clock_time_t delay_to_set = 0;
     PROCESS_BEGIN();
 
     LOG_INFO("Started handshake delay process\n");
@@ -595,22 +599,12 @@ PROCESS_THREAD(handshake_delay_process, ev, data)
     while(1) 
     {
         PROCESS_YIELD();
-        if(ev == handshake_tx_delay_event)
+        if(ev == handshake_delay_event)
         {
-            rf_cfg_to_set = *(uint8_t *) data;
-            LOG_INFO("TX handshake delay event was triggered!\n");
-            etimer_set(&handshake_delay_tmr, 2*(CLOCK_SECOND/10)+2*CLOCK_SECOND);
-            PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&handshake_delay_tmr));
-            set_rf_cfg(rf_cfg_to_set);
-            set_tx_power(TX_POWER_DBM);
-            set_channel(CHANNEL);
-            process_post(&ranger_process, reset_mode_event, NULL);
-        }
-        else if (ev == handshake_rx_delay_event)
-        {
-            rf_cfg_to_set = *(uint8_t *) data;
-            LOG_INFO("RX handshake delay event was triggered!\n");
-            etimer_set(&handshake_delay_tmr, 8*(CLOCK_SECOND/10)+1*CLOCK_SECOND);
+            rf_cfg_to_set = ((handshake_delay_t *)data)->next_rf_cfg_index;
+            delay_to_set = ((handshake_delay_t *)data)->handshake_delay;
+            LOG_INFO("Handshake delay event was triggered!\n");
+            etimer_set(&handshake_delay_tmr, delay_to_set);
             PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&handshake_delay_tmr));
             set_rf_cfg(rf_cfg_to_set);
             set_tx_power(TX_POWER_DBM);
