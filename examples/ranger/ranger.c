@@ -38,6 +38,7 @@
 
 PROCESS(ranger_process, "Ranger process");
 PROCESS(handshake_delay_process, "Handshake delay process");
+PROCESS(auto_measure_process, "Automated measurement process");
 AUTOSTART_PROCESSES(&ranger_process);
 
 /*----------------------------------------------------------------------------*/
@@ -59,9 +60,11 @@ static enum
 
 static struct etimer message_send_tmr;
 static struct etimer handshake_delay_tmr;
+static struct etimer auto_measure_tmr;
 
 static process_event_t handshake_delay_event;
 static process_event_t reset_mode_event;
+static process_event_t auto_measure_event;
 
 static uint32_t package_nr_to_send;
 static int message_counter;
@@ -182,7 +185,7 @@ static void received_ranger_net_message_callback(const void* data,
     LOG_INFO_LLADDR(&dest_addr);
     LOG_INFO_(" with payload length %" PRIu16 "\n", datalen);
 
-    //TODO: see if this operation has much influence on performance
+    //REVIEW: see if this operation has much influence on performance
     message current_message = empty_message;
     memcpy(&current_message, data, sizeof(message));
 
@@ -215,8 +218,11 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("|-- RSSI: %" PRIi8 "\n", rssi);
                 LOG_INFO("\\-- LQI: %" PRIu16 "\n", lqi);
 
-                printf("Current RF config descriptor: %s\n", current_rf_cfg->cfg_descriptor);
+                //printf("Current RF config descriptor: %s\n", current_rf_cfg->cfg_descriptor);
 
+                //FIXME: rssi is signed int with one byte width, some values overflow (see line 951 in cc1200.c)
+                //REVIEW: the rssi offsets in the radio configs seems arbitrary and causes overflow
+                //TODO: add info to csv-log and adapt analyzer.py to work with new log
                 printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi8 "\n", current_message.package_nr, datalen, rssi);
             }
             break;
@@ -488,8 +494,9 @@ PROCESS_THREAD(ranger_process, ev, data)
 
     reset_mode_event = process_alloc_event();
     handshake_delay_event = process_alloc_event();
-    handshake_delay_event = process_alloc_event();
+    auto_measure_event = process_alloc_event();
     process_start(&handshake_delay_process, NULL);
+    process_start(&auto_measure_process, NULL);
 
     leds_off(LEDS_ALL);
 
@@ -513,6 +520,9 @@ PROCESS_THREAD(ranger_process, ev, data)
                 LOG_INFO("Pressed user button for 5 seconds\n");
                 long_press_flag = true;
                 toggle_mode();
+                #if ENABLE_AUTO_MEASURE && (!ENABLE_CFG_HANDSHAKE)
+                process_post(&auto_measure_process, auto_measure_event, NULL);
+                #endif
             }
         }
         else if (ev == button_hal_release_event)
@@ -544,7 +554,7 @@ PROCESS_THREAD(ranger_process, ev, data)
                     current_handshake_delay.handshake_delay = 2*(CLOCK_SECOND/10)+2*CLOCK_SECOND;
                     process_post(&handshake_delay_process, handshake_delay_event, 
                                  &current_handshake_delay);
-                    #else
+                    #elif !ENABLE_AUTO_MEASURE
                     set_rf_cfg((current_rf_cfg_index + 1) % RF_CFG_AMOUNT);
                     set_tx_power(TX_POWER_DBM);
                     set_channel(CHANNEL);
@@ -609,11 +619,73 @@ PROCESS_THREAD(handshake_delay_process, ev, data)
             set_rf_cfg(rf_cfg_to_set);
             set_tx_power(TX_POWER_DBM);
             set_channel(CHANNEL);
+            //REVIEW: reason for triggering an event instead of toggling here?
             process_post(&ranger_process, reset_mode_event, NULL);
         }
     }
 
     LOG_INFO("Handshake delay process done...\n");
+
+    PROCESS_END();
+}
+
+/*----------------------------------------------------------------------------*/
+
+PROCESS_THREAD(auto_measure_process, ev, data)
+{
+    static bool end_of_measurement = false;
+    static size_t auto_measure_index = 0;
+    PROCESS_BEGIN();
+
+    LOG_INFO("Started auto measure process\n");
+
+    while(1) 
+    {
+        PROCESS_YIELD();
+        if(ev == auto_measure_event)
+        {
+            while (!end_of_measurement)
+            {
+                etimer_set(&auto_measure_tmr, AUTO_MEASURE_INTERVAL);
+                PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&auto_measure_tmr));
+
+                auto_measure_index++;
+                if (auto_measure_index >= RF_CFG_AMOUNT)
+                {
+                    toggle_mode();
+                    package_nr_to_send = 0;
+                    auto_measure_index = 0;
+                    end_of_measurement = true;
+                }
+                else
+                {
+                    if (current_mode == TX) 
+                    {
+                        toggle_mode();
+                        reset_mode_flag = true;
+                    }
+
+                    current_request_id = random_rand();
+                    for(size_t i = 0; i < BURST_AMOUNT; i++)
+                    {
+                        send_message(&linkaddr_null, CFG_REQ, 
+                                     (int)((current_rf_cfg_index + 1) % RF_CFG_AMOUNT), 
+                                     (unsigned int)current_request_id);
+                    }
+                    current_handshake_delay = empty_handshake_delay;         
+                    current_handshake_delay.next_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
+                    //TODO: get rid of magic numbers for delay
+                    current_handshake_delay.handshake_delay = 2*(CLOCK_SECOND/10)+2*CLOCK_SECOND;
+                    process_post(&handshake_delay_process, handshake_delay_event, 
+                                 &current_handshake_delay);
+                }
+                
+            }
+            end_of_measurement = false;
+        }
+    }
+
+    LOG_INFO("Auto measure process done...\n");
 
     PROCESS_END();
 }

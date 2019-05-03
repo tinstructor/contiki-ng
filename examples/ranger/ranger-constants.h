@@ -9,12 +9,16 @@
 // Make sure that the interval is long enough to send and receive your messages
 
 #define MAIN_INTERVAL_SECONDS   1
-#define MAIN_INTERVAL           (CLOCK_SECOND * MAIN_INTERVAL_SECONDS)
+//#define MAIN_INTERVAL           (CLOCK_SECOND * MAIN_INTERVAL_SECONDS)
+#define MAIN_INTERVAL           (CLOCK_SECOND / 2)
 #define CONTENT_SIZE            28
 #define TX_POWER_DBM            14
 #define CHANNEL                 26
 
-#define ENABLE_CFG_HANDSHAKE    1
+#define AUTO_MEASURE_SECONDS    30
+#define AUTO_MEASURE_INTERVAL   (CLOCK_SECOND * AUTO_MEASURE_SECONDS)
+#define ENABLE_AUTO_MEASURE     1
+#define ENABLE_CFG_HANDSHAKE    0
 #define ENABLE_SEND_PIN         0
 #define BURST_AMOUNT            3
 #define UNIQUE_ID               UINT32_C(0x30695444)
