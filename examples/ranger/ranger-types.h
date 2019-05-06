@@ -41,4 +41,11 @@ typedef struct
     clock_time_t handshake_delay;
 } handshake_delay_t;
 
+typedef enum
+{
+    RX,
+    TX,
+    MODE_AMOUNT,
+} transceiver_mode_t;
+
 #endif /* RANGER_TYPES_H_ */

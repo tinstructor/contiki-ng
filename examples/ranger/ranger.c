@@ -13,7 +13,7 @@
 #include "sys/log.h"
 #include "dev/gpio-hal.h"
 #include "dev/button-hal.h"
-#include "dev/leds.h"
+#include "dev/rgb-led/rgb-led.h"
 #include "dev/radio.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
@@ -39,10 +39,13 @@
 PROCESS(ranger_process, "Ranger process");
 PROCESS(handshake_delay_process, "Handshake delay process");
 PROCESS(auto_measure_process, "Automated measurement process");
+// PROCESS(led_process, "Led process");
 AUTOSTART_PROCESSES(&ranger_process);
 
 /*----------------------------------------------------------------------------*/
 
+// static uint8_t current_rf_cfg_led_color;
+// static uint8_t current_rx_tx_led_color;
 static uint8_t current_rf_cfg_index;
 static handshake_delay_t current_handshake_delay;
 static const cc1200_rf_cfg_t *current_rf_cfg = &CC1200_CONF_RF_CFG; //NOTE: pointer to const != constant
@@ -51,20 +54,17 @@ extern gpio_hal_pin_t send_pin;
 static process_event_t send_pin_event;
 static gpio_hal_event_handler_t send_pin_event_handler;
 
-static enum 
-{
-    RX,
-    TX,
-    MODE_AMOUNT,
-} current_mode;
+static transceiver_mode_t current_mode;
 
 static struct etimer message_send_tmr;
 static struct etimer handshake_delay_tmr;
 static struct etimer auto_measure_tmr;
+// static struct etimer led_off_tmr;
 
 static process_event_t handshake_delay_event;
 static process_event_t reset_mode_event;
 static process_event_t auto_measure_event;
+// static process_event_t led_event;
 
 static uint32_t package_nr_to_send;
 static int message_counter;
@@ -93,7 +93,9 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
     va_list argptr;
     va_start(argptr, message_type);
 
-    leds_on(TX_SEND_LEDS);
+    // current_rx_tx_led_color = TX_SEND_LED;
+    // process_post(&led_process, led_event, &current_rx_tx_led_color);
+    rgb_led_set(TX_SEND_LED);
 
     LOG_INFO("Sending message to ");
     LOG_INFO_LLADDR(dest_addr);
@@ -163,7 +165,8 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
 
     LOG_INFO("Message sent\n");
 
-    leds_off(LEDS_ALL);
+    // process_post(&led_process, led_event, &current_rf_cfg_led_color);
+    rgb_led_off();
 
     va_end(argptr);
 }
@@ -197,7 +200,9 @@ static void received_ranger_net_message_callback(const void* data,
         return;
     }
 
-    leds_on(RX_RECEIVE_LEDS);
+    // current_rx_tx_led_color = RX_RECEIVE_LED;
+    // process_post(&led_process, led_event, &current_rx_tx_led_color);
+    rgb_led_set(RX_RECEIVE_LED);
 
     message_counter++;
     
@@ -212,18 +217,16 @@ static void received_ranger_net_message_callback(const void* data,
                 print_buffer(current_message.content, CONTENT_SIZE, "%2c ");
                 LOG_INFO("|-- Package number: %" PRIu32 "\n", current_message.package_nr);
 
-                int8_t rssi = (int8_t) packetbuf_attr(PACKETBUF_ATTR_RSSI);
+                int16_t rssi = (int16_t) packetbuf_attr(PACKETBUF_ATTR_RSSI);
                 uint16_t lqi = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
 
-                LOG_INFO("|-- RSSI: %" PRIi8 "\n", rssi);
+                LOG_INFO("|-- RSSI: %" PRIi16 "\n", rssi);
                 LOG_INFO("\\-- LQI: %" PRIu16 "\n", lqi);
 
                 //printf("Current RF config descriptor: %s\n", current_rf_cfg->cfg_descriptor);
 
-                //FIXME: rssi is signed int with one byte width, some values overflow (see line 951 in cc1200.c)
-                //REVIEW: the rssi offsets in the radio configs seems arbitrary and causes overflow
                 //TODO: add info to csv-log and adapt analyzer.py to work with new log
-                printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi8 "\n", current_message.package_nr, datalen, rssi);
+                printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi16 "\n", current_message.package_nr, datalen, rssi);
             }
             break;
         case CFG_REQ:
@@ -243,7 +246,7 @@ static void received_ranger_net_message_callback(const void* data,
                     //REVIEW: do we put the rf cfg here and make everything async?
                     current_handshake_delay = empty_handshake_delay;
                     current_handshake_delay.next_rf_cfg_index = current_message.rf_cfg_index;
-                    current_handshake_delay.handshake_delay = 8*(CLOCK_SECOND/10)+1*CLOCK_SECOND;
+                    current_handshake_delay.handshake_delay = HANDSHAKE_RX_DELAY;
                     process_post(&handshake_delay_process, handshake_delay_event, 
                                  &current_handshake_delay);
                 }
@@ -277,7 +280,9 @@ static void received_ranger_net_message_callback(const void* data,
 
     LOG_INFO("Total messages received: %d\n", message_counter);
 
-    leds_off(LEDS_ALL);
+    // process_post(&led_process, led_event, &current_rf_cfg_led_color);
+    rgb_led_off();
+
 }
 
 static void toggle_mode(void)
@@ -302,7 +307,7 @@ static void set_mode(int mode)
         current_mode = mode;
     }
     LOG_INFO("Mode set to %d.\n", current_mode);
-    leds_off(LEDS_ALL);
+    rgb_led_off();
 }
 
 //TODO: return error values instead of using assert statements
@@ -425,6 +430,7 @@ static void set_rf_cfg(int rf_cfg_index)
     }
 
     current_rf_cfg = rf_cfg_ptrs[current_rf_cfg_index];
+    // current_rf_cfg_led_color = rf_cfg_leds[current_rf_cfg_index];
     package_nr_to_send = 0;
     LOG_INFO("Package number of TX messages reset to 0 after RF config change.\n");
 }
@@ -457,7 +463,6 @@ static void print_diagnostics(void)
     LOG_INFO("Payload size: %d byte(s)\n", sizeof(message));
     LOG_INFO("Transmission power: %d dBm\n", TX_POWER_DBM);
     LOG_INFO("Channel: %d\n", CHANNEL);
-    LOG_INFO("Timer period: %d s\n", MAIN_INTERVAL_SECONDS);
     LOG_INFO("Current RF config index: %" PRIu8 "\n", current_rf_cfg_index);
 }
 
@@ -495,10 +500,14 @@ PROCESS_THREAD(ranger_process, ev, data)
     reset_mode_event = process_alloc_event();
     handshake_delay_event = process_alloc_event();
     auto_measure_event = process_alloc_event();
+    // led_event = process_alloc_event();
     process_start(&handshake_delay_process, NULL);
     process_start(&auto_measure_process, NULL);
+    // process_start(&led_process, NULL);
 
-    leds_off(LEDS_ALL);
+    // current_rf_cfg_led_color = rf_cfg_leds[current_rf_cfg_index];
+    // rgb_led_set(current_rf_cfg_led_color);
+    rgb_led_off();
 
     ranger_net_set_input_callback(received_ranger_net_message_callback);
 
@@ -551,7 +560,7 @@ PROCESS_THREAD(ranger_process, ev, data)
 
                     current_handshake_delay = empty_handshake_delay;         
                     current_handshake_delay.next_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
-                    current_handshake_delay.handshake_delay = 2*(CLOCK_SECOND/10)+2*CLOCK_SECOND;
+                    current_handshake_delay.handshake_delay = HANDSHAKE_TX_DELAY;
                     process_post(&handshake_delay_process, handshake_delay_event, 
                                  &current_handshake_delay);
                     #elif !ENABLE_AUTO_MEASURE
@@ -674,8 +683,7 @@ PROCESS_THREAD(auto_measure_process, ev, data)
                     }
                     current_handshake_delay = empty_handshake_delay;         
                     current_handshake_delay.next_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
-                    //TODO: get rid of magic numbers for delay
-                    current_handshake_delay.handshake_delay = 2*(CLOCK_SECOND/10)+2*CLOCK_SECOND;
+                    current_handshake_delay.handshake_delay = HANDSHAKE_TX_DELAY;
                     process_post(&handshake_delay_process, handshake_delay_event, 
                                  &current_handshake_delay);
                 }
@@ -689,3 +697,30 @@ PROCESS_THREAD(auto_measure_process, ev, data)
 
     PROCESS_END();
 }
+
+/*----------------------------------------------------------------------------*/
+
+// PROCESS_THREAD(led_process, ev, data)
+// {
+//     static uint8_t led_color;
+//     PROCESS_BEGIN();
+
+//     LOG_INFO("Started led process\n");
+
+//     while(1) 
+//     {
+//         PROCESS_YIELD();
+//         if(ev == led_event)
+//         {
+//             led_color = *(uint8_t *)data;
+//             rgb_led_off();
+//             etimer_set(&led_off_tmr, 80);
+//             PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&led_off_tmr));
+//             rgb_led_set(led_color);
+//         }
+//     }
+
+//     LOG_INFO("Led process done...\n");
+
+//     PROCESS_END();
+// }
