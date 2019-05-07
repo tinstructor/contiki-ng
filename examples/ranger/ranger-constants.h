@@ -30,13 +30,15 @@
 /*----------------------------------------------------------------------------*/
 
 extern const cc1200_rf_cfg_t cc1200_868_2fsk_1_2kbps;
+extern const cc1200_rf_cfg_t cc1200_868_2gfsk_19_2kbps;
 extern const cc1200_rf_cfg_t cc1200_868_2gfsk_50kbps;
 extern const cc1200_rf_cfg_t cc1200_868_2gfsk_100kbps;
 extern const cc1200_rf_cfg_t cc1200_868_4gfsk_200kbps;
 extern const cc1200_rf_cfg_t cc1200_868_2gfsk_500kbps;
 extern const cc1200_rf_cfg_t cc1200_868_4gfsk_1000kbps;
 
-static const cc1200_rf_cfg_t * const rf_cfg_ptrs[] = {&cc1200_868_2fsk_1_2kbps, 
+static const cc1200_rf_cfg_t * const rf_cfg_ptrs[] = {&cc1200_868_2fsk_1_2kbps,
+                                                      &cc1200_868_2gfsk_19_2kbps,
                                                       &cc1200_868_2gfsk_50kbps,
                                                       &cc1200_868_2gfsk_100kbps,
                                                       &cc1200_868_4gfsk_200kbps,
@@ -49,7 +51,9 @@ enum {RF_CFG_AMOUNT = sizeof(rf_cfg_ptrs)/sizeof(rf_cfg_ptrs[0]),};
 //                                       RGB_LED_MAGENTA,
 //                                       RGB_LED_WHITE,
 //                                       RGB_LED_YELLOW,
-//                                       RGB_LED_BLUE};
+//                                       RGB_LED_BLUE,
+//                                       RGB_LED_RED,
+//                                       RGB_LED_GREEN,};
 
 // static const uint8_t rx_tx_mode_leds[] = {RX_RECEIVE_LED,
 //                                           TX_SEND_LED};
