@@ -15,8 +15,6 @@
 #define RF_CFG_CCA_THRESHOLD            (-91)
 /* The RSSI offset in dBm */
 #define RF_CFG_RSSI_OFFSET              (-81)
-/* The bitrate in bps */
-#define RF_CFG_BITRATE			            100000
 /*---------------------------------------------------------------------------*/
 static const char rf_cfg_descriptor[] = "868MHz 2-GFSK 100 kbps";
 /*---------------------------------------------------------------------------*/
@@ -98,6 +96,9 @@ const cc1200_rf_cfg_t cc1200_868_2gfsk_100kbps = {
   .size_of_register_settings = sizeof(preferredSettings),
   .tx_pkt_lifetime = (RTIMER_SECOND),
   .tx_rx_turnaround = (RTIMER_SECOND / 100),
+  .delay_before_tx = 0,
+  .delay_before_rx = 0,
+  .delay_before_detect = 0,
   .chan_center_freq0 = RF_CFG_CHAN_CENTER_F0,
   .chan_spacing = RF_CFG_CHAN_SPACING,
   .min_channel = RF_CFG_MIN_CHANNEL,
@@ -105,4 +106,6 @@ const cc1200_rf_cfg_t cc1200_868_2gfsk_100kbps = {
   .max_txpower = RF_CFG_MAX_TXPOWER,
   .cca_threshold = RF_CFG_CCA_THRESHOLD,
   .rssi_offset = RF_CFG_RSSI_OFFSET,
+  .bitrate = 100000,
+  .tsch_timing = NULL,
 };
