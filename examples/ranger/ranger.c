@@ -75,7 +75,7 @@ static bool reset_mode_flag = false;
 static uint32_t current_request_id;
 
 #if ENABLE_UART_INPUT
-static button_hal_button_t fake_button_press = {.press_duration_seconds = 5,};
+static button_hal_button_t fake_button_press;
 #endif
 
 /*----------------------------------------------------------------------------*/
@@ -296,14 +296,24 @@ static int uart_byte_input_callback(unsigned char input)
     {
         case 't':
             {
+                memcpy(&fake_button_press, button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON), 
+                       sizeof(button_hal_button_t));
+                fake_button_press.press_duration_seconds = 5;
                 LOG_INFO("Fake button press triggered by pressing t key.\n");
                 process_post(&ranger_process, button_hal_periodic_event, &fake_button_press);
+            }
+            break;
+        case 'p':
+            {
+                memcpy(&fake_button_press, button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON), 
+                       sizeof(button_hal_button_t));
+                LOG_INFO("Fake button press triggered by pressing p key.\n");
+                process_post(&ranger_process, button_hal_release_event, &fake_button_press);
             }
             break;
         default:
             break;
     }
-
     return 1;
 }
 #endif
