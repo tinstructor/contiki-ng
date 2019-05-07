@@ -19,6 +19,7 @@
 #define ENABLE_AUTO_MEASURE     1
 #define ENABLE_CFG_HANDSHAKE    0
 #define ENABLE_SEND_PIN         0
+#define ENABLE_UART_INPUT       1
 #define BURST_AMOUNT            3
 #define UNIQUE_ID               UINT32_C(0x30695444)
 #define RX_RECEIVE_LED          RGB_LED_GREEN

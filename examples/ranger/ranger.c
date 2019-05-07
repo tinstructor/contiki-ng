@@ -18,6 +18,7 @@
 #include "net/netstack.h"
 #include "net/packetbuf.h"
 #include "random.h"
+#include "dev/uart.h"
 
 #include "arch/dev/cc1200/cc1200-conf.h"
 #include "arch/dev/cc1200/cc1200-rf-cfg.h"
@@ -72,6 +73,10 @@ static int message_counter;
 static bool reset_mode_flag = false;
 
 static uint32_t current_request_id;
+
+#if ENABLE_UART_INPUT
+static button_hal_button_t fake_button_press = {.press_duration_seconds = 5,};
+#endif
 
 /*----------------------------------------------------------------------------*/
 
@@ -282,8 +287,26 @@ static void received_ranger_net_message_callback(const void* data,
 
     // process_post(&led_process, led_event, &current_rf_cfg_led_color);
     rgb_led_off();
-
 }
+
+#if ENABLE_UART_INPUT
+static int uart_byte_input_callback(unsigned char input)
+{
+    switch (input)
+    {
+        case 't':
+            {
+                LOG_INFO("Fake button press triggered by pressing t key.\n");
+                process_post(&ranger_process, button_hal_periodic_event, &fake_button_press);
+            }
+            break;
+        default:
+            break;
+    }
+
+    return 1;
+}
+#endif
 
 static void toggle_mode(void)
 {
@@ -509,6 +532,9 @@ PROCESS_THREAD(ranger_process, ev, data)
     // rgb_led_set(current_rf_cfg_led_color);
     rgb_led_off();
 
+    #if ENABLE_UART_INPUT
+    uart_set_input(0, uart_byte_input_callback);
+    #endif
     ranger_net_set_input_callback(received_ranger_net_message_callback);
 
     current_mode = RX;
