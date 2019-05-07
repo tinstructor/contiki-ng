@@ -223,7 +223,7 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("|-- RSSI: %" PRIi16 "\n", rssi);
                 LOG_INFO("\\-- LQI: %" PRIu16 "\n", lqi);
 
-                //printf("Current RF config descriptor: %s\n", current_rf_cfg->cfg_descriptor);
+                printf("Current RF config descriptor: %s\n", current_rf_cfg->cfg_descriptor);
 
                 //TODO: add info to csv-log and adapt analyzer.py to work with new log
                 printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi16 "\n", current_message.package_nr, datalen, rssi);

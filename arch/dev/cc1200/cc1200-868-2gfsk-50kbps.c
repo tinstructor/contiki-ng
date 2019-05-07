@@ -61,7 +61,7 @@
 /* The RSSI offset in dBm */
 #define RF_CFG_RSSI_OFFSET              (-81)
 /*---------------------------------------------------------------------------*/
-static const char rf_cfg_descriptor[] = "802.15.4g 863-870MHz MR-FSK mode #1";
+static const char rf_cfg_descriptor[] = "868MHz 2-GFSK 50 kbps";
 /*---------------------------------------------------------------------------*/
 
 /* 1 byte time: 160 usec */
@@ -200,7 +200,7 @@ static const registerSetting_t preferredSettings[]=
 };
 /*---------------------------------------------------------------------------*/
 /* Global linkage: symbol name must be different in each exported file! */
-const cc1200_rf_cfg_t cc1200_802154g_863_870_fsk_50kbps = {
+const cc1200_rf_cfg_t cc1200_868_2gfsk_50kbps = {
   .cfg_descriptor = rf_cfg_descriptor,
   .register_settings = preferredSettings,
   .size_of_register_settings = sizeof(preferredSettings),

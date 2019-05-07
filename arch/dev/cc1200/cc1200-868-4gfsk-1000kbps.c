@@ -55,7 +55,7 @@
 /* The RSSI offset in dBm */
 #define RF_CFG_RSSI_OFFSET              (-81)
 /*---------------------------------------------------------------------------*/
-static const char rf_cfg_descriptor[] = "868MHz 2-GFSK 1000 kbps";
+static const char rf_cfg_descriptor[] = "868MHz 4-GFSK 1000 kbps";
 /*---------------------------------------------------------------------------*/
 
 /* 1 byte time: 8 usec */

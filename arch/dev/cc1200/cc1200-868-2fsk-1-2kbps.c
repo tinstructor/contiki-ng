@@ -120,7 +120,7 @@ static const registerSetting_t preferredSettings[]=
 };
 /*---------------------------------------------------------------------------*/
 /* Global linkage: symbol name must be different in each exported file! */
-const cc1200_rf_cfg_t cc1200_868_fsk_1_2kbps = {
+const cc1200_rf_cfg_t cc1200_868_2fsk_1_2kbps = {
   .cfg_descriptor = rf_cfg_descriptor,
   .register_settings = preferredSettings,
   .size_of_register_settings = sizeof(preferredSettings),
