@@ -311,6 +311,12 @@ static int uart_byte_input_callback(unsigned char input)
                 process_post(&ranger_process, button_hal_release_event, &fake_button_press);
             }
             break;
+        case 'r':
+            {
+                LOG_INFO("Reboot triggered by pressing r key.\n");
+                watchdog_reboot();
+            }
+            break;
         default:
             break;
     }
