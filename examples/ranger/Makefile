@@ -1,10 +1,10 @@
 CONTIKI_PROJECT = ranger
 all: $(CONTIKI_PROJECT)
 
-#MODULES := $(filter-out arch/dev/cc1200,$(MODULES))
 MODULES += examples/ranger/$(TARGET)/$(BOARD)
 
 PROJECT_SOURCEFILES += ranger-net.c
+CONTIKI_TARGET_SOURCEFILES += tmp102.c
 
 MAKE_MAC = MAKE_MAC_CSMA
 MAKE_NET = MAKE_NET_OTHER

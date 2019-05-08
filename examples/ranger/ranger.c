@@ -19,6 +19,7 @@
 #include "net/packetbuf.h"
 #include "random.h"
 #include "dev/uart.h"
+#include "dev/tmp102.h"
 
 #include "arch/dev/cc1200/cc1200-conf.h"
 #include "arch/dev/cc1200/cc1200-rf-cfg.h"
@@ -65,6 +66,7 @@ static struct etimer auto_measure_tmr;
 static process_event_t handshake_delay_event;
 static process_event_t reset_mode_event;
 static process_event_t auto_measure_event;
+static process_event_t read_temp_event;
 // static process_event_t led_event;
 
 static uint32_t package_nr_to_send;
@@ -75,6 +77,7 @@ static bool reset_mode_flag = false;
 static uint32_t current_request_id;
 
 #if ENABLE_UART_INPUT
+static uint16_t temperature;
 static button_hal_button_t fake_button_press;
 #endif
 
@@ -294,20 +297,20 @@ static int uart_byte_input_callback(unsigned char input)
 {
     switch (input)
     {
-        case 't':
+        case 'l':
             {
                 memcpy(&fake_button_press, button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON), 
                        sizeof(button_hal_button_t));
                 fake_button_press.press_duration_seconds = 5;
-                LOG_INFO("Fake button press triggered by pressing t key.\n");
+                LOG_INFO("Fake button press triggered by pressing l key.\n");
                 process_post(&ranger_process, button_hal_periodic_event, &fake_button_press);
             }
             break;
-        case 'p':
+        case 's':
             {
                 memcpy(&fake_button_press, button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON), 
                        sizeof(button_hal_button_t));
-                LOG_INFO("Fake button press triggered by pressing p key.\n");
+                LOG_INFO("Fake button press triggered by pressing s key.\n");
                 process_post(&ranger_process, button_hal_release_event, &fake_button_press);
             }
             break;
@@ -315,6 +318,11 @@ static int uart_byte_input_callback(unsigned char input)
             {
                 LOG_INFO("Reboot triggered by pressing r key.\n");
                 watchdog_reboot();
+            }
+        case 't':
+            {
+                LOG_INFO("Temperature reading triggered by pressing t key.\n");
+                process_post(&ranger_process, read_temp_event, NULL);
             }
             break;
         default:
@@ -549,6 +557,8 @@ PROCESS_THREAD(ranger_process, ev, data)
     rgb_led_off();
 
     #if ENABLE_UART_INPUT
+    tmp102_init();
+    read_temp_event = process_alloc_event();
     uart_set_input(0, uart_byte_input_callback);
     #endif
     ranger_net_set_input_callback(received_ranger_net_message_callback);
@@ -640,6 +650,21 @@ PROCESS_THREAD(ranger_process, ev, data)
                 reset_mode_flag = false;
             }
         }
+        #if ENABLE_UART_INPUT
+        else if (ev == read_temp_event)
+        {
+            uint8_t i2c_error = I2C_MASTER_ERR_NONE;
+            i2c_error = tmp102_read(&temperature);
+            if (i2c_error == I2C_MASTER_ERR_NONE)
+            {
+                printf("The temperature at this location equals %d °C\n", temperature);
+            }
+            else
+            {
+                LOG_INFO("I2C error: %X \n", i2c_error);
+            }
+        }
+        #endif
     }
 
     LOG_INFO("Ranger process done...\n");
