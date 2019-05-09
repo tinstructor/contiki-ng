@@ -37,6 +37,7 @@
  */
 /*---------------------------------------------------------------------------*/
 #include <stdio.h>
+#include <stdbool.h>
 #include "contiki.h"
 #include "dev/i2c.h"
 #include "tmp102.h"
@@ -49,13 +50,14 @@ tmp102_init(void)
 /*---------------------------------------------------------------------------*/
 
 uint8_t
-tmp102_read(int *data)
+tmp102_read(int16_t *data)
 {
-  uint8_t buf[2];
-  uint16_t MSB;
-  uint16_t LSB;
-  uint16_t u_temp;
-  int16_t s_temp;
+  uint8_t buf[2] = {0,0};
+  uint16_t MSB = 0;
+  uint16_t LSB = 0;
+  uint16_t u_temp = 0;
+  bool is_negative = false;
+  int16_t s_temp = 0;
 
   /* Write to the temperature register to trigger a reading */
   if(i2c_single_send(TMP102_ADDR, TMP102_TEMP) == I2C_MASTER_ERR_NONE) {
@@ -69,13 +71,23 @@ tmp102_read(int *data)
       MSB = buf[0] << 4;
       LSB = buf[1] >> 4;
       u_temp = MSB + LSB;
-      if ((u_temp & (1 << 12)) != 0) {
+
+      is_negative = (u_temp & (1 << 12)) != 0;
+      if (is_negative) {
         s_temp = u_temp | ~((1 << 12) - 1);
+        MSB = s_temp & ~0x000F;
+        LSB = s_temp & ~0xFFF0;
       } else {
         s_temp = u_temp;
       }
-      
-      *data = s_temp;
+
+      if (LSB != 0) {
+        s_temp *= (0.0625/LSB);
+      } else {
+        s_temp *= 0.0625;
+      }
+
+      *data = ((-1)*is_negative)*s_temp;
       return I2C_MASTER_ERR_NONE;
     }
   }

@@ -67,7 +67,7 @@
 void tmp102_init(void);
 
 /** \brief Get a temperature reading from the TMP102 sensor */
-uint8_t tmp102_read(int *data);
+uint8_t tmp102_read(int16_t *data);
 
 /**
  * @}
