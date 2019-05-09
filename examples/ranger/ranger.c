@@ -77,7 +77,7 @@ static bool reset_mode_flag = false;
 static uint32_t current_request_id;
 
 #if ENABLE_UART_INPUT
-static uint16_t temperature;
+static int temperature;
 static button_hal_button_t fake_button_press;
 #endif
 

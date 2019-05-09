@@ -49,21 +49,28 @@ tmp102_init(void)
 /*---------------------------------------------------------------------------*/
 
 uint8_t
-tmp102_read(uint16_t *data)
+tmp102_read(int *data)
 {
   uint8_t buf[2];
-  uint16_t temp;
+  uint16_t MSB;
+  uint16_t LSB;
+  int temp;
 
   /* Write to the temperature register to trigger a reading */
   if(i2c_single_send(TMP102_ADDR, TMP102_TEMP) == I2C_MASTER_ERR_NONE) {
     /* Read two bytes only */
     if(i2c_burst_receive(TMP102_ADDR, buf, 2) == I2C_MASTER_ERR_NONE) {
       /* 12-bit value, TMP102 SBOS397F Table 8-9 */
-      temp = (buf[0] << 4) + (buf[1] >> 4);
-      if(temp > 2047) {
-        temp -= (1 << 12);
+      /* NOTE: Before the actual bit-shift, integer promotions are performed 
+         on both operands. The value of the right operand musn't be negative, 
+         and must be less than the width of the left operand after integer
+         promotion. Otherwise, the program’s behavior is undefined. */
+      MSB = buf[0] << 4;
+      LSB = buf[1] >> 4;
+      temp = MSB + LSB;
+      if ((temp & (1 << 12)) != 0) {
+        temp = temp | ~((1 << 12) - 1);
       }
-      temp *= 0.625;
       *data = temp;
       return I2C_MASTER_ERR_NONE;
     }
