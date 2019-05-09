@@ -37,8 +37,6 @@
  */
 /*---------------------------------------------------------------------------*/
 #include <stdio.h>
-#include <stdbool.h>
-#include <limits.h>
 #include "contiki.h"
 #include "dev/i2c.h"
 #include "tmp102.h"
@@ -55,9 +53,9 @@ tmp102_read(int16_t *data)
 {
   uint8_t buf[2] = {0,0};
   uint16_t MSB = 0;
-  uint8_t LSB = 0;
+  uint16_t LSB = 0;
   uint16_t u_temp = 0;
-  bool is_negative = false;
+  int16_t sign_bit_mask = 0;
   int16_t i_temp = 0;
 
   /* Write to the temperature register to trigger a reading */
@@ -69,22 +67,11 @@ tmp102_read(int16_t *data)
          on both operands. The value of the right operand musn't be negative, 
          and must be less than the width of the left operand after integer
          promotion. Otherwise, the program’s behavior is undefined. */
-      MSB = buf[0] << 4;
-      LSB = buf[1] >> 4;
-      u_temp = MSB + LSB;
-
-      is_negative = (u_temp & (1 << 11)) != 0;
-
-      if (is_negative) {
-        i_temp = (int16_t)(u_temp << 4);
-        i_temp = i_temp / 16;
-      } else {
-        i_temp = u_temp;
-      }
-
-      i_temp = (i_temp / 0.0625) + 0.5;
-      
-      *data = i_temp;
+      u_temp = (buf[0] << 4) + (buf[1] >> 4);
+      sign_bit_mask = 1U << (12 - 1);
+      u_temp = u_temp & ((1U << 12) - 1);
+      i_temp = (u_temp ^ sign_bit_mask) - sign_bit_mask;
+      *data = (i_temp * 0.0625) + 0.5;
       return I2C_MASTER_ERR_NONE;
     }
   }
