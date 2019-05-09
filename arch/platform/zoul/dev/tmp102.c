@@ -54,7 +54,8 @@ tmp102_read(int *data)
   uint8_t buf[2];
   uint16_t MSB;
   uint16_t LSB;
-  int temp;
+  uint16_t u_temp;
+  int16_t s_temp;
 
   /* Write to the temperature register to trigger a reading */
   if(i2c_single_send(TMP102_ADDR, TMP102_TEMP) == I2C_MASTER_ERR_NONE) {
@@ -67,11 +68,14 @@ tmp102_read(int *data)
          promotion. Otherwise, the program’s behavior is undefined. */
       MSB = buf[0] << 4;
       LSB = buf[1] >> 4;
-      temp = MSB + LSB;
-      if ((temp & (1 << 12)) != 0) {
-        temp = temp | ~((1 << 12) - 1);
+      u_temp = MSB + LSB;
+      if ((u_temp & (1 << 12)) != 0) {
+        s_temp = u_temp | ~((1 << 12) - 1);
+      } else {
+        s_temp = u_temp;
       }
-      *data = temp;
+      
+      *data = s_temp;
       return I2C_MASTER_ERR_NONE;
     }
   }
