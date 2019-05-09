@@ -52,8 +52,6 @@ uint8_t
 tmp102_read(int16_t *data)
 {
   uint8_t buf[2] = {0,0};
-  uint16_t MSB = 0;
-  uint16_t LSB = 0;
   uint16_t u_temp = 0;
   int16_t sign_bit_mask = 0;
   int16_t i_temp = 0;
