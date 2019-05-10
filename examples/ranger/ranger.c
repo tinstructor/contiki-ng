@@ -717,7 +717,7 @@ PROCESS_THREAD(led_process, ev, data)
             rf_cfg_led = *(uint8_t *)data;
             rgb_led_off();
             rgb_led_set(rf_cfg_led);
-            etimer_set(&led_on_tmr, CLOCK_SECOND);
+            etimer_set(&led_on_tmr, CLOCK_SECOND / 2);
             PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&led_on_tmr));
             rgb_led_off();
         }
