@@ -94,12 +94,14 @@ FINALLY you can start making changes to the code base. The ranger application is
 [vs-code]: https://code.visualstudio.com/
 [contiki-ng]: https://github.com/contiki-ng/contiki-ng/wiki
 
-After a while, if you feel like the changes you've made are substantial and usefull, you can always try and send us a merge request on GitLab (for the `ranger-ng` branch). However, before you do that, make sure the changes you've made don't introduce conflicts. You may check this by pulling from the `ranger-ng` branch on the `origin` remote.
+After a while, if you feel like the changes you've made are substantial and usefull, you can always try and send us a merge request on GitLab (for the `ranger-ng` branch). However, before you do that, make sure the changes you've made don't introduce conflicts. You may check this by pulling from the `ranger-ng` branch on the `origin` remote and compiling + uploading. If the code doesn't compile or the flashed remote shows unexpected behavior, try and solve the underlying issue before sending a merge request. A good entry book explaning git (and the tools it has to resolve conflicts) is [Jump Start Git][jump-start-git] by Shaumik Daityari. More advanced topics are covered in the git bible, i.e., [Pro Git][pro-git] which may be downloaded free of charge but can be hard to read for complete beginners.
+
+[jump-start-git]: https://www.sitepoint.com/premium/books/jump-start-git
+[pro-git]: https://git-scm.com/book/en/v2
 
 ```bash
 $ git pull origin ranger-ng
 $ cd contiki-ng-relsas/examples/ranger
-$ make TARGET=zoul BOARD=remote-revb
 $ make TARGET=zoul BOARD=remote-revb ranger.upload
 ```
 
