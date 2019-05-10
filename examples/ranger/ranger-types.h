@@ -12,8 +12,6 @@ typedef enum
 {
     DATA,
     CFG_REQ,
-    CFG_ACK,
-    CFG_ERQ,
 } ranger_message_t;
 
 typedef struct
@@ -38,8 +36,8 @@ typedef struct
 typedef struct
 {
     uint8_t next_rf_cfg_index;
-    clock_time_t handshake_delay;
-} handshake_delay_t;
+    clock_time_t rf_cfg_delay;
+} rf_cfg_delay_t;
 
 typedef enum
 {

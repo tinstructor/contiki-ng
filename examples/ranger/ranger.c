@@ -39,17 +39,15 @@
 /*----------------------------------------------------------------------------*/
 
 PROCESS(ranger_process, "Ranger process");
-PROCESS(handshake_delay_process, "Handshake delay process");
-PROCESS(auto_measure_process, "Automated measurement process");
-// PROCESS(led_process, "Led process");
+PROCESS(rf_cfg_delay_process, "RF config delay process");
+PROCESS(led_process, "Led process");
 AUTOSTART_PROCESSES(&ranger_process);
 
 /*----------------------------------------------------------------------------*/
 
-// static uint8_t current_rf_cfg_led_color;
-// static uint8_t current_rx_tx_led_color;
+static uint8_t current_rf_cfg_led;
 static uint8_t current_rf_cfg_index;
-static handshake_delay_t current_handshake_delay;
+static rf_cfg_delay_t current_rf_cfg_delay;
 static const cc1200_rf_cfg_t *current_rf_cfg = &CC1200_CONF_RF_CFG; //NOTE: pointer to const != constant
 
 extern gpio_hal_pin_t send_pin;
@@ -59,15 +57,13 @@ static gpio_hal_event_handler_t send_pin_event_handler;
 static transceiver_mode_t current_mode;
 
 static struct etimer message_send_tmr;
-static struct etimer handshake_delay_tmr;
-static struct etimer auto_measure_tmr;
-// static struct etimer led_off_tmr;
+static struct etimer rf_cfg_delay_tmr;
+static struct etimer led_on_tmr;
 
-static process_event_t handshake_delay_event;
+static process_event_t rf_cfg_delay_event;
 static process_event_t reset_mode_event;
-static process_event_t auto_measure_event;
 static process_event_t read_temp_event;
-// static process_event_t led_event;
+static process_event_t rf_cfg_led_event;
 
 static uint32_t package_nr_to_send;
 static int message_counter;
@@ -101,9 +97,7 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
     va_list argptr;
     va_start(argptr, message_type);
 
-    // current_rx_tx_led_color = TX_SEND_LED;
-    // process_post(&led_process, led_event, &current_rx_tx_led_color);
-    rgb_led_set(TX_SEND_LED);
+    rgb_led_set(TX_LED);
 
     LOG_INFO("Sending message to ");
     LOG_INFO_LLADDR(dest_addr);
@@ -142,26 +136,6 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
 
             }
             break;
-        case CFG_ACK:
-            {
-                new_message.rf_cfg_index = va_arg(argptr, int);
-                new_message.request_id = va_arg(argptr, unsigned int);
-
-                LOG_INFO("Configuration acknowledgement with payload length %d\n", sizeof(new_message));
-                LOG_INFO("|-- Current configuration index: %" PRIu8 "\n", current_rf_cfg_index);
-                LOG_INFO("|-- Acknowledged configuration index: %" PRIu8 "\n", new_message.rf_cfg_index);
-                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", new_message.request_id);
-            }
-            break;
-        case CFG_ERQ:
-            {
-                new_message.rf_cfg_index = va_arg(argptr, int);
-                new_message.request_id = va_arg(argptr, unsigned int);
-
-                LOG_INFO("Configuration end of request with payload length %d\n", sizeof(new_message));
-                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", new_message.request_id);
-            }
-            break;
         default:
             break;
     }
@@ -173,7 +147,6 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
 
     LOG_INFO("Message sent\n");
 
-    // process_post(&led_process, led_event, &current_rf_cfg_led_color);
     rgb_led_off();
 
     va_end(argptr);
@@ -208,9 +181,7 @@ static void received_ranger_net_message_callback(const void* data,
         return;
     }
 
-    // current_rx_tx_led_color = RX_RECEIVE_LED;
-    // process_post(&led_process, led_event, &current_rx_tx_led_color);
-    rgb_led_set(RX_RECEIVE_LED);
+    rgb_led_set(RX_LED);
 
     message_counter++;
     
@@ -246,40 +217,14 @@ static void received_ranger_net_message_callback(const void* data,
 
                 if (current_message.request_id != current_request_id) 
                 {
-                    //REVIEW: do we keep the ACK messages in case of async?
-                    //FIXME: trying to send when messages are incoming may trip the watchdog
-                    // send_message(&src_addr, CFG_ACK, (int)current_message.rf_cfg_index, 
-                    //              (unsigned int)current_message.request_id);
-
-                    //REVIEW: do we put the rf cfg here and make everything async?
-                    current_handshake_delay = empty_handshake_delay;
-                    current_handshake_delay.next_rf_cfg_index = current_message.rf_cfg_index;
-                    current_handshake_delay.handshake_delay = HANDSHAKE_RX_DELAY;
-                    process_post(&handshake_delay_process, handshake_delay_event, 
-                                 &current_handshake_delay);
+                    current_rf_cfg_delay = empty_rf_cfg_delay;
+                    current_rf_cfg_delay.next_rf_cfg_index = current_message.rf_cfg_index;
+                    current_rf_cfg_delay.rf_cfg_delay = CFG_REQ_DELAY;
+                    process_post(&rf_cfg_delay_process, rf_cfg_delay_event, 
+                                 &current_rf_cfg_delay);
                 }
 
                 current_request_id = current_message.request_id;
-            }
-            break;
-        case CFG_ACK:
-            {
-                LOG_INFO("Configuration acknowledgement\n");
-                LOG_INFO("|-- Acknowledged configuration index: %" PRIu8 "\n", current_message.rf_cfg_index);
-                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
-
-                //REVIEW: do we keep the ERQ messages in case of async?
-                // if (current_message.request_id == current_request_id)
-                // {
-                //     send_message(&src_addr, CFG_ERQ, (int)current_message.rf_cfg_index, 
-                //                  (unsigned int)current_message.request_id);
-                // }
-            }
-            break;
-        case CFG_ERQ:
-            {
-                LOG_INFO("Configuration end of request\n");
-                LOG_INFO("\\-- ID of request: %" PRIu32 "\n", current_message.request_id);
             }
             break;
         default:
@@ -288,7 +233,6 @@ static void received_ranger_net_message_callback(const void* data,
 
     LOG_INFO("Total messages received: %d\n", message_counter);
 
-    // process_post(&led_process, led_event, &current_rf_cfg_led_color);
     rgb_led_off();
 }
 
@@ -477,7 +421,8 @@ static void set_rf_cfg(int rf_cfg_index)
     }
 
     current_rf_cfg = rf_cfg_ptrs[current_rf_cfg_index];
-    // current_rf_cfg_led_color = rf_cfg_leds[current_rf_cfg_index];
+    current_rf_cfg_led = rf_cfg_leds[current_rf_cfg_index];
+    process_post(&led_process, rf_cfg_led_event, &current_rf_cfg_led);
     package_nr_to_send = 0;
     LOG_INFO("Package number of TX messages reset to 0 after RF config change.\n");
 }
@@ -545,15 +490,12 @@ PROCESS_THREAD(ranger_process, ev, data)
     LOG_INFO("Started ranger process\n");
 
     reset_mode_event = process_alloc_event();
-    handshake_delay_event = process_alloc_event();
-    auto_measure_event = process_alloc_event();
-    // led_event = process_alloc_event();
-    process_start(&handshake_delay_process, NULL);
-    process_start(&auto_measure_process, NULL);
-    // process_start(&led_process, NULL);
+    rf_cfg_delay_event = process_alloc_event();
+    rf_cfg_led_event = process_alloc_event();
+    process_start(&rf_cfg_delay_process, NULL);
+    process_start(&led_process, NULL);
 
-    // current_rf_cfg_led_color = rf_cfg_leds[current_rf_cfg_index];
-    // rgb_led_set(current_rf_cfg_led_color);
+    current_rf_cfg_led = rf_cfg_leds[current_rf_cfg_index];
     rgb_led_off();
 
     #if ENABLE_UART_INPUT
@@ -576,14 +518,19 @@ PROCESS_THREAD(ranger_process, ev, data)
         {
             LOG_INFO("Periodic button event\n");
             btn = (button_hal_button_t *)data;
-            if (btn->press_duration_seconds == 5)
+
+            #if ENABLE_UART_INPUT && BUTTON_HAL_CONF_WITH_DESCRIPTION 
+            if (btn->description == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON)->description)
+            #else
+            if (btn == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON))
+            #endif
             {
-                LOG_INFO("Pressed user button for 5 seconds\n");
-                long_press_flag = true;
-                toggle_mode();
-                #if ENABLE_AUTO_MEASURE && (!ENABLE_CFG_HANDSHAKE)
-                process_post(&auto_measure_process, auto_measure_event, NULL);
-                #endif
+                if (btn->press_duration_seconds == 5)
+                {
+                    LOG_INFO("Pressed user button for 5 seconds\n");
+                    long_press_flag = true;
+                    toggle_mode();
+                }
             }
         }
         else if (ev == button_hal_release_event)
@@ -591,11 +538,15 @@ PROCESS_THREAD(ranger_process, ev, data)
             if (!long_press_flag)
             {
                 btn = (button_hal_button_t *)data;
+                #if ENABLE_UART_INPUT && BUTTON_HAL_CONF_WITH_DESCRIPTION 
+                if (btn->description == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON)->description)
+                #else
                 if (btn == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON))
+                #endif
                 {
                     LOG_INFO("Released user button\n");
 
-                    #if ENABLE_CFG_HANDSHAKE
+                    #if ENABLE_CFG_REQ
                     if (current_mode == TX) 
                     {
                         toggle_mode();
@@ -610,12 +561,12 @@ PROCESS_THREAD(ranger_process, ev, data)
                                      (unsigned int)current_request_id);
                     }
 
-                    current_handshake_delay = empty_handshake_delay;         
-                    current_handshake_delay.next_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
-                    current_handshake_delay.handshake_delay = HANDSHAKE_TX_DELAY;
-                    process_post(&handshake_delay_process, handshake_delay_event, 
-                                 &current_handshake_delay);
-                    #elif !ENABLE_AUTO_MEASURE
+                    current_rf_cfg_delay = empty_rf_cfg_delay;         
+                    current_rf_cfg_delay.next_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
+                    current_rf_cfg_delay.rf_cfg_delay = CFG_REQ_DELAY;
+                    process_post(&rf_cfg_delay_process, rf_cfg_delay_event, 
+                                 &current_rf_cfg_delay);
+                    #else
                     set_rf_cfg((current_rf_cfg_index + 1) % RF_CFG_AMOUNT);
                     set_tx_power(TX_POWER_DBM);
                     set_channel(CHANNEL);
@@ -674,25 +625,25 @@ PROCESS_THREAD(ranger_process, ev, data)
 
 /*----------------------------------------------------------------------------*/
 
-PROCESS_THREAD(handshake_delay_process, ev, data)
+PROCESS_THREAD(rf_cfg_delay_process, ev, data)
 {
-    static uint8_t rf_cfg_to_set = 0;
-    static clock_time_t delay_to_set = 0;
+    static uint8_t rf_cfg_index = 0;
+    static clock_time_t rf_cfg_delay = 0;
     PROCESS_BEGIN();
 
-    LOG_INFO("Started handshake delay process\n");
+    LOG_INFO("Started RF config delay process\n");
 
     while(1) 
     {
         PROCESS_YIELD();
-        if(ev == handshake_delay_event)
+        if(ev == rf_cfg_delay_event)
         {
-            rf_cfg_to_set = ((handshake_delay_t *)data)->next_rf_cfg_index;
-            delay_to_set = ((handshake_delay_t *)data)->handshake_delay;
-            LOG_INFO("Handshake delay event was triggered!\n");
-            etimer_set(&handshake_delay_tmr, delay_to_set);
-            PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&handshake_delay_tmr));
-            set_rf_cfg(rf_cfg_to_set);
+            rf_cfg_index = ((rf_cfg_delay_t *)data)->next_rf_cfg_index;
+            rf_cfg_delay = ((rf_cfg_delay_t *)data)->rf_cfg_delay;
+            LOG_INFO("RF config delay event was triggered!\n");
+            etimer_set(&rf_cfg_delay_tmr, rf_cfg_delay);
+            PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&rf_cfg_delay_tmr));
+            set_rf_cfg(rf_cfg_index);
             set_tx_power(TX_POWER_DBM);
             set_channel(CHANNEL);
             //REVIEW: reason for triggering an event instead of toggling here?
@@ -700,94 +651,35 @@ PROCESS_THREAD(handshake_delay_process, ev, data)
         }
     }
 
-    LOG_INFO("Handshake delay process done...\n");
+    LOG_INFO("RF config delay process done...\n");
 
     PROCESS_END();
 }
 
 /*----------------------------------------------------------------------------*/
 
-PROCESS_THREAD(auto_measure_process, ev, data)
+PROCESS_THREAD(led_process, ev, data)
 {
-    static bool end_of_measurement = false;
-    static size_t auto_measure_index = 0;
+    static uint8_t rf_cfg_led = 0;
     PROCESS_BEGIN();
 
-    LOG_INFO("Started auto measure process\n");
+    LOG_INFO("Started led process\n");
 
     while(1) 
     {
         PROCESS_YIELD();
-        if(ev == auto_measure_event)
+        if(ev == rf_cfg_led_event)
         {
-            while (!end_of_measurement)
-            {
-                etimer_set(&auto_measure_tmr, AUTO_MEASURE_INTERVAL);
-                PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&auto_measure_tmr));
-
-                auto_measure_index++;
-                if (auto_measure_index >= RF_CFG_AMOUNT)
-                {
-                    toggle_mode();
-                    package_nr_to_send = 0;
-                    auto_measure_index = 0;
-                    end_of_measurement = true;
-                }
-                else
-                {
-                    if (current_mode == TX) 
-                    {
-                        toggle_mode();
-                        reset_mode_flag = true;
-                    }
-
-                    current_request_id = random_rand();
-                    for(size_t i = 0; i < BURST_AMOUNT; i++)
-                    {
-                        send_message(&linkaddr_null, CFG_REQ, 
-                                     (int)((current_rf_cfg_index + 1) % RF_CFG_AMOUNT), 
-                                     (unsigned int)current_request_id);
-                    }
-                    current_handshake_delay = empty_handshake_delay;         
-                    current_handshake_delay.next_rf_cfg_index = (current_rf_cfg_index + 1) % RF_CFG_AMOUNT;
-                    current_handshake_delay.handshake_delay = HANDSHAKE_TX_DELAY;
-                    process_post(&handshake_delay_process, handshake_delay_event, 
-                                 &current_handshake_delay);
-                }
-                
-            }
-            end_of_measurement = false;
+            rf_cfg_led = *(uint8_t *)data;
+            rgb_led_off();
+            rgb_led_set(rf_cfg_led);
+            etimer_set(&led_on_tmr, CLOCK_SECOND);
+            PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&led_on_tmr));
+            rgb_led_off();
         }
     }
 
-    LOG_INFO("Auto measure process done...\n");
+    LOG_INFO("Led process done...\n");
 
     PROCESS_END();
 }
-
-/*----------------------------------------------------------------------------*/
-
-// PROCESS_THREAD(led_process, ev, data)
-// {
-//     static uint8_t led_color;
-//     PROCESS_BEGIN();
-
-//     LOG_INFO("Started led process\n");
-
-//     while(1) 
-//     {
-//         PROCESS_YIELD();
-//         if(ev == led_event)
-//         {
-//             led_color = *(uint8_t *)data;
-//             rgb_led_off();
-//             etimer_set(&led_off_tmr, 80);
-//             PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&led_off_tmr));
-//             rgb_led_set(led_color);
-//         }
-//     }
-
-//     LOG_INFO("Led process done...\n");
-
-//     PROCESS_END();
-// }
