@@ -20,7 +20,9 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
 static void received_ranger_net_message_callback(const void* data, uint16_t datalen,
                                                  const linkaddr_t* src,
                                                  const linkaddr_t* dest);
+#if ENABLE_UART_INPUT
 static int uart_byte_input_callback(unsigned char input);
+#endif
 static void toggle_mode(void);
 static void set_mode(int mode);
 static void set_tx_power(int tx_power);

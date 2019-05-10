@@ -40,6 +40,7 @@
 
 PROCESS(ranger_process, "Ranger process");
 PROCESS(rf_cfg_delay_process, "RF config delay process");
+PROCESS(mode_delay_process, "Mode delay process");
 PROCESS(led_process, "Led process");
 AUTOSTART_PROCESSES(&ranger_process);
 
@@ -58,11 +59,12 @@ static transceiver_mode_t current_mode;
 
 static struct etimer message_send_tmr;
 static struct etimer rf_cfg_delay_tmr;
+static struct etimer mode_delay_tmr;
 static struct etimer led_on_tmr;
 
 static process_event_t rf_cfg_delay_event;
+static process_event_t mode_delay_event;
 static process_event_t reset_mode_event;
-static process_event_t read_temp_event;
 static process_event_t rf_cfg_led_event;
 
 static uint32_t package_nr_to_send;
@@ -74,6 +76,7 @@ static uint32_t current_request_id;
 
 #if ENABLE_UART_INPUT
 static int16_t temperature;
+static process_event_t read_temp_event;
 static button_hal_button_t fake_button_press;
 #endif
 
@@ -459,6 +462,7 @@ static void print_diagnostics(void)
 }
 
 /*----------------------------------------------------------------------------*/
+
 PROCESS_THREAD(ranger_process, ev, data)
 {
     button_hal_button_t *btn;
@@ -491,12 +495,14 @@ PROCESS_THREAD(ranger_process, ev, data)
 
     reset_mode_event = process_alloc_event();
     rf_cfg_delay_event = process_alloc_event();
+    mode_delay_event = process_alloc_event();
     rf_cfg_led_event = process_alloc_event();
     process_start(&rf_cfg_delay_process, NULL);
+    process_start(&mode_delay_process, NULL);
     process_start(&led_process, NULL);
 
     current_rf_cfg_led = rf_cfg_leds[current_rf_cfg_index];
-    rgb_led_off();
+    process_post(&led_process, rf_cfg_led_event, &current_rf_cfg_led);
 
     #if ENABLE_UART_INPUT
     tmp102_init();
@@ -519,7 +525,7 @@ PROCESS_THREAD(ranger_process, ev, data)
             LOG_INFO("Periodic button event\n");
             btn = (button_hal_button_t *)data;
 
-            #if ENABLE_UART_INPUT && BUTTON_HAL_CONF_WITH_DESCRIPTION 
+            #if ENABLE_UART_INPUT && BUTTON_HAL_CONF_WITH_DESCRIPTION
             if (btn->description == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON)->description)
             #else
             if (btn == button_hal_get_by_id(BUTTON_HAL_ID_USER_BUTTON))
@@ -529,7 +535,12 @@ PROCESS_THREAD(ranger_process, ev, data)
                 {
                     LOG_INFO("Pressed user button for 5 seconds\n");
                     long_press_flag = true;
-                    toggle_mode();
+                    if (current_mode == RX) 
+                    {
+                        toggle_mode();
+                        reset_mode_flag = true;
+                        process_post(&mode_delay_process, mode_delay_event, NULL);
+                    }
                 }
             }
         }
@@ -652,6 +663,31 @@ PROCESS_THREAD(rf_cfg_delay_process, ev, data)
     }
 
     LOG_INFO("RF config delay process done...\n");
+
+    PROCESS_END();
+}
+
+/*----------------------------------------------------------------------------*/
+
+PROCESS_THREAD(mode_delay_process, ev, data)
+{
+    PROCESS_BEGIN();
+
+    LOG_INFO("Started mode delay process\n");
+
+    while(1) 
+    {
+        PROCESS_YIELD();
+        if(ev == mode_delay_event)
+        {
+            etimer_set(&mode_delay_tmr, TX_DURATION);
+            PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&mode_delay_tmr));
+            //REVIEW: reason for triggering an event instead of toggling here?
+            process_post(&ranger_process, reset_mode_event, NULL);
+        }
+    }
+
+    LOG_INFO("Mode delay process done...\n");
 
     PROCESS_END();
 }
