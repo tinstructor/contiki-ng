@@ -94,6 +94,14 @@ static void print_buffer(const char* buffer, int size, const char* specifier)
     }
 }
 
+static void print_line(void) 
+{
+    if (LOG_LEVEL >= LOG_LEVEL_INFO)
+    {
+        LOG_OUTPUT("\n");
+    }
+}
+
 //TODO: return an error when arguments are invalid
 static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_type, ...)
 {
@@ -104,7 +112,7 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
 
     LOG_INFO("Sending message to ");
     LOG_INFO_LLADDR(dest_addr);
-    print_buffer(NULL, 0, NULL); // abuse of print_buffer() to print newline
+    print_line();
 
     message new_message = empty_message;
     new_message.unique_id = UNIQUE_ID;
