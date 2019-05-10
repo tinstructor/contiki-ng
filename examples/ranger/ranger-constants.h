@@ -30,8 +30,9 @@ extern const cc1200_rf_cfg_t cc1200_868_2fsk_1_2kbps;
 //extern const cc1200_rf_cfg_t cc1200_868_2gfsk_19_2kbps;
 extern const cc1200_rf_cfg_t cc1200_868_2gfsk_50kbps;
 //extern const cc1200_rf_cfg_t cc1200_868_2gfsk_100kbps;
-extern const cc1200_rf_cfg_t cc1200_868_4gfsk_150kbps;
-//extern const cc1200_rf_cfg_t cc1200_868_4gfsk_200kbps; //FIXME: works, but not as expected
+//extern const cc1200_rf_cfg_t cc1200_868_4gfsk_150kbps;
+extern const cc1200_rf_cfg_t cc1200_868_2gfsk_200kbps;
+//extern const cc1200_rf_cfg_t cc1200_868_2gfsk_200kbps; //FIXME: works, but not as expected
 //extern const cc1200_rf_cfg_t cc1200_868_2gfsk_500kbps;
 extern const cc1200_rf_cfg_t cc1200_868_4gfsk_1000kbps;
 
@@ -39,7 +40,8 @@ static const cc1200_rf_cfg_t * const rf_cfg_ptrs[] = {&cc1200_868_2fsk_1_2kbps,
                                                       //&cc1200_868_2gfsk_19_2kbps,
                                                       &cc1200_868_2gfsk_50kbps,
                                                       //&cc1200_868_2gfsk_100kbps,
-                                                      &cc1200_868_4gfsk_150kbps,
+                                                      //&cc1200_868_4gfsk_150kbps,
+                                                      &cc1200_868_2gfsk_200kbps,
                                                       //&cc1200_868_4gfsk_200kbps, //FIXME: works, but not as expected
                                                       //&cc1200_868_2gfsk_500kbps,
                                                       &cc1200_868_4gfsk_1000kbps};
@@ -53,7 +55,8 @@ static const uint8_t rf_cfg_leds[] = {RGB_LED_CYAN,
                                       RGB_LED_WHITE,
                                       RGB_LED_RED,
                                       RGB_LED_GREEN,
-                                      RGB_LED_MAGENTA,};
+                                      RGB_LED_MAGENTA,
+                                      RGB_LED_BLUE,};
 
 static const message empty_message;
 static const rf_cfg_delay_t empty_rf_cfg_delay;
