@@ -133,3 +133,70 @@ using saved target 'zoul'
 
 ## Usage
 
+The basic usage of this example application is pretty straighforward. The file `contiki-ng-relsas > examples > ranger > ranger-constants.h` contains a number of macro definitions of integer constant expressions used to configure the way in which the application works. The `MAIN_INTERVAL` constitutes the duration (in seconds) between consecutive DATA mesage transmissions when a node is in TX mode. The `TX_DURATION` is the amount of time (in seconds) for which a node remains in TX mode (and hence transmits every `MAIN_INTERVAL` seconds) after a change of mode occured (from RX -> TX). The `CONTENT_SIZE` equals the payload length of a DATA message (in bytes) minus its UID, the message type and packet number. The `TX_POWER_DBM` and `CHANNEL` constant expressions identify the default TX power and channel respectively.
+
+```c
+#define MAIN_INTERVAL           6*(CLOCK_SECOND/10)
+#define TX_DURATION             MAIN_INTERVAL*100
+#define CONTENT_SIZE            28
+#define TX_POWER_DBM            14
+#define CHANNEL                 0
+```
+
+In normal operation, you press the user button of a node (in RX mode) for at least 5 seconds, which triggers a mode change to TX mode. During a time interval specified by `TX_DURATION` said node will then broadcast a DATA message each `MAIN_INTERVAL` seconds after which it changes back to RX mode once again and transmission terminates. A short press of the user button causes a node to change to a different radio configuration, indicated by a specific color of the RGB led.
+
+>**Note:** the index of the pointer to the currently active radio configuration in the `rf_cfg_ptrs[]` array found in `ranger-constants.h` corresponds to the index of the color used to indicate said configuration in the `rf_cfg_leds[]` array (also found in `ranger-constants.h`).
+
+You could then change the radio configurations of all nodes when no node is transmitting before starting transmission once again. Although it is not recommended, setting `ENABLE_CFG_REQ` to anything but `0` and short-pressing the user button, triggers a node to broadcast a configuration request (CFG_REQ) asking all receiving nodes to change to the radio configuration corresponding to the next index in the `rf_cfg_ptrs[]` array or the config with index zero if the index would exceed the amount of available radio configurations (`RF_CFG_AMOUNT`) minus 1. This is problematic however when some nodes don't receive the request, causing these nodes (with a different radio configuration) to become unreachable. In order to somewhat mitigate this issue, you can set the amount of CFG_REQ messages that are broadcasted at once with `BURST_AMOUNT`.
+
+```c
+#define ENABLE_CFG_REQ          0
+#define ENABLE_SEND_PIN         0
+#define ENABLE_UART_INPUT       0
+#define BURST_AMOUNT            3
+```
+
+A feature that might prove more useful, if you'd want to use the WiLab testbed, is the option to enable serial input by setting `ENABLE_UART_INPUT` to anything but `0`. The following code snippet displays the available inputs and the resulting actions:
+
+```c
+static int uart_byte_input_callback(unsigned char input)
+{
+    switch (input)
+    {
+        case 'l':
+            // equivalent to pressing the user button for > 5 seconds
+            break;
+        case 's':
+            // equivalent to pressing the user button for < 5 seconds
+            break;
+        case 'r':
+            // equivalent to pressing the reset button
+        case 't':
+            // trigger a readout of a connected tmp102 sensor
+            break;
+        default:
+            break;
+    }
+    return 1;
+}
+```
+
+Finally, you could also trigger the transmission of a DATA message by means of providing a rising edge on pin PA7 of the Remote (rev-b only), which triggers an interrupt and causes an ordinary DATA message to be broadcasted. This feature needs further testing and should not be considered reliable by any means.
+
+For your convenience a python script (see `contiki-ng-relsas > examples > ranger > timestamper.py`) is provided that creates a logfile from the serial output passed to it (via a pipe). Creating a logfile with a name of your choice is done as follows:
+
+```bash
+$ make login | python3 timestamper.py -f <name of logfile>
+Created logfile "<name of logfile>.log"
+2019-05-13T10:58:28.600257 | 0:00:00.000046 | using saved target 'zoul'
+2019-05-13T10:58:29.075912 | 0:00:00.475701 | rlwrap ../../tools/serial-io/serialdump -b115200 /dev/ttyUSB0
+connecting to /dev/ttyUSB0 [OK]
+2019-05-13T10:58:36.392570 | 0:00:07.792359 | Current RF config descriptor: 868MHz 2-FSK 1.2 kbps
+2019-05-13T10:58:36.392751 | 0:00:07.792540 | csv-log: 0, 40, -111
+2019-05-13T10:58:36.939890 | 0:00:08.339679 | Current RF config descriptor: 868MHz 2-FSK 1.2 kbps
+2019-05-13T10:58:36.940415 | 0:00:08.340204 | csv-log: 1, 40, -114
+2019-05-13T10:58:37.549070 | 0:00:08.948859 | Current RF config descriptor: 868MHz 2-FSK 1.2 kbps
+2019-05-13T10:58:37.549526 | 0:00:08.949315 | csv-log: 2, 40, -113
+```
+
+>**Note:** a basic python script is also provided to analyze the logfile. The script may be called by providing the name of the logfile to be analyzed: `$ python3 analyzer.py <name of logfile>.log`. However, this script will undergo significant changes in the future to incorporate more advanced analysis of additional metrics etc., so don't expect it to work flawlessly.
