@@ -242,7 +242,8 @@ static void received_ranger_net_message_callback(const void* data,
 
                 //TODO: adapt analyzer.py to work with new log format
                 //FIXME: float format specifier doesn't work because "-u_printf_float" option is not passed to linker
-                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %.1f, 0x%X, ",
+                //FIXME: hex format specifier is also not working or value isn't passed correctly
+                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %.1f, 0x%02X, ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,

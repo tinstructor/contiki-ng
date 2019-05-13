@@ -17,7 +17,7 @@ typedef enum
 typedef struct
 {
     float preamble_bytes;
-    uint8_t preamble_word;
+    uint16_t preamble_word;
 } cc1200_preamble_t;
 
 typedef struct
