@@ -13,7 +13,7 @@
 #define TX_DURATION             MAIN_INTERVAL*100
 #define CONTENT_SIZE            28
 #define TX_POWER_DBM            14
-#define CHANNEL                 0
+#define CHANNEL                 1
 
 #define ENABLE_CFG_REQ          0
 #define ENABLE_SEND_PIN         0

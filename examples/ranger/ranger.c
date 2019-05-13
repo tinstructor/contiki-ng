@@ -17,6 +17,7 @@
 #include "dev/radio.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
+#include "net/linkaddr.h"
 #include "random.h"
 #include "dev/uart.h"
 #include "dev/tmp102.h"
@@ -99,6 +100,18 @@ static void print_line(void)
     if (LOG_LEVEL >= LOG_LEVEL_INFO)
     {
         LOG_OUTPUT("\n");
+    }
+}
+
+static void print_node_addr(linkaddr_t node_addr)
+{
+    for(size_t i = 0; i < LINKADDR_SIZE; i++) 
+    {
+        if(i > 0 && i % 2 == 0) 
+        {
+            printf(".");
+        }
+        printf("%02x", node_addr.u8[i]);
     }
 }
 
@@ -213,10 +226,35 @@ static void received_ranger_net_message_callback(const void* data,
                 LOG_INFO("|-- RSSI: %" PRIi16 "\n", rssi);
                 LOG_INFO("\\-- LQI: %" PRIu16 "\n", lqi);
 
-                printf("Current RF config descriptor: %s\n", current_rf_cfg->cfg_descriptor);
+                radio_value_t tx_power = 0;
+                radio_value_t channel = 0;
+                radio_result_t result = RADIO_RESULT_ERROR;
 
-                //TODO: add info to csv-log and adapt analyzer.py to work with new log
-                printf("csv-log: %" PRIu32 ", %" PRIu16 ", %" PRIi16 "\n", current_message.package_nr, datalen, rssi);
+                result = NETSTACK_RADIO.get_value(RADIO_PARAM_TXPOWER, &tx_power);
+                assert(result == RADIO_RESULT_OK);
+                result = NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
+                assert(result == RADIO_RESULT_OK);
+
+                uint32_t chan_center_freq = current_rf_cfg->chan_center_freq0 * 1000 + (channel * current_rf_cfg->chan_spacing);
+
+                //TODO: adapt analyzer.py to work with new log format
+                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", ",
+                       current_rf_cfg->cfg_descriptor,
+                       current_message.package_nr,
+                       datalen,
+                       rssi,
+                       current_rf_cfg->rssi_offset,
+                       lqi,
+                       tx_power,
+                       channel,
+                       current_rf_cfg->chan_center_freq0,
+                       current_rf_cfg->chan_spacing,
+                       chan_center_freq,
+                       current_rf_cfg->bitrate);
+                print_node_addr(linkaddr_node_addr);
+                printf(", ");
+                print_node_addr(src_addr);
+                printf("\n");
             }
             break;
         case CFG_REQ:

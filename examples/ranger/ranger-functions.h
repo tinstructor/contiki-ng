@@ -7,6 +7,7 @@
 
 static void print_buffer(const char* buffer, int size, const char* specifier);
 static void print_line(void);
+static void print_node_addr(linkaddr_t node_addr);
 
 /**
  * @brief Send a 802.15.4 data frame to a specified destination.
