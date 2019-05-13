@@ -235,10 +235,12 @@ static void received_ranger_net_message_callback(const void* data,
                 result = NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
                 assert(result == RADIO_RESULT_OK);
 
+                cc1200_preamble_t cc1200_preamble = get_cc1200_preamble();
+
                 uint32_t chan_center_freq = current_rf_cfg->chan_center_freq0 * 1000 + (channel * current_rf_cfg->chan_spacing);
 
                 //TODO: adapt analyzer.py to work with new log format
-                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", ",
+                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %.1f, 0x%02X, ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,
@@ -250,7 +252,9 @@ static void received_ranger_net_message_callback(const void* data,
                        current_rf_cfg->chan_center_freq0,
                        current_rf_cfg->chan_spacing,
                        chan_center_freq,
-                       current_rf_cfg->bitrate);
+                       current_rf_cfg->bitrate,
+                       cc1200_preamble.preamble_bytes,
+                       cc1200_preamble.preamble_word);
                 print_node_addr(linkaddr_node_addr);
                 printf(", ");
                 print_node_addr(src_addr);
@@ -505,6 +509,22 @@ static void print_diagnostics(void)
     LOG_INFO("Transmission power: %d dBm\n", TX_POWER_DBM);
     LOG_INFO("Channel: %d\n", CHANNEL);
     LOG_INFO("Current RF config index: %" PRIu8 "\n", current_rf_cfg_index);
+}
+
+static cc1200_preamble_t get_cc1200_preamble(void)
+{
+    cc1200_preamble_t cc1200_preamble = {};
+    registerSetting_t cc1200_preamble_cfg1 = {};
+    radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_PREAMBLE_CFG1, 
+                                                      &cc1200_preamble_cfg1, 
+                                                      sizeof(registerSetting_t));
+    assert(result == RADIO_RESULT_OK);
+    LOG_INFO("PREAMBLE_CFG1: 0x%02X\n", cc1200_preamble_cfg1.val);
+
+    cc1200_preamble.preamble_bytes = num_preamble_bytes[(cc1200_preamble_cfg1.val & ~0xC3) >> 2];
+    cc1200_preamble.preamble_word = preamble_words[cc1200_preamble_cfg1.val & ~0xFC];
+
+    return cc1200_preamble;
 }
 
 /*----------------------------------------------------------------------------*/

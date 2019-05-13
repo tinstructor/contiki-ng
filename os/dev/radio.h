@@ -106,6 +106,11 @@ enum {
    */
   RADIO_PARAM_RF_CFG,
 
+  /*
+   * Contents of CC1200 PREAMBLE_CFG1 register.
+   */
+  RADIO_PARAM_PREAMBLE_CFG1,
+
   /* Personal area network identifier, which is used by the address filter. */
   RADIO_PARAM_PAN_ID,
 

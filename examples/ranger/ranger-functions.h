@@ -34,4 +34,6 @@ static void send_handler(gpio_hal_pin_mask_t pin_mask);
 static void init_send_pin(void);
 static void print_diagnostics(void);
 
+static cc1200_preamble_t get_cc1200_preamble(void);
+
 #endif /* RANGER_FUNCTIONS_H_ */

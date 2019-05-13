@@ -16,6 +16,12 @@ typedef enum
 
 typedef struct
 {
+    float preamble_bytes;
+    uint8_t preamble_word;
+} cc1200_preamble_t;
+
+typedef struct
+{
     uint32_t unique_id;
     ranger_message_t message_type;
     union

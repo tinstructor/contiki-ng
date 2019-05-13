@@ -204,6 +204,8 @@ extern const cc1200_rf_cfg_t CC1200_RF_CFG;
 static const cc1200_rf_cfg_t* cc1200_rf_cfg_ptr = &CC1200_RF_CFG;
 /* Pointer to a new radio configuration */
 static const cc1200_rf_cfg_t* new_cc1200_rf_cfg_ptr;
+/* Contents of the CC1200 PREAMBLE_CFG1 register*/
+static registerSetting_t cc1200_preamble_cfg1;
 /*---------------------------------------------------------------------------*/
 /* This defines the way we calculate the frequency registers */
 /*---------------------------------------------------------------------------*/
@@ -1469,6 +1471,16 @@ get_object(radio_param_t param, void *dest, size_t size)
       return RADIO_RESULT_INVALID_VALUE;
     }
     *(cc1200_rf_cfg_t *)dest = *cc1200_rf_cfg_ptr;
+    return RADIO_RESULT_OK;
+  }
+
+  if(param == RADIO_PARAM_PREAMBLE_CFG1) {
+    if(size != sizeof(registerSetting_t) ||!dest) {
+      return RADIO_RESULT_INVALID_VALUE;
+    }
+    cc1200_preamble_cfg1.addr = CC1200_PREAMBLE_CFG1;
+    cc1200_preamble_cfg1.val = single_read(CC1200_PREAMBLE_CFG1);
+    *(registerSetting_t *)dest = cc1200_preamble_cfg1;
     return RADIO_RESULT_OK;
   }
 

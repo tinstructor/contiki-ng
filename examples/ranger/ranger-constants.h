@@ -65,4 +65,9 @@ static const linkaddr_t empty_linkaddr;
 // node labelled "gateway" has link-addr: 0012.4b00.09df.4dee
 // static const linkaddr_t src_linkaddr = {{0x00, 0x12, 0x4b, 0x00, 0x09, 0xdf, 0x4d, 0xee}};
 
+/*----------------------------------------------------------------------------*/
+
+static const float num_preamble_bytes[] = {0,0.5,1,1.5,2,3,4,5,6,7,8,12,24,30,0,0};
+static const uint8_t preamble_words[] = {0xAA,0x55,0x33,0xCC};
+
 #endif /* RANGER_CONSTANTS_H_ */
