@@ -5,6 +5,7 @@ This document describes the usage and configuration of the ranger example for Co
 - [Advanced Ranger for Zolertia Remote (rev-b)](#advanced-ranger-for-zolertia-remote-rev-b)
   - [Table of Contents](#table-of-contents)
   - [Getting Started](#getting-started)
+  - [Tips & Tricks](#tips--tricks)
   - [Usage](#usage)
 
 ## Getting Started
@@ -107,5 +108,28 @@ $ cd contiki-ng-relsas/examples/ranger
 $ make TARGET=zoul BOARD=remote-revb ranger.upload
 ```
 
+## Tips & Tricks
+
+I reckon you'll probably be working with Contiki-NG more often in the future. Hence you might as well make your life easier. For starters, since this application works with but the Zolertia Remote rev-b, you should make use of the Makefile savetarget command, which allows you to save the target platform (and optionally a specific board revision) to a Makefile.target file as follows:
+
+```bash
+$ make TARGET=zoul BOARD=remote-revb savetarget
+```
+
+From now on, when you perform any make command from within the `contiki-ng-relsas > examples > ranger` directory which requires to you specify the flash target, the configuration stored in the Makefile.target file is used if you don't explicitely specify a target.
+
+```bash
+$ make
+using saved target 'zoul'
+  MKDIR     build/zoul/remote-revb/obj
+  CC        ../../arch/platform/zoul/dev/tmp102.c
+  CC        ../../arch/platform/zoul/./platform.c
+  CC        ../../arch/platform/zoul/dev/leds-arch.c
+  CC        ../../os/dev/leds.c
+  ...
+```
+
+>**Note:** Technically, the application works with the Remote rev-a as well, with exception of the `"send pin"`. If you want to use pin interrupts on the rev-a to trigger a transmission you should provide the propper pin number assignment in a directory called `contiki-ng-relsas > examples > ranger > zoul > remote-reva` (you need to make this directory yourself).
+
 ## Usage
-Coming soon
+
