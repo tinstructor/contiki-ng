@@ -176,6 +176,7 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
     va_end(argptr);
 }
 
+//TODO: return error values instead of using assert statements
 static void received_ranger_net_message_callback(const void* data,
                                                  uint16_t datalen,
                                                  const linkaddr_t* src,
@@ -240,7 +241,8 @@ static void received_ranger_net_message_callback(const void* data,
                 uint32_t chan_center_freq = current_rf_cfg->chan_center_freq0 * 1000 + (channel * current_rf_cfg->chan_spacing);
 
                 //TODO: adapt analyzer.py to work with new log format
-                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %.1f, 0x%02X, ",
+                //FIXME: float format specifier doesn't work because "-u_printf_float" option is not passed to linker
+                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %.1f, 0x%X, ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,
