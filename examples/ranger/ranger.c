@@ -239,13 +239,14 @@ static void received_ranger_net_message_callback(const void* data,
 
                 cc1200_preamble_t preamble = get_cc1200_preamble();
                 cc1200_symbol_rate_t symbol_rate = get_cc1200_symbol_rate();
+                cc1200_rx_filt_bw_t rx_filt_bw = get_cc1200_rx_filt_bw();
 
                 uint32_t chan_center_freq = current_rf_cfg->chan_center_freq0 * 1000 + (channel * current_rf_cfg->chan_spacing);
 
                 //TODO: adapt analyzer.py to work with new log format
                 //FIXME: float format specifier doesn't work because "-u_printf_float" option is not passed to linker
                 //NOTE: temporary fix is to count preamble words in amount of nibbles instead of bytes (1 byte = 2 nibbles)
-                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, ",
+                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,
@@ -259,6 +260,7 @@ static void received_ranger_net_message_callback(const void* data,
                        chan_center_freq,
                        current_rf_cfg->bitrate,
                        symbol_rate,
+                       rx_filt_bw,
                        preamble.preamble_nibbles,
                        preamble.preamble_word);
                 print_node_addr(linkaddr_node_addr);
@@ -541,9 +543,9 @@ static cc1200_symbol_rate_t get_cc1200_symbol_rate(void)
                                                       cc1200_symbol_rate,
                                                       sizeof(registerSetting_t)*3);
     assert(result == RADIO_RESULT_OK);
-    LOG_INFO("SYMBOL_RATE%d: 0x%02X\n",0,cc1200_symbol_rate[0].val);
-    LOG_INFO("SYMBOL_RATE%d: 0x%02X\n",1,cc1200_symbol_rate[1].val);
-    LOG_INFO("SYMBOL_RATE%d: 0x%02X\n",2,cc1200_symbol_rate[2].val);
+    LOG_INFO("SYMBOL_RATE0: 0x%02X\n",cc1200_symbol_rate[0].val);
+    LOG_INFO("SYMBOL_RATE1: 0x%02X\n",cc1200_symbol_rate[1].val);
+    LOG_INFO("SYMBOL_RATE2: 0x%02X\n",cc1200_symbol_rate[2].val);
 
     uint8_t exponent = (cc1200_symbol_rate[2].val & ~0x0F) >> 4;
     uint32_t mantissa = cc1200_symbol_rate[0].val + (cc1200_symbol_rate[1].val << 8) + 
@@ -560,6 +562,22 @@ static cc1200_symbol_rate_t get_cc1200_symbol_rate(void)
     }
     
     return symbol_rate;
+}
+
+static cc1200_rx_filt_bw_t get_cc1200_rx_filt_bw(void)
+{
+    cc1200_rx_filt_bw_t rx_filt_bw = 0;
+    registerSetting_t cc1200_chan_bw = {};
+    radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_CHAN_BW,
+                                                      &cc1200_chan_bw,
+                                                      sizeof(registerSetting_t));
+    assert(result == RADIO_RESULT_OK);
+    LOG_INFO("CHAN_BW: 0x%02X\n", cc1200_chan_bw.val);
+
+    rx_filt_bw = (XTAL_FREQ_KHZ * 1000 / (decimation_factors[(cc1200_chan_bw.val & ~0x3F) >> 6] * 
+                 (cc1200_chan_bw.val & ~0xC0) * 2.0)) + 0.5;
+
+    return rx_filt_bw;
 }
 
 /*----------------------------------------------------------------------------*/

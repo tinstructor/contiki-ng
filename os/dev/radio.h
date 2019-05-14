@@ -116,6 +116,11 @@ enum {
    */
   RADIO_PARAM_SYMBOL_RATE,
 
+  /*
+   * Contents of CC1200 CHAN_BW register
+   */
+  RADIO_PARAM_CHAN_BW,
+
   /* Personal area network identifier, which is used by the address filter. */
   RADIO_PARAM_PAN_ID,
 

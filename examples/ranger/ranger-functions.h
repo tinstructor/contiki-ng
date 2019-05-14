@@ -36,5 +36,6 @@ static void print_diagnostics(void);
 
 static cc1200_preamble_t get_cc1200_preamble(void);
 static cc1200_symbol_rate_t get_cc1200_symbol_rate(void);
+static cc1200_rx_filt_bw_t get_cc1200_rx_filt_bw(void);
 
 #endif /* RANGER_FUNCTIONS_H_ */

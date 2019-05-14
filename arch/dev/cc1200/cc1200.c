@@ -208,6 +208,8 @@ static const cc1200_rf_cfg_t* new_cc1200_rf_cfg_ptr;
 static registerSetting_t cc1200_preamble_cfg1;
 /* Contents of the CC1200 SYMBOL_RATE registers */
 static registerSetting_t cc1200_symbol_rate[3];
+/* Contents of the CC1200 CHAN_BW register */
+static registerSetting_t cc1200_chan_bw;
 /*---------------------------------------------------------------------------*/
 /* This defines the way we calculate the frequency registers */
 /*---------------------------------------------------------------------------*/
@@ -1502,6 +1504,16 @@ get_object(radio_param_t param, void *dest, size_t size)
     cc1200_symbol_rate[2].val = single_read(CC1200_SYMBOL_RATE2);
     *((registerSetting_t *)dest + 2) = cc1200_symbol_rate[2];
     
+    return RADIO_RESULT_OK;
+  }
+
+  if(param == RADIO_PARAM_CHAN_BW) {
+    if(size != sizeof(registerSetting_t) || !dest) {
+      return RADIO_RESULT_INVALID_VALUE;
+    }
+    cc1200_chan_bw.addr = CC1200_CHAN_BW;
+    cc1200_chan_bw.val = single_read(CC1200_CHAN_BW);
+    *(registerSetting_t *)dest = cc1200_chan_bw;
     return RADIO_RESULT_OK;
   }
 

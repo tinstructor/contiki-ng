@@ -71,6 +71,9 @@ static const linkaddr_t empty_linkaddr;
 static const float num_preamble_nibbles[] = {0,1,2,3,4,6,8,10,12,14,16,24,48,60,0,0};
 static const uint8_t preamble_words[] = {0xAA,0x55,0x33,0xCC};
 
+// have a look at p.30 and p.84 of SWRU346B
+static const uint8_t decimation_factors[] = {12,24,48,0};
+
 /*----------------------------------------------------------------------------*/
 
 #ifndef XTAL_FREQ_KHZ

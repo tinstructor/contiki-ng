@@ -21,6 +21,7 @@ typedef struct
 } cc1200_preamble_t;
 
 typedef uint32_t cc1200_symbol_rate_t;
+typedef uint32_t cc1200_rx_filt_bw_t;
 
 typedef struct
 {

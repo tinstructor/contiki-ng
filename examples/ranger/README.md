@@ -188,20 +188,20 @@ For your convenience a python script (see `contiki-ng-relsas > examples > ranger
 ```bash
 $ make login | python3 timestamper.py -f <name of logfile>
 Created logfile "<name of logfile>.log"
-2019-05-14T13:39:20.065626 | 0:00:00.000046 | using saved target 'zoul'
-2019-05-14T13:39:20.542142 | 0:00:00.476562 | rlwrap ../../tools/serial-io/serialdump -b115200 /dev/ttyUSB0
+2019-05-14T15:04:45.898095 | 0:00:00.000034 | using saved target 'zoul'
+2019-05-14T15:04:46.327697 | 0:00:00.429636 | rlwrap ../../tools/serial-io/serialdump -b115200 /dev/ttyUSB0
 connecting to /dev/ttyUSB0 [OK]
-2019-05-14T13:39:30.495058 | 0:00:10.429478 | csv-log: 868MHz 2-FSK 1.2 kbps, 0, 40, -106, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 1200, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
-2019-05-14T13:39:31.061635 | 0:00:10.996055 | csv-log: 868MHz 2-FSK 1.2 kbps, 1, 40, -105, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 1200, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
-2019-05-14T13:39:31.620067 | 0:00:11.554487 | csv-log: 868MHz 2-FSK 1.2 kbps, 2, 40, -110, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 1200, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
-2019-05-14T13:39:32.175093 | 0:00:12.109513 | csv-log: 868MHz 2-FSK 1.2 kbps, 3, 40, -108, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 1200, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
+2019-05-14T15:04:54.459586 | 0:00:08.561525 | csv-log: 868MHz 2-FSK 1.2 kbps, 0, 40, -109, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 1200, 10965, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
+2019-05-14T15:04:55.060658 | 0:00:09.162597 | csv-log: 868MHz 2-FSK 1.2 kbps, 1, 40, -111, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 1200, 10965, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
+2019-05-14T15:04:55.622530 | 0:00:09.724469 | csv-log: 868MHz 2-FSK 1.2 kbps, 2, 40, -108, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 1200, 10965, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
+2019-05-14T15:04:56.154376 | 0:00:10.256315 | csv-log: 868MHz 2-FSK 1.2 kbps, 3, 40, -111, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 1200, 10965, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
 ...
 ```
 
 Each line (at least the ones containing useful data) in the logfile is separated by 2 vertical lines (i.e., a "pipe" character) and has the format: `"ISO formatted timestamp | time elapsed since start of script | csv-log obtained from serial output"`. The interesting bit then is the format of the csv-log part itself. The following table summarizes the csv-log format and gives an example from the previous snippet:
 
-| RF config descriptor  | Packet nr. | Payload length [byte(s)] | RSSI [dBm] | RSSI offset [dBm] | LQI | TX power [dBm] | Channel | Center frequency of channel 0 [kHz] | Channel spacing [Hz] | Center frequency of current channel [Hz] | Bitrate [bps] | Symbol rate [bps] | Preamble nibbles | Preamble word | Receiver link address | Transmitter link address |
-| --------------------: | ---------: | -----------------------: | ---------: | ----------------: | --: | -------------: | ------: | ----------------------------------: | -------------------: |---------------------------------------: | ------------: | ----------------: | ---------------: | ------------: | --------------------: | -----------------------: |
-| 868MHz 2-FSK 1.2 kbps | 0          | 40                       | -106       | -99               | 0   | 14             | 1       | 867787                              | 12500                | 867799500                           | 1200    | 1200              | 6                | 0xAA          | 0012.4b00.09df.540c   | 0012.4b00.09df.540e      |
+| RF config descriptor  | Packet nr. | Payload length [byte(s)] | RSSI [dBm] | RSSI offset [dBm] | LQI | TX power [dBm] | Channel | Center frequency of channel 0 [kHz] | Channel spacing [Hz] | Center frequency of current channel [Hz] | Bitrate [bps] | Symbol rate [bps] | RX filter bandwidth [Hz] | Preamble nibbles | Preamble word | Receiver link address | Transmitter link address |
+| --------------------: | ---------: | -----------------------: | ---------: | ----------------: | --: | -------------: | ------: | ----------------------------------: | -------------------: |---------------------------------------: | ------------: | ----------------: | -----------------------: | ---------------: | ------------: | --------------------: | -----------------------: |
+| 868MHz 2-FSK 1.2 kbps | 0          | 40                       | -109       | -99               | 0   | 14             | 1       | 867787                              | 12500                | 867799500                           | 1200    | 1200              | 10965                    | 6                | 0xAA          | 0012.4b00.09df.540c   | 0012.4b00.09df.540e      |
 
 >**Note:** ~~a basic python script is also provided to analyze the logfile. The script may be called by providing the name of the logfile to be analyzed: `$ python3 analyzer.py <name of logfile>.log`. However, this script will undergo significant changes in the future to incorporate more advanced analysis of additional metrics etc., so don't expect it to work flawlessly.~~ <mark>The logfile analyzer script is dephrecated!</mark>
