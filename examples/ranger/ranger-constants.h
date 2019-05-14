@@ -67,7 +67,8 @@ static const linkaddr_t empty_linkaddr;
 
 /*----------------------------------------------------------------------------*/
 
-static const float num_preamble_bytes[] = {0,0.5,1,1.5,2,3,4,5,6,7,8,12,24,30,0,0};
+// have a look at p.83 of SWRU346B (1 byte = 2 nibbles)
+static const float num_preamble_nibbles[] = {0,1,2,3,4,6,8,10,12,14,16,24,48,60,0,0};
 static const uint8_t preamble_words[] = {0xAA,0x55,0x33,0xCC};
 
 #endif /* RANGER_CONSTANTS_H_ */

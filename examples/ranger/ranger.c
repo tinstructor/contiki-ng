@@ -242,8 +242,8 @@ static void received_ranger_net_message_callback(const void* data,
 
                 //TODO: adapt analyzer.py to work with new log format
                 //FIXME: float format specifier doesn't work because "-u_printf_float" option is not passed to linker
-                //FIXME: hex format specifier is also not working or value isn't passed correctly
-                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %.1f, 0x%02X, ",
+                //NOTE: temporary fix is to count preamble words in amount of nibbles instead of bytes (1 byte = 2 nibbles)
+                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,
@@ -256,7 +256,7 @@ static void received_ranger_net_message_callback(const void* data,
                        current_rf_cfg->chan_spacing,
                        chan_center_freq,
                        current_rf_cfg->bitrate,
-                       cc1200_preamble.preamble_bytes,
+                       cc1200_preamble.preamble_nibbles,
                        cc1200_preamble.preamble_word);
                 print_node_addr(linkaddr_node_addr);
                 printf(", ");
@@ -524,7 +524,7 @@ static cc1200_preamble_t get_cc1200_preamble(void)
     assert(result == RADIO_RESULT_OK);
     LOG_INFO("PREAMBLE_CFG1: 0x%02X\n", cc1200_preamble_cfg1.val);
 
-    cc1200_preamble.preamble_bytes = num_preamble_bytes[(cc1200_preamble_cfg1.val & ~0xC3) >> 2];
+    cc1200_preamble.preamble_nibbles = num_preamble_nibbles[(cc1200_preamble_cfg1.val & ~0xC3) >> 2];
     cc1200_preamble.preamble_word = preamble_words[cc1200_preamble_cfg1.val & ~0xFC];
 
     return cc1200_preamble;
