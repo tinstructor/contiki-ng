@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 #include <inttypes.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -244,7 +245,7 @@ static void received_ranger_net_message_callback(const void* data,
                 //TODO: adapt analyzer.py to work with new log format
                 //FIXME: float format specifier doesn't work because "-u_printf_float" option is not passed to linker
                 //NOTE: temporary fix is to count preamble words in amount of nibbles instead of bytes (1 byte = 2 nibbles)
-                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, ",
+                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,
@@ -257,6 +258,7 @@ static void received_ranger_net_message_callback(const void* data,
                        current_rf_cfg->chan_spacing,
                        chan_center_freq,
                        current_rf_cfg->bitrate,
+                       symbol_rate,
                        preamble.preamble_nibbles,
                        preamble.preamble_word);
                 print_node_addr(linkaddr_node_addr);
@@ -539,11 +541,24 @@ static cc1200_symbol_rate_t get_cc1200_symbol_rate(void)
                                                       cc1200_symbol_rate,
                                                       sizeof(registerSetting_t)*3);
     assert(result == RADIO_RESULT_OK);
-    for (size_t i = 0; i < 3; i++)
-    {
-        printf("SYMBOL_RATE%d: 0x%02X\n",i,cc1200_symbol_rate[i].val);
-    }
+    LOG_INFO("SYMBOL_RATE%d: 0x%02X\n",0,cc1200_symbol_rate[0].val);
+    LOG_INFO("SYMBOL_RATE%d: 0x%02X\n",1,cc1200_symbol_rate[1].val);
+    LOG_INFO("SYMBOL_RATE%d: 0x%02X\n",2,cc1200_symbol_rate[2].val);
 
+    uint8_t exponent = (cc1200_symbol_rate[2].val & ~0x0F) >> 4;
+    uint32_t mantissa = cc1200_symbol_rate[0].val + (cc1200_symbol_rate[1].val << 8) + 
+                        ((cc1200_symbol_rate[2].val & ~0xF0) << 16);
+
+    if(exponent != 0)
+    {
+        symbol_rate = ((pow(2.0, 20.0) + mantissa) * pow(2.0, (double)exponent) * 
+                      XTAL_FREQ_KHZ * 1000 / pow(2.0, 39.0)) + 0.5;
+    }
+    else
+    {
+        symbol_rate = (mantissa * XTAL_FREQ_KHZ * 1000 / pow(2.0, 38.0)) + 0.5;
+    }
+    
     return symbol_rate;
 }
 

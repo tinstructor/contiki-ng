@@ -71,4 +71,10 @@ static const linkaddr_t empty_linkaddr;
 static const float num_preamble_nibbles[] = {0,1,2,3,4,6,8,10,12,14,16,24,48,60,0,0};
 static const uint8_t preamble_words[] = {0xAA,0x55,0x33,0xCC};
 
+/*----------------------------------------------------------------------------*/
+
+#ifndef XTAL_FREQ_KHZ
+#define XTAL_FREQ_KHZ   40000
+#endif /* XTAL_FREQ_KHZ */
+
 #endif /* RANGER_CONSTANTS_H_ */
