@@ -240,13 +240,14 @@ static void received_ranger_net_message_callback(const void* data,
                 cc1200_preamble_t preamble = get_cc1200_preamble();
                 cc1200_symbol_rate_t symbol_rate = get_cc1200_symbol_rate();
                 cc1200_rx_filt_bw_t rx_filt_bw = get_cc1200_rx_filt_bw();
+                cc1200_crc_cfg_t crc_cfg = get_cc1200_crc_cfg();
 
                 uint32_t chan_center_freq = current_rf_cfg->chan_center_freq0 * 1000 + (channel * current_rf_cfg->chan_spacing);
 
                 //TODO: adapt analyzer.py to work with new log format
                 //FIXME: float format specifier doesn't work because "-u_printf_float" option is not passed to linker
                 //NOTE: temporary fix is to count preamble words in amount of nibbles instead of bytes (1 byte = 2 nibbles)
-                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, ",
+                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, 0x%02X, 0x%02X, ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,
@@ -262,7 +263,9 @@ static void received_ranger_net_message_callback(const void* data,
                        symbol_rate,
                        rx_filt_bw,
                        preamble.preamble_nibbles,
-                       preamble.preamble_word);
+                       preamble.preamble_word,
+                       crc_cfg.crc_polynomial,
+                       crc_cfg.init_vector);
                 print_node_addr(linkaddr_node_addr);
                 printf(", ");
                 print_node_addr(src_addr);
@@ -578,6 +581,21 @@ static cc1200_rx_filt_bw_t get_cc1200_rx_filt_bw(void)
                  (cc1200_chan_bw.val & ~0xC0) * 2.0)) + 0.5;
 
     return rx_filt_bw;
+}
+
+static cc1200_crc_cfg_t get_cc1200_crc_cfg(void)
+{
+    cc1200_crc_cfg_t crc_cfg = {};
+    registerSetting_t cc1200_pkt_cfg1 = {};
+    radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_PKT_CFG1,
+                                                      &cc1200_pkt_cfg1,
+                                                      sizeof(registerSetting_t));
+    assert(result == RADIO_RESULT_OK);
+    LOG_INFO("PKT_CFG1: 0x%02X\n", cc1200_pkt_cfg1.val);
+
+    crc_cfg = crc_configurations[(cc1200_pkt_cfg1.val & ~0xF9) >> 1];
+
+    return crc_cfg;
 }
 
 /*----------------------------------------------------------------------------*/

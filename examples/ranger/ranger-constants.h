@@ -74,6 +74,9 @@ static const uint8_t preamble_words[] = {0xAA,0x55,0x33,0xCC};
 // have a look at p.30 and p.84 of SWRU346B
 static const uint8_t decimation_factors[] = {12,24,48,0};
 
+// have a look at p.94 of SWRU346B
+static const cc1200_crc_cfg_t crc_configurations[] = {{},{0xC002,0xFFFF},{0x8810,0x0000},{0x77EF,0x1D0F}};
+
 /*----------------------------------------------------------------------------*/
 
 #ifndef XTAL_FREQ_KHZ

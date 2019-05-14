@@ -121,6 +121,11 @@ enum {
    */
   RADIO_PARAM_CHAN_BW,
 
+  /*
+   * Contents of CC1200 PKT_CFG1 register
+   */
+  RADIO_PARAM_PKT_CFG1,
+
   /* Personal area network identifier, which is used by the address filter. */
   RADIO_PARAM_PAN_ID,
 

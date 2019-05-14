@@ -23,6 +23,28 @@ typedef struct
 typedef uint32_t cc1200_symbol_rate_t;
 typedef uint32_t cc1200_rx_filt_bw_t;
 
+/**
+ * @brief Representation of a crc polynomial and its initialisation vector.
+ * 
+ * A bit at a certain position in the crc_polynomial field is set to one if 
+ * and only if the actual polynomial contains a term with an exponent equal
+ * to the position of said bit plus 1. For example, consider the following
+ * representation of a polynomial:
+ * 
+ * x^16 + x^15 + x^2 + 1
+ * 
+ * Accordingly, the crc_polynomial field would have the value:
+ * 
+ * 0b1100000000000010 = 0xC002
+ * 
+ * NOTE: positions in the crc_polynomial field start from 0.
+ */
+typedef struct
+{
+    uint16_t crc_polynomial;
+    uint16_t init_vector;
+} cc1200_crc_cfg_t;
+
 typedef struct
 {
     uint32_t unique_id;
