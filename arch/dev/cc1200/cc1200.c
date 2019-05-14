@@ -204,8 +204,10 @@ extern const cc1200_rf_cfg_t CC1200_RF_CFG;
 static const cc1200_rf_cfg_t* cc1200_rf_cfg_ptr = &CC1200_RF_CFG;
 /* Pointer to a new radio configuration */
 static const cc1200_rf_cfg_t* new_cc1200_rf_cfg_ptr;
-/* Contents of the CC1200 PREAMBLE_CFG1 register*/
+/* Contents of the CC1200 PREAMBLE_CFG1 register */
 static registerSetting_t cc1200_preamble_cfg1;
+/* Contents of the CC1200 SYMBOL_RATE registers */
+static registerSetting_t cc1200_symbol_rate[3];
 /*---------------------------------------------------------------------------*/
 /* This defines the way we calculate the frequency registers */
 /*---------------------------------------------------------------------------*/
@@ -1475,12 +1477,31 @@ get_object(radio_param_t param, void *dest, size_t size)
   }
 
   if(param == RADIO_PARAM_PREAMBLE_CFG1) {
-    if(size != sizeof(registerSetting_t) ||!dest) {
+    if(size != sizeof(registerSetting_t) || !dest) {
       return RADIO_RESULT_INVALID_VALUE;
     }
     cc1200_preamble_cfg1.addr = CC1200_PREAMBLE_CFG1;
     cc1200_preamble_cfg1.val = single_read(CC1200_PREAMBLE_CFG1);
     *(registerSetting_t *)dest = cc1200_preamble_cfg1;
+    return RADIO_RESULT_OK;
+  }
+
+  if(param == RADIO_PARAM_SYMBOL_RATE) {
+    if(size != sizeof(registerSetting_t)*3 || !dest) {
+      return RADIO_RESULT_INVALID_VALUE;
+    }
+    cc1200_symbol_rate[0].addr = CC1200_SYMBOL_RATE0;
+    cc1200_symbol_rate[0].val = single_read(CC1200_SYMBOL_RATE0);
+    *((registerSetting_t *)dest + 0) = cc1200_symbol_rate[0];
+
+    cc1200_symbol_rate[1].addr = CC1200_SYMBOL_RATE1;
+    cc1200_symbol_rate[1].val = single_read(CC1200_SYMBOL_RATE1);
+    *((registerSetting_t *)dest + 1) = cc1200_symbol_rate[1];
+
+    cc1200_symbol_rate[2].addr = CC1200_SYMBOL_RATE2;
+    cc1200_symbol_rate[2].val = single_read(CC1200_SYMBOL_RATE2);
+    *((registerSetting_t *)dest + 2) = cc1200_symbol_rate[2];
+    
     return RADIO_RESULT_OK;
   }
 

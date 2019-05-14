@@ -20,6 +20,8 @@ typedef struct
     uint16_t preamble_word;
 } cc1200_preamble_t;
 
+typedef uint32_t cc1200_symbol_rate_t;
+
 typedef struct
 {
     uint32_t unique_id;

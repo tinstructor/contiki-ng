@@ -111,6 +111,11 @@ enum {
    */
   RADIO_PARAM_PREAMBLE_CFG1,
 
+  /*
+   * Contents of CC1200 SYMBOL_RATE0, SYMBOL_RATE1 and SYMBOL_RATE2 registers
+   */
+  RADIO_PARAM_SYMBOL_RATE,
+
   /* Personal area network identifier, which is used by the address filter. */
   RADIO_PARAM_PAN_ID,
 

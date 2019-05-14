@@ -35,5 +35,6 @@ static void init_send_pin(void);
 static void print_diagnostics(void);
 
 static cc1200_preamble_t get_cc1200_preamble(void);
+static cc1200_symbol_rate_t get_cc1200_symbol_rate(void);
 
 #endif /* RANGER_FUNCTIONS_H_ */

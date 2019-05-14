@@ -236,7 +236,8 @@ static void received_ranger_net_message_callback(const void* data,
                 result = NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
                 assert(result == RADIO_RESULT_OK);
 
-                cc1200_preamble_t cc1200_preamble = get_cc1200_preamble();
+                cc1200_preamble_t preamble = get_cc1200_preamble();
+                cc1200_symbol_rate_t symbol_rate = get_cc1200_symbol_rate();
 
                 uint32_t chan_center_freq = current_rf_cfg->chan_center_freq0 * 1000 + (channel * current_rf_cfg->chan_spacing);
 
@@ -256,8 +257,8 @@ static void received_ranger_net_message_callback(const void* data,
                        current_rf_cfg->chan_spacing,
                        chan_center_freq,
                        current_rf_cfg->bitrate,
-                       cc1200_preamble.preamble_nibbles,
-                       cc1200_preamble.preamble_word);
+                       preamble.preamble_nibbles,
+                       preamble.preamble_word);
                 print_node_addr(linkaddr_node_addr);
                 printf(", ");
                 print_node_addr(src_addr);
@@ -516,7 +517,7 @@ static void print_diagnostics(void)
 
 static cc1200_preamble_t get_cc1200_preamble(void)
 {
-    cc1200_preamble_t cc1200_preamble = {};
+    cc1200_preamble_t preamble = {};
     registerSetting_t cc1200_preamble_cfg1 = {};
     radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_PREAMBLE_CFG1, 
                                                       &cc1200_preamble_cfg1, 
@@ -524,10 +525,26 @@ static cc1200_preamble_t get_cc1200_preamble(void)
     assert(result == RADIO_RESULT_OK);
     LOG_INFO("PREAMBLE_CFG1: 0x%02X\n", cc1200_preamble_cfg1.val);
 
-    cc1200_preamble.preamble_nibbles = num_preamble_nibbles[(cc1200_preamble_cfg1.val & ~0xC3) >> 2];
-    cc1200_preamble.preamble_word = preamble_words[cc1200_preamble_cfg1.val & ~0xFC];
+    preamble.preamble_nibbles = num_preamble_nibbles[(cc1200_preamble_cfg1.val & ~0xC3) >> 2];
+    preamble.preamble_word = preamble_words[cc1200_preamble_cfg1.val & ~0xFC];
 
-    return cc1200_preamble;
+    return preamble;
+}
+
+static cc1200_symbol_rate_t get_cc1200_symbol_rate(void)
+{
+    cc1200_symbol_rate_t symbol_rate = 0;
+    registerSetting_t cc1200_symbol_rate[3] = {{}};
+    radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_SYMBOL_RATE,
+                                                      cc1200_symbol_rate,
+                                                      sizeof(registerSetting_t)*3);
+    assert(result == RADIO_RESULT_OK);
+    for (size_t i = 0; i < 3; i++)
+    {
+        printf("SYMBOL_RATE%d: 0x%02X\n",i,cc1200_symbol_rate[i].val);
+    }
+
+    return symbol_rate;
 }
 
 /*----------------------------------------------------------------------------*/
