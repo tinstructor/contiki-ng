@@ -188,15 +188,20 @@ For your convenience a python script (see `contiki-ng-relsas > examples > ranger
 ```bash
 $ make login | python3 timestamper.py -f <name of logfile>
 Created logfile "<name of logfile>.log"
-2019-05-13T10:58:28.600257 | 0:00:00.000046 | using saved target 'zoul'
-2019-05-13T10:58:29.075912 | 0:00:00.475701 | rlwrap ../../tools/serial-io/serialdump -b115200 /dev/ttyUSB0
+2019-05-14T11:00:20.355880 | 0:00:00.000061 | using saved target 'zoul'
+2019-05-14T11:00:21.063397 | 0:00:00.707578 | rlwrap ../../tools/serial-io/serialdump -b115200 /dev/ttyUSB0
 connecting to /dev/ttyUSB0 [OK]
-2019-05-13T10:58:36.392570 | 0:00:07.792359 | Current RF config descriptor: 868MHz 2-FSK 1.2 kbps
-2019-05-13T10:58:36.392751 | 0:00:07.792540 | csv-log: 0, 40, -111
-2019-05-13T10:58:36.939890 | 0:00:08.339679 | Current RF config descriptor: 868MHz 2-FSK 1.2 kbps
-2019-05-13T10:58:36.940415 | 0:00:08.340204 | csv-log: 1, 40, -114
-2019-05-13T10:58:37.549070 | 0:00:08.948859 | Current RF config descriptor: 868MHz 2-FSK 1.2 kbps
-2019-05-13T10:58:37.549526 | 0:00:08.949315 | csv-log: 2, 40, -113
+2019-05-14T11:00:29.288535 | 0:00:08.932716 | csv-log: 868MHz 2-FSK 1.2 kbps, 0, 40, -107, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
+2019-05-14T11:00:29.882023 | 0:00:09.526204 | csv-log: 868MHz 2-FSK 1.2 kbps, 1, 40, -107, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
+2019-05-14T11:00:30.398913 | 0:00:10.043094 | csv-log: 868MHz 2-FSK 1.2 kbps, 2, 40, -107, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
+2019-05-14T11:00:30.961208 | 0:00:10.605389 | csv-log: 868MHz 2-FSK 1.2 kbps, 3, 40, -107, -99, 0, 14, 1, 867787, 12500, 867799500, 1200, 6, 0xAA, 0012.4b00.09df.540c, 0012.4b00.09df.540e
+...
 ```
 
->**Note:** a basic python script is also provided to analyze the logfile. The script may be called by providing the name of the logfile to be analyzed: `$ python3 analyzer.py <name of logfile>.log`. However, this script will undergo significant changes in the future to incorporate more advanced analysis of additional metrics etc., so don't expect it to work flawlessly.
+Each line (at least the ones containing useful data) in the logfile is separated by 2 vertical lines (i.e., a "pipe" character) and has the format: `"ISO formatted timestamp | time elapsed since start of script | csv-log obtained from serial output"`. The interesting bit then is the format of the csv-log part itself. The following table summarizes the csv-log format and gives an example from the previous snippet:
+
+| RF config descriptor  | Packet nr. | Payload length | RSSI | RSSI offset | LQI | TX power | Channel | Center frequency of channel 0 | Channel spacing | Center frequency of current channel | Bitrate | Preamble nibbles | Preamble word | Receiver link address | Transmitter link address |
+| --------------------: | ---------: | -------------: | ---: | ----------: | --: | -------: | ------: | ----------------------------: | --------------: | ----------------------------------: | ------: | ---------------: | ------------: | --------------------: | -----------------------: |
+| 868MHz 2-FSK 1.2 kbps | 0          | 40             | -107 | -99         | 0   | 14       | 1       | 867787                        | 12500           | 867799500                           | 1200    | 6                | 0xAA          | 0012.4b00.09df.540c   | 0012.4b00.09df.540e      |
+
+>**Note:** ~~a basic python script is also provided to analyze the logfile. The script may be called by providing the name of the logfile to be analyzed: `$ python3 analyzer.py <name of logfile>.log`. However, this script will undergo significant changes in the future to incorporate more advanced analysis of additional metrics etc., so don't expect it to work flawlessly.~~ <mark>The logfile analyzer script is dephrecated!</mark>
