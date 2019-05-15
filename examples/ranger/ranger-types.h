@@ -2,6 +2,7 @@
 #define RANGER_TYPES_H_
 
 #include <inttypes.h>
+#include <stdbool.h>
 #include "contiki.h"
 
 #ifndef CONTENT_SIZE
@@ -44,6 +45,13 @@ typedef struct
     uint16_t crc_polynomial;
     uint16_t init_vector;
 } cc1200_crc_cfg_t;
+
+typedef struct
+{
+    uint32_t sync_word;
+    uint8_t sync_threshold;
+    bool dual_sync_en;
+} cc1200_sync_t;
 
 typedef struct
 {

@@ -77,6 +77,12 @@ static const uint8_t decimation_factors[] = {12,24,48,0};
 // have a look at p.94 of SWRU346B
 static const cc1200_crc_cfg_t crc_configurations[] = {{},{0xC002,0xFFFF},{0x8810,0x0000},{0x77EF,0x1D0F}};
 
+// have a look at p.35 and p.80 of SWRU346B
+static const uint32_t sync_word_masks[] = {0x00000000,0x000007FF,0x0000FFFF,0x0003FFFF,0x00FFFFFF,0xFFFFFFFF,0xFFFF0000,0xFFFFFFFF};
+
+#define SYNC_MODE_16_H  0b110
+#define SYNC_MODE_16_D  0b111
+
 /*----------------------------------------------------------------------------*/
 
 #ifndef XTAL_FREQ_KHZ

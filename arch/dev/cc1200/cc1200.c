@@ -212,6 +212,10 @@ static registerSetting_t cc1200_symbol_rate[3];
 static registerSetting_t cc1200_chan_bw;
 /* Contents of the CC1200 PKT_CFG1 register */
 static registerSetting_t cc1200_pkt_cfg1;
+/* Contents of the CC1200 SYNC3/2/1/0 registers */
+static registerSetting_t cc1200_sync[4];
+/* Contents of the CC1200 SYNC_CFG1 register */
+static registerSetting_t cc1200_sync_cfg1;
 /*---------------------------------------------------------------------------*/
 /* This defines the way we calculate the frequency registers */
 /*---------------------------------------------------------------------------*/
@@ -1526,6 +1530,39 @@ get_object(radio_param_t param, void *dest, size_t size)
     cc1200_pkt_cfg1.addr = CC1200_PKT_CFG1;
     cc1200_pkt_cfg1.val = single_read(CC1200_PKT_CFG1);
     *(registerSetting_t *)dest = cc1200_pkt_cfg1;
+    return RADIO_RESULT_OK;
+  }
+
+  if(param == RADIO_PARAM_SYNC) {
+    if(size != sizeof(registerSetting_t)*4 || !dest) {
+      return RADIO_RESULT_INVALID_VALUE;
+    }
+    cc1200_sync[0].addr = CC1200_SYNC0;
+    cc1200_sync[0].val = single_read(CC1200_SYNC0);
+    *((registerSetting_t *)dest + 0) = cc1200_sync[0];
+
+    cc1200_sync[1].addr = CC1200_SYNC1;
+    cc1200_sync[1].val = single_read(CC1200_SYNC1);
+    *((registerSetting_t *)dest + 1) = cc1200_sync[1];
+
+    cc1200_sync[2].addr = CC1200_SYNC2;
+    cc1200_sync[2].val = single_read(CC1200_SYNC2);
+    *((registerSetting_t *)dest + 2) = cc1200_sync[2];
+
+    cc1200_sync[3].addr = CC1200_SYNC3;
+    cc1200_sync[3].val = single_read(CC1200_SYNC3);
+    *((registerSetting_t *)dest + 3) = cc1200_sync[3];
+
+    return RADIO_RESULT_OK;
+  }
+
+  if(param == RADIO_PARAM_SYNC_CFG1) {
+    if(size != sizeof(registerSetting_t) || !dest) {
+      return RADIO_RESULT_INVALID_VALUE;
+    }
+    cc1200_sync_cfg1.addr = CC1200_SYNC_CFG1;
+    cc1200_sync_cfg1.val = single_read(CC1200_SYNC_CFG1);
+    *(registerSetting_t *)dest = cc1200_sync_cfg1;
     return RADIO_RESULT_OK;
   }
 

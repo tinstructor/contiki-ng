@@ -241,13 +241,15 @@ static void received_ranger_net_message_callback(const void* data,
                 cc1200_symbol_rate_t symbol_rate = get_cc1200_symbol_rate();
                 cc1200_rx_filt_bw_t rx_filt_bw = get_cc1200_rx_filt_bw();
                 cc1200_crc_cfg_t crc_cfg = get_cc1200_crc_cfg();
+                cc1200_sync_t sync = get_cc1200_sync();
 
                 uint32_t chan_center_freq = current_rf_cfg->chan_center_freq0 * 1000 + (channel * current_rf_cfg->chan_spacing);
 
                 //TODO: adapt analyzer.py to work with new log format
                 //FIXME: float format specifier doesn't work because "-u_printf_float" option is not passed to linker
                 //NOTE: temporary fix is to count preamble words in amount of nibbles instead of bytes (1 byte = 2 nibbles)
-                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, 0x%02X, 0x%02X, ",
+                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32","
+                       " %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, 0x%02X, 0x%02X, 0x%"PRIx32", %d, %d, ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,
@@ -265,7 +267,10 @@ static void received_ranger_net_message_callback(const void* data,
                        preamble.preamble_nibbles,
                        preamble.preamble_word,
                        crc_cfg.crc_polynomial,
-                       crc_cfg.init_vector);
+                       crc_cfg.init_vector,
+                       sync.sync_word,
+                       sync.sync_threshold,
+                       sync.dual_sync_en);
                 print_node_addr(linkaddr_node_addr);
                 printf(", ");
                 print_node_addr(src_addr);
@@ -596,6 +601,46 @@ static cc1200_crc_cfg_t get_cc1200_crc_cfg(void)
     crc_cfg = crc_configurations[(cc1200_pkt_cfg1.val & ~0xF9) >> 1];
 
     return crc_cfg;
+}
+
+static cc1200_sync_t get_cc1200_sync(void)
+{
+    cc1200_sync_t sync = {};
+    registerSetting_t cc1200_sync[4] = {{}};
+    registerSetting_t cc1200_sync_cfg1 = {};
+    radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_SYNC,
+                                                      cc1200_sync,
+                                                      sizeof(registerSetting_t)*4);
+    assert(result == RADIO_RESULT_OK);
+    LOG_INFO("SYNC0: 0x%02X\n",cc1200_sync[0].val);
+    LOG_INFO("SYNC1: 0x%02X\n",cc1200_sync[1].val);
+    LOG_INFO("SYNC2: 0x%02X\n",cc1200_sync[2].val);
+    LOG_INFO("SYNC3: 0x%02X\n",cc1200_sync[3].val);
+    result = NETSTACK_RADIO.get_object(RADIO_PARAM_SYNC_CFG1,
+                                       &cc1200_sync_cfg1,
+                                       sizeof(registerSetting_t));
+    assert(result == RADIO_RESULT_OK);
+    LOG_INFO("SYNC_CFG1: 0x%02X\n",cc1200_sync_cfg1.val);
+
+    sync.sync_word = (cc1200_sync[3].val << 24) + (cc1200_sync[2].val << 16) + (cc1200_sync[1].val << 8) + cc1200_sync[0].val;
+    uint8_t sync_mode = (cc1200_sync_cfg1.val & ~0x1F) >> 5;
+    sync.sync_word = sync.sync_word & sync_word_masks[sync_mode];
+
+    switch (sync_mode)
+    {
+        case SYNC_MODE_16_H:
+            sync.sync_word = sync.sync_word >> 16;
+            break;
+        case SYNC_MODE_16_D:
+            sync.dual_sync_en = true;
+            break;
+        default:
+            break;
+    }
+
+    sync.sync_threshold = cc1200_sync_cfg1.val & ~0xE0;
+
+    return sync;
 }
 
 /*----------------------------------------------------------------------------*/
