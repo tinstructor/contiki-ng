@@ -242,6 +242,7 @@ static void received_ranger_net_message_callback(const void* data,
                 cc1200_rx_filt_bw_t rx_filt_bw = get_cc1200_rx_filt_bw();
                 cc1200_crc_cfg_t crc_cfg = get_cc1200_crc_cfg();
                 cc1200_sync_t sync = get_cc1200_sync();
+                cc1200_freq_dev_t freq_dev = get_cc1200_freq_dev();
 
                 uint32_t chan_center_freq = current_rf_cfg->chan_center_freq0 * 1000 + (channel * current_rf_cfg->chan_spacing);
 
@@ -249,7 +250,8 @@ static void received_ranger_net_message_callback(const void* data,
                 //FIXME: float format specifier doesn't work because "-u_printf_float" option is not passed to linker
                 //NOTE: temporary fix is to count preamble words in amount of nibbles instead of bytes (1 byte = 2 nibbles)
                 printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32","
-                       " %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, 0x%02X, 0x%02X, 0x%"PRIx32", %d, %d, ",
+                       " %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, 0x%02X, 0x%02X, 0x%"PRIX32", %d, %d,"
+                       " %"PRIu32", ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,
@@ -270,7 +272,8 @@ static void received_ranger_net_message_callback(const void* data,
                        crc_cfg.init_vector,
                        sync.sync_word,
                        sync.sync_threshold,
-                       sync.dual_sync_en);
+                       sync.dual_sync_en,
+                       freq_dev);
                 print_node_addr(linkaddr_node_addr);
                 printf(", ");
                 print_node_addr(src_addr);
@@ -562,11 +565,11 @@ static cc1200_symbol_rate_t get_cc1200_symbol_rate(void)
     if(exponent != 0)
     {
         symbol_rate = ((pow(2.0, 20.0) + mantissa) * pow(2.0, (double)exponent) * 
-                      XTAL_FREQ_KHZ * 1000 / pow(2.0, 39.0)) + 0.5;
+                      XTAL_FREQ_KHZ * 1000.0 / pow(2.0, 39.0)) + 0.5;
     }
     else
     {
-        symbol_rate = (mantissa * XTAL_FREQ_KHZ * 1000 / pow(2.0, 38.0)) + 0.5;
+        symbol_rate = (mantissa * XTAL_FREQ_KHZ * 1000.0 / pow(2.0, 38.0)) + 0.5;
     }
     
     return symbol_rate;
@@ -582,7 +585,7 @@ static cc1200_rx_filt_bw_t get_cc1200_rx_filt_bw(void)
     assert(result == RADIO_RESULT_OK);
     LOG_INFO("CHAN_BW: 0x%02X\n", cc1200_chan_bw.val);
 
-    rx_filt_bw = (XTAL_FREQ_KHZ * 1000 / (decimation_factors[(cc1200_chan_bw.val & ~0x3F) >> 6] * 
+    rx_filt_bw = (XTAL_FREQ_KHZ * 1000.0 / (decimation_factors[(cc1200_chan_bw.val & ~0x3F) >> 6] * 
                  (cc1200_chan_bw.val & ~0xC0) * 2.0)) + 0.5;
 
     return rx_filt_bw;
@@ -641,6 +644,38 @@ static cc1200_sync_t get_cc1200_sync(void)
     sync.sync_threshold = cc1200_sync_cfg1.val & ~0xE0;
 
     return sync;
+}
+
+static cc1200_freq_dev_t get_cc1200_freq_dev(void)
+{
+    cc1200_freq_dev_t freq_dev = 0;
+    registerSetting_t cc1200_deviation_m = {};
+    registerSetting_t cc1200_modcfg_dev_e = {};
+    radio_result_t result = NETSTACK_RADIO.get_object(RADIO_PARAM_DEVIATION_M,
+                                                      &cc1200_deviation_m,
+                                                      sizeof(registerSetting_t));
+    assert(result == RADIO_RESULT_OK);
+    LOG_INFO("DEVIATION_M: 0x%02X\n",cc1200_deviation_m.val);
+    result = NETSTACK_RADIO.get_object(RADIO_PARAM_MODCFG_DEV_E,
+                                       &cc1200_modcfg_dev_e,
+                                       sizeof(registerSetting_t));
+    assert(result == RADIO_RESULT_OK);
+    LOG_INFO("MODCFG_DEV_E: 0x%02X\n",cc1200_modcfg_dev_e.val);
+
+    uint8_t exponent = cc1200_modcfg_dev_e.val & ~0xF8;
+    uint32_t mantissa = cc1200_deviation_m.val;
+
+    if(exponent != 0)
+    {
+        freq_dev = (XTAL_FREQ_KHZ * 1000.0 * (256 + mantissa) * pow(2.0, (double)exponent) 
+                   / pow(2.0, 22.0)) + 0.5;
+    }
+    else
+    {
+        freq_dev = (XTAL_FREQ_KHZ * 1000.0 * mantissa / pow(2.0, 21.0)) + 0.5;
+    }
+
+    return freq_dev;
 }
 
 /*----------------------------------------------------------------------------*/

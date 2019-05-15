@@ -136,6 +136,16 @@ enum {
    */
   RADIO_PARAM_SYNC_CFG1,
 
+  /*
+   * Contents of CC1200 DEVIATION_M register
+   */
+  RADIO_PARAM_DEVIATION_M,
+
+  /*
+   * Contents of CC1200 MODCFG_DEV_E register
+   */
+  RADIO_PARAM_MODCFG_DEV_E,
+
   /* Personal area network identifier, which is used by the address filter. */
   RADIO_PARAM_PAN_ID,
 

@@ -23,6 +23,7 @@ typedef struct
 
 typedef uint32_t cc1200_symbol_rate_t;
 typedef uint32_t cc1200_rx_filt_bw_t;
+typedef uint32_t cc1200_freq_dev_t;
 
 /**
  * @brief Representation of a crc polynomial and its initialisation vector.

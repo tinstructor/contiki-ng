@@ -216,6 +216,10 @@ static registerSetting_t cc1200_pkt_cfg1;
 static registerSetting_t cc1200_sync[4];
 /* Contents of the CC1200 SYNC_CFG1 register */
 static registerSetting_t cc1200_sync_cfg1;
+/* Contents of the CC1200 DEVIATION_M register */
+static registerSetting_t cc1200_deviation_m;
+/* Contents of the CC1200 MODCFG_DEV_E register */
+static registerSetting_t cc1200_modcfg_dev_e;
 /*---------------------------------------------------------------------------*/
 /* This defines the way we calculate the frequency registers */
 /*---------------------------------------------------------------------------*/
@@ -1563,6 +1567,26 @@ get_object(radio_param_t param, void *dest, size_t size)
     cc1200_sync_cfg1.addr = CC1200_SYNC_CFG1;
     cc1200_sync_cfg1.val = single_read(CC1200_SYNC_CFG1);
     *(registerSetting_t *)dest = cc1200_sync_cfg1;
+    return RADIO_RESULT_OK;
+  }
+
+  if(param == RADIO_PARAM_DEVIATION_M) {
+    if(size != sizeof(registerSetting_t) || !dest) {
+      return RADIO_RESULT_INVALID_VALUE;
+    }
+    cc1200_deviation_m.addr = CC1200_DEVIATION_M;
+    cc1200_deviation_m.val = single_read(CC1200_DEVIATION_M);
+    *(registerSetting_t *)dest = cc1200_deviation_m;
+    return RADIO_RESULT_OK;
+  }
+
+  if(param == RADIO_PARAM_MODCFG_DEV_E) {
+    if(size != sizeof(registerSetting_t) || !dest) {
+      return RADIO_RESULT_INVALID_VALUE;
+    }
+    cc1200_modcfg_dev_e.addr = CC1200_MODCFG_DEV_E;
+    cc1200_modcfg_dev_e.val = single_read(CC1200_MODCFG_DEV_E);
+    *(registerSetting_t *)dest = cc1200_modcfg_dev_e;
     return RADIO_RESULT_OK;
   }
 

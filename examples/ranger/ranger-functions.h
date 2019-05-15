@@ -39,5 +39,6 @@ static cc1200_symbol_rate_t get_cc1200_symbol_rate(void);
 static cc1200_rx_filt_bw_t get_cc1200_rx_filt_bw(void);
 static cc1200_crc_cfg_t get_cc1200_crc_cfg(void);
 static cc1200_sync_t get_cc1200_sync(void);
+static cc1200_freq_dev_t get_cc1200_freq_dev(void);
 
 #endif /* RANGER_FUNCTIONS_H_ */
