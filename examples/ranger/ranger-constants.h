@@ -33,7 +33,7 @@ extern const cc1200_rf_cfg_t cc1200_868_2gfsk_50kbps;
 //extern const cc1200_rf_cfg_t cc1200_868_4gfsk_150kbps;
 extern const cc1200_rf_cfg_t cc1200_868_2gfsk_200kbps;
 //extern const cc1200_rf_cfg_t cc1200_868_2gfsk_200kbps; //FIXME: works, but not as expected
-//extern const cc1200_rf_cfg_t cc1200_868_2gfsk_500kbps;
+//extern const cc1200_rf_cfg_t cc1200_868_2gfsk_500kbps; //NOTE: technically speaking this is MSK
 extern const cc1200_rf_cfg_t cc1200_868_4gfsk_1000kbps;
 
 static const cc1200_rf_cfg_t * const rf_cfg_ptrs[] = {&cc1200_868_2fsk_1_2kbps,
@@ -43,7 +43,7 @@ static const cc1200_rf_cfg_t * const rf_cfg_ptrs[] = {&cc1200_868_2fsk_1_2kbps,
                                                       //&cc1200_868_4gfsk_150kbps,
                                                       &cc1200_868_2gfsk_200kbps,
                                                       //&cc1200_868_4gfsk_200kbps, //FIXME: works, but not as expected
-                                                      //&cc1200_868_2gfsk_500kbps,
+                                                      //&cc1200_868_2gfsk_500kbps, //NOTE: technically speaking this is MSK
                                                       &cc1200_868_4gfsk_1000kbps};
 
 enum {RF_CFG_AMOUNT = sizeof(rf_cfg_ptrs)/sizeof(rf_cfg_ptrs[0]),};
