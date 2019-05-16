@@ -7,6 +7,7 @@ This document describes the usage and configuration of the ranger example for Co
   - [Getting Started](#getting-started)
   - [Tips & Tricks](#tips--tricks)
   - [Usage](#usage)
+  - [Recommended Reads](#recommended-reads)
 
 ## Getting Started
 The first step is to clone our remote repository to your local machine, updating all git submodules and checking out the `ranger-ng` branch as follows:
@@ -205,3 +206,12 @@ Each line (at least the ones containing useful data) in the logfile is separated
 | 868MHz 2-FSK 1.2 kbps | 0          | 40                       | -105       | -99               | 0   | 14             | 1       | 867787                              | 12500                | 867799500                           | 1200    | 1200              | 10965                    | 6                | 0xAA          | 0xC002         | 0xFFFF          | 0x930B51DE | 10                  | 0                | 3986                     | 0012.4b00.09df.540c   | 0012.4b00.09df.540e      |
 
 >**Note:** ~~a basic python script is also provided to analyze the logfile. The script may be called by providing the name of the logfile to be analyzed: `$ python3 analyzer.py <name of logfile>.log`. However, this script will undergo significant changes in the future to incorporate more advanced analysis of additional metrics etc., so don't expect it to work flawlessly.~~ <mark>The logfile analyzer script is dephrecated!</mark>
+
+## Recommended Reads
+
+- [**The Contiki-NG Wiki**](https://github.com/contiki-ng/contiki-ng/wiki): It is generally advisable to start out here. However, the documentation is really basic and leaves much to be desired, especially if you want to do more than just write applications on top of existing functionality.
+- [**Practical Contiki-NG**](https://doi.org/10.1007/978-1-4842-3408-2) *by Agus Kurniawan*: After you've gone through the Wiki you'll have a lot of unanswered questions about how stuff actually works. This book can help you with a small part of those questions, but don't expect an in-depth explanation of anything PHY related. If you have a Shibboleth or Athens account via your research institution, you can even download a digital copy for free, legally!
+- [**IEEE 802.15.4-2015**](https://standards.ieee.org/standard/802_15_4-2015.html): The currently active PHY + MAC layer standard for 802.15.4 networks. Although this is the official standard, many developers seem to have a total disregard for certain aspects of it. Especially on the Sub-GHz PHY layers, there seems to be a lot of confusion as to what is actually standardised and what is not. The fact that IEEE standards are not publicly available and otherwise very expensive to obtain doesn't help this confusion either. For the needs imposed by our use-case, departing from the standard may actually be desireable, since our purpose is simply to obtain information about all sorts of PHY configurations bar none.
+- [**CC120X User Guide**](swru346b.pdf): This user guide contains everything needed to understand the shift and masking operations performed on retreived register contents as well as the calculations subsequently performed with these values to get the desired information. This guide is particularly useful if you wish to understand how part of the information to be written out to the csv-log is retreived.
+- [**Jump Start Git**](https://www.sitepoint.com/premium/books/jump-start-git): As mentioned before, if you don't speak Git, this book is where you might want to start your journey.
+- [**C in a Nutshell**](http://shop.oreilly.com/product/0636920033844.do): Although C is an incredibly forgiving language when it comes to getting what you want out of it (hence the abundance of terribly written but otherwise "functional" code), some parts of our source code contain more advanced features and contstructs from the C99 and later C11 specification. We make no mistake about it, seasoned embedded developers would probably have a heart-attack looking at parts of our code, but the important thing to remember is that we're well on our way to write better source code and this book is what's getting us there.
