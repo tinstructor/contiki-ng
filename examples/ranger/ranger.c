@@ -251,7 +251,7 @@ static void received_ranger_net_message_callback(const void* data,
                 //NOTE: temporary fix is to count preamble words in amount of nibbles instead of bytes (1 byte = 2 nibbles)
                 printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32","
                        " %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, 0x%02X, 0x%02X, 0x%"PRIX32", %d, %d,"
-                       " %"PRIu32", ",
+                       " %"PRIu32", %d, ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,
@@ -273,7 +273,8 @@ static void received_ranger_net_message_callback(const void* data,
                        sync.sync_word,
                        sync.sync_threshold,
                        sync.dual_sync_en,
-                       freq_dev);
+                       freq_dev,
+                       NETSTACK_FRAMER.length());
                 print_node_addr(linkaddr_node_addr);
                 printf(", ");
                 print_node_addr(src_addr);
