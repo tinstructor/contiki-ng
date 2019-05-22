@@ -50,6 +50,7 @@ typedef struct
 typedef struct
 {
     uint32_t sync_word;
+    uint8_t sync_bits;
     uint8_t sync_threshold;
     bool dual_sync_en;
 } cc1200_sync_t;

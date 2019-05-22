@@ -251,7 +251,7 @@ static void received_ranger_net_message_callback(const void* data,
                 //NOTE: temporary fix is to count preamble words in amount of nibbles instead of bytes (1 byte = 2 nibbles)
                 printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32","
                        " %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, 0x%02X, 0x%02X, 0x%"PRIX32", %d, %d,"
-                       " %"PRIu32", %d, ",
+                       " %"PRIu32", %"PRIu32", %d, ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,
@@ -273,6 +273,7 @@ static void received_ranger_net_message_callback(const void* data,
                        sync.sync_word,
                        sync.sync_threshold,
                        sync.dual_sync_en,
+                       sync.sync_bits,
                        freq_dev,
                        NETSTACK_FRAMER.length());
                 print_node_addr(linkaddr_node_addr);
@@ -643,6 +644,12 @@ static cc1200_sync_t get_cc1200_sync(void)
     }
 
     sync.sync_threshold = cc1200_sync_cfg1.val & ~0xE0;
+    sync.sync_bits = get_one_count(sync_word_masks[sync_mode]);
+
+    if (sync.dual_sync_en)
+    {
+        sync.sync_bits /= 2;
+    }
 
     return sync;
 }
@@ -677,6 +684,19 @@ static cc1200_freq_dev_t get_cc1200_freq_dev(void)
     }
 
     return freq_dev;
+}
+
+static uint8_t get_one_count(uint32_t bit_mask)
+{
+    uint8_t count = 0;
+
+    while(bit_mask)
+    {
+        bit_mask &= (bit_mask - 1);
+        count++;
+    }
+    
+    return count;
 }
 
 /*----------------------------------------------------------------------------*/

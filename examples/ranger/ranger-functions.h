@@ -41,4 +41,6 @@ static cc1200_crc_cfg_t get_cc1200_crc_cfg(void);
 static cc1200_sync_t get_cc1200_sync(void);
 static cc1200_freq_dev_t get_cc1200_freq_dev(void);
 
+static uint8_t get_one_count(uint32_t bit_mask);
+
 #endif /* RANGER_FUNCTIONS_H_ */
