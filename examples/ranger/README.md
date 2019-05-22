@@ -79,7 +79,7 @@ $ sudo apt-get install build-essential doxygen git curl wireshark python-serial 
 When the Wireshark installer prompts you to say whether or not you want non-superusers to be able to capture packets select `"yes"` and finally add yourself to the `wireshark` group:
 
 ```bash
-$ sudo usermod -a -G <user>
+$ sudo usermod -a -G wireshark <user>
 ```
 
 To be able to access the USB without using sudo, the user should be part of the groups plugdev and dialout.
