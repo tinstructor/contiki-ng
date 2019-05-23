@@ -147,6 +147,56 @@ static void send_message(const linkaddr_t* dest_addr, ranger_message_t message_t
                 LOG_INFO("|-- Content (ascii): ");
                 print_buffer(new_message.content, CONTENT_SIZE, "%2c ");
                 LOG_INFO("\\-- Package number: %" PRIu32 "\n", new_message.package_nr);
+
+                radio_value_t tx_power = 0;
+                radio_value_t channel = 0;
+                radio_result_t result = RADIO_RESULT_ERROR;
+
+                result = NETSTACK_RADIO.get_value(RADIO_PARAM_TXPOWER, &tx_power);
+                assert(result == RADIO_RESULT_OK);
+                result = NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
+                assert(result == RADIO_RESULT_OK);
+
+                cc1200_preamble_t preamble = get_cc1200_preamble();
+                cc1200_symbol_rate_t symbol_rate = get_cc1200_symbol_rate();
+                cc1200_rx_filt_bw_t rx_filt_bw = get_cc1200_rx_filt_bw();
+                cc1200_crc_cfg_t crc_cfg = get_cc1200_crc_cfg();
+                cc1200_sync_t sync = get_cc1200_sync();
+                cc1200_freq_dev_t freq_dev = get_cc1200_freq_dev();
+
+                uint32_t chan_center_freq = current_rf_cfg->chan_center_freq0 * 1000 + (channel * current_rf_cfg->chan_spacing);
+
+                printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32","
+                       " %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, 0x%02X, 0x%02X, 0x%"PRIX32", %d, %d,"
+                       " %d, %"PRIu32", %d, ",
+                       current_rf_cfg->cfg_descriptor,
+                       new_message.package_nr,
+                       sizeof(new_message),
+                       0,
+                       current_rf_cfg->rssi_offset,
+                       0,
+                       tx_power,
+                       channel,
+                       current_rf_cfg->chan_center_freq0,
+                       current_rf_cfg->chan_spacing,
+                       chan_center_freq,
+                       current_rf_cfg->bitrate,
+                       symbol_rate,
+                       rx_filt_bw,
+                       preamble.preamble_nibbles,
+                       preamble.preamble_word,
+                       crc_cfg.crc_polynomial,
+                       crc_cfg.init_vector,
+                       sync.sync_word,
+                       sync.sync_threshold,
+                       sync.dual_sync_en,
+                       sync.sync_bits,
+                       freq_dev,
+                       NETSTACK_FRAMER.length());
+                print_node_addr(linkaddr_node_addr);
+                printf(", ");
+                print_node_addr(linkaddr_node_addr);
+                printf("\n");
             }
             break;
         case CFG_REQ:
@@ -251,7 +301,7 @@ static void received_ranger_net_message_callback(const void* data,
                 //NOTE: temporary fix is to count preamble words in amount of nibbles instead of bytes (1 byte = 2 nibbles)
                 printf("csv-log: %s, %"PRIu32", %"PRIu16", %"PRIi16", %"PRIi8", %"PRIu16", %d, %d, %"PRIu32", %"PRIu32","
                        " %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu32", %"PRIu8", 0x%02X, 0x%02X, 0x%02X, 0x%"PRIX32", %d, %d,"
-                       " %"PRIu32", %"PRIu32", %d, ",
+                       " %d, %"PRIu32", %d, ",
                        current_rf_cfg->cfg_descriptor,
                        current_message.package_nr,
                        datalen,
