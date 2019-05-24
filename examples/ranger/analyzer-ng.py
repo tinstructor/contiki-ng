@@ -41,6 +41,9 @@ class received_messages:
     def __init__(self):
         self.messages = {}
 
+    def get_descriptors(self):
+        return list(self.messages.keys())
+
     def add(self, message):
         if (not message.descriptor in self.messages):
             self.messages[message.descriptor] = []
@@ -164,15 +167,16 @@ print()
 print("Results for {}".format(log_filename))
 print("-" * 80)
 
-if (received_messages.amount("868MHz 2-FSK 1.2 kbps") > 0):
-    print("Amount of received_messages:", received_messages.amount("868MHz 2-FSK 1.2 kbps"))
+for descriptor in received_messages.get_descriptors():
+    if (received_messages.amount(descriptor) > 0):
+        print("Amount of received_messages with descriptor %s: %d" % (descriptor, received_messages.amount(descriptor)))
 
-    calculated_average_rssi = received_messages.average_rssi_all("868MHz 2-FSK 1.2 kbps")
-    calculated_packet_loss = received_messages.packet_loss_all("868MHz 2-FSK 1.2 kbps")
-    
-    print("Average RSSI: %.2f" % (calculated_average_rssi))
-    print("Packet loss rate: %.2f %%" % (calculated_packet_loss * 100))
-else:
-    print("No messages received")
+        calculated_average_rssi = received_messages.average_rssi_all(descriptor)
+        calculated_packet_loss = received_messages.packet_loss_all(descriptor)
+        
+        print("Average RSSI: %.2f" % (calculated_average_rssi))
+        print("Packet loss rate: %.2f %%" % (calculated_packet_loss * 100))
+    else:
+        print("No messages received with descriptor %s" % (descriptor))
 
 print()
