@@ -101,7 +101,7 @@ class received_messages:
         elif (amount > len(self.messages[descriptor])):
             raise ValueError("There are not enough messages to process")
 
-        avg_rssi = 0;
+        avg_rssi = 0
 
         for m in self.messages[descriptor][:amount]:
             avg_rssi += m.rssi
