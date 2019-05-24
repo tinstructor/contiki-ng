@@ -113,7 +113,7 @@ class received_messages:
     def average_rssi_all(self, descriptor):
         if (not self.messages[descriptor]):
             raise RuntimeError("There are no received messages with descriptor %s" % (descriptor))
-            
+
         return self.average_rssi(len(self.messages[descriptor]), descriptor)
 
     def packet_loss(self, amount, descriptor):
@@ -236,7 +236,7 @@ for descriptor in received_messages.get_descriptors():
         print()
 
         try:
-            csv.writer(open(csv_filename, "w", newline='')).writerows(received_messages.as_list(descriptor))
+            csv.writer(open(csv_filename, "a", newline='')).writerows(received_messages.as_list(descriptor))
         except ValueError as e:
             print(e)
     else:
