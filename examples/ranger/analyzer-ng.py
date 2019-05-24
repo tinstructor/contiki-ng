@@ -39,64 +39,67 @@ class message:
 
 class received_messages:
     def __init__(self):
-        self.messages = []
+        self.messages = {}
 
     def add(self, message):
-        for m in self.messages:
+        if (not message.descriptor in self.messages):
+            self.messages[message.descriptor] = []
+
+        for m in self.messages[message.descriptor]:
             if (m.packet_nr == message.packet_nr):
                 raise ValueError("A message with RF descriptor %s and packet nr. %d has already been added" 
                                  % (message.descriptor, message.packet_nr))
 
-        self.messages.append(message)
+        self.messages[message.descriptor].append(message)
 
-    def average_rssi(self, amount):
+    def average_rssi(self, amount, descriptor):
 
-        if (not self.messages):
-            raise RuntimeError("There are no received messages")
+        if (not self.messages[descriptor]):
+            raise RuntimeError("There are no received messages with descriptor %s" % (descriptor))
 
         if (amount < 0):
             raise ValueError("Cannot process a negative amount of messages")
-        elif (amount > len(self.messages)):
+        elif (amount > len(self.messages[descriptor])):
             raise ValueError("There are not enough messages to process")
 
         avg_rssi = 0;
 
-        for m in self.messages[:amount]:
+        for m in self.messages[descriptor][:amount]:
             avg_rssi += m.rssi
 
         avg_rssi /= amount
 
         return avg_rssi
 
-    def average_rssi_all(self):
-        return self.average_rssi(len(self.messages))
+    def average_rssi_all(self, descriptor):
+        return self.average_rssi(len(self.messages[descriptor]), descriptor)
 
-    def packet_loss(self, amount):
+    def packet_loss(self, amount, descriptor):
 
-        if (not self.messages):
+        if (not self.messages[descriptor]):
             raise RuntimeError("There are no received messages")
 
         if (amount < 0):
             raise ValueError("Cannot process a negative amount of messages")
-        elif (amount > len(self.messages)):
+        elif (amount > len(self.messages[descriptor])):
             raise ValueError("There are not enough messages to process")
 
         packets_lost = 0
 
         for i in range(1, amount):
-            m = self.messages[i]
-            previous_m = self.messages[i - 1]
+            m = self.messages[descriptor][i]
+            previous_m = self.messages[descriptor][i - 1]
             packets_lost += m.packet_nr - previous_m.packet_nr - 1
 
-        total = self.messages[amount - 1].packet_nr - self.messages[0].packet_nr + 1
+        total = self.messages[descriptor][amount - 1].packet_nr - self.messages[descriptor][0].packet_nr + 1
 
         return packets_lost / total
 
-    def packet_loss_all(self):
-        return self.packet_loss(len(self.messages))
+    def packet_loss_all(self, descriptor):
+        return self.packet_loss(len(self.messages[descriptor]), descriptor)
 
-    def amount(self):
-        return len(self.messages)
+    def amount(self, descriptor):
+        return len(self.messages[descriptor])
 
 ################################################################################
 
@@ -161,11 +164,11 @@ print()
 print("Results for {}".format(log_filename))
 print("-" * 80)
 
-if (received_messages.amount() > 0):
-    print("Amount of received_messages:", received_messages.amount())
+if (received_messages.amount("868MHz 2-FSK 1.2 kbps") > 0):
+    print("Amount of received_messages:", received_messages.amount("868MHz 2-FSK 1.2 kbps"))
 
-    calculated_average_rssi = received_messages.average_rssi_all()
-    calculated_packet_loss = received_messages.packet_loss_all()
+    calculated_average_rssi = received_messages.average_rssi_all("868MHz 2-FSK 1.2 kbps")
+    calculated_packet_loss = received_messages.packet_loss_all("868MHz 2-FSK 1.2 kbps")
     
     print("Average RSSI: %.2f" % (calculated_average_rssi))
     print("Packet loss rate: %.2f %%" % (calculated_packet_loss * 100))
