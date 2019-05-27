@@ -290,7 +290,7 @@ for descriptor in received_messages.get_descriptors():
             try:
                 new_list = []
                 for foo in received_messages.as_list(descriptor):
-                    new_list.append(foo + [calculated_packet_loss * 100])
+                    new_list.append(foo + ["%.2f" % (calculated_packet_loss * 100)])
 
                 if (not received_messages.get_descriptors().index(descriptor)):
                     csv.writer(open(csv_filename, "w", newline='')).writerows(new_list)
