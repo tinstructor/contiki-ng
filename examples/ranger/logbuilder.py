@@ -28,11 +28,10 @@ LOG_REGEXP = re.compile("^.*?csv-log: (?P<descriptor>.+), (?P<packet_nr>\d+), (?
                         "(?P<sync_word>.+), (?P<sync_word_thr>\d+), (?P<dual_sync_en>\d+), (?P<sync_bits>\d+), (?P<freq_dev>\d+), "
                         "(?P<mac_hdr_len>\d+), (?P<rx_link_addr>.+), (?P<tx_link_addr>.+)")
 
-empty_line = ""
 with open(tx_log_filename, "w") as tx_log:
-    tx_log.write(empty_line)
+    tx_log.write("")
 with open(rx_log_filename, "w") as rx_log:
-    rx_log.write(empty_line)
+    rx_log.write("")
 
 if (len(file_list) >= 1):
     for file_path in file_list:

@@ -164,6 +164,18 @@ class received_messages:
 
         return message_list
 
+class receiver_node:
+    def __init__(self, rx_node_addr):
+        self.transmissions = {}
+        self.node_addr = rx_node_addr
+
+    def get_node_addr(self):
+        return self.node_addr
+
+    def add_transmission(self, message):
+        if(not message.tx_link_addr in self.transmissions):
+            self.transmissions[message.tx_link_addr] = []
+
 ################################################################################
 
 parser = argparse.ArgumentParser()
