@@ -37,7 +37,6 @@ class message:
         self.mac_hdr_len = mac_hdr_len
         self.rx_link_addr = rx_link_addr
         self.tx_link_addr = tx_link_addr
-        self.attribute_list = []
     
     # def as_list(self):
     #     attribute_list = []
@@ -306,7 +305,7 @@ print()
 print("Results for %s" % (rx_log_filename))
 print("-" * 80)
 
-csv.writer(open(csv_filename, "w", newline='')).writerows([])
+new_list = []
 
 for n in rx_nodes:
     transmissions = rx_nodes[n].get_transmissions()
@@ -325,14 +324,20 @@ for n in rx_nodes:
 
                 if (args.csvfile):
                     try:
-                        new_list = []
                         for foo in transmissions[t].as_list_of_dict(descriptor):
-                            new_list.append(foo.update({"packet loss" : "%.2f" % (calculated_packet_loss * 100)}))
-
-                        # TODO write / append to csv file from list of dicts
+                            # TODO perform calculations here
+                            foo["packet loss"] = (calculated_packet_loss * 100)
+                            new_list.append(foo)
                     except ValueError as e:
                         print(e)
             
             else:
                 print("No messages received by %s from %s with descriptor %s" % (n, t, descriptor))
                 print()
+
+keys = new_list[0].keys()
+with open(csv_filename, "w", newline='') as output_file:
+    dict_writer = csv.DictWriter(output_file, keys)
+    dict_writer.writeheader()
+    dict_writer.writerows(new_list)
+# TODO write / append to csv file from list of dicts
