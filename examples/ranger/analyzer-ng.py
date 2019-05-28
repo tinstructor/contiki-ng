@@ -39,35 +39,35 @@ class message:
         self.tx_link_addr = tx_link_addr
         self.attribute_list = []
     
-    def as_list(self):
-        attribute_list = []
-        attribute_list.append(self.descriptor)
-        attribute_list.append(self.packet_nr)
-        attribute_list.append(self.payload_len)
-        attribute_list.append(self.rssi)
-        attribute_list.append(self.rssi_offset)
-        attribute_list.append(self.lqi)
-        attribute_list.append(self.tx_power)
-        attribute_list.append(self.channel)
-        attribute_list.append(self.channel_center_freq_0)
-        attribute_list.append(self.channel_spacing)
-        attribute_list.append(self.channel_center_freq_curr)
-        attribute_list.append(self.bitrate)
-        attribute_list.append(self.symbol_rate)
-        attribute_list.append(self.rx_filt_bw)
-        attribute_list.append(self.preamble_nibbles)
-        attribute_list.append(self.preamble_word)
-        attribute_list.append(self.crc_poly)
-        attribute_list.append(self.crc_init)
-        attribute_list.append(self.sync_word)
-        attribute_list.append(self.sync_word_thr)
-        attribute_list.append(self.dual_sync_en)
-        attribute_list.append(self.sync_bits)
-        attribute_list.append(self.freq_dev)
-        attribute_list.append(self.mac_hdr_len)
-        attribute_list.append(self.rx_link_addr)
-        attribute_list.append(self.tx_link_addr)
-        return attribute_list
+    # def as_list(self):
+    #     attribute_list = []
+    #     attribute_list.append(self.descriptor)
+    #     attribute_list.append(self.packet_nr)
+    #     attribute_list.append(self.payload_len)
+    #     attribute_list.append(self.rssi)
+    #     attribute_list.append(self.rssi_offset)
+    #     attribute_list.append(self.lqi)
+    #     attribute_list.append(self.tx_power)
+    #     attribute_list.append(self.channel)
+    #     attribute_list.append(self.channel_center_freq_0)
+    #     attribute_list.append(self.channel_spacing)
+    #     attribute_list.append(self.channel_center_freq_curr)
+    #     attribute_list.append(self.bitrate)
+    #     attribute_list.append(self.symbol_rate)
+    #     attribute_list.append(self.rx_filt_bw)
+    #     attribute_list.append(self.preamble_nibbles)
+    #     attribute_list.append(self.preamble_word)
+    #     attribute_list.append(self.crc_poly)
+    #     attribute_list.append(self.crc_init)
+    #     attribute_list.append(self.sync_word)
+    #     attribute_list.append(self.sync_word_thr)
+    #     attribute_list.append(self.dual_sync_en)
+    #     attribute_list.append(self.sync_bits)
+    #     attribute_list.append(self.freq_dev)
+    #     attribute_list.append(self.mac_hdr_len)
+    #     attribute_list.append(self.rx_link_addr)
+    #     attribute_list.append(self.tx_link_addr)
+    #     return attribute_list
 
 class received_messages:
     def __init__(self):
@@ -156,12 +156,13 @@ class received_messages:
             return 0          
         return len(self.messages[descriptor])
 
-    def as_list(self, descriptor):
+    def as_list_of_dict(self, descriptor):
         if (not descriptor in self.messages):
             raise RuntimeError("There are no received messages with descriptor %s" % (descriptor))
 
-        message_list = list(map(lambda m: m.as_list(), self.messages[descriptor]))
-
+        # message_list = list(map(lambda m: m.as_list(), self.messages[descriptor]))
+        message_list = list(map(lambda m: m.__dict__, self.messages[descriptor]))
+        
         return message_list
 
 class receiver_node:
@@ -171,10 +172,19 @@ class receiver_node:
 
     def get_node_addr(self):
         return self.node_addr
+    
+    def get_transmissions(self):
+        return self.transmissions
 
     def add_transmission(self, message):
-        if(not message.tx_link_addr in self.transmissions):
-            self.transmissions[message.tx_link_addr] = []
+        if (message.rx_link_addr == message.tx_link_addr and message.rx_link_addr != self.node_addr):
+            if (not message.tx_link_addr in self.transmissions):
+                self.transmissions[message.tx_link_addr] = received_messages()
+            self.transmissions[message.tx_link_addr].add_base(message)
+        elif (message.rx_link_addr != message.tx_link_addr and message.rx_link_addr == self.node_addr):
+            if (not message.tx_link_addr in self.transmissions):
+                self.transmissions[message.tx_link_addr] = received_messages()
+            self.transmissions[message.tx_link_addr].add_message(message)
 
 ################################################################################
 
@@ -197,7 +207,7 @@ rx_log_filename = args.rxlog
 tx_log_filename = args.txlog
 rx_log = open(rx_log_filename, "r")
 tx_log = open(tx_log_filename, "r")
-received_messages = received_messages()
+rx_nodes = {}
 
 for line in rx_log:
     chomped_line = line.rstrip()
@@ -233,11 +243,15 @@ for line in rx_log:
         tx_link_addr = match.group("tx_link_addr")
 
         try:
-            received_messages.add_message(message(descriptor, packet_nr, payload_len, rssi, rssi_offset, lqi, tx_power, 
-                                          channel, channel_center_freq_0, channel_spacing, channel_center_freq_curr,
-                                          bitrate, symbol_rate, rx_filt_bw, preamble_nibbles, preamble_word,
-                                          crc_poly, crc_init, sync_word, sync_word_thr, dual_sync_en, sync_bits,
-                                          freq_dev, mac_hdr_len, rx_link_addr, tx_link_addr))
+            if (not rx_link_addr in rx_nodes):
+                rx_nodes[rx_link_addr] = receiver_node(rx_link_addr)
+            
+            rx_nodes[rx_link_addr].add_transmission(message(descriptor, packet_nr, payload_len, rssi, rssi_offset, lqi, tx_power, 
+                                                            channel, channel_center_freq_0, channel_spacing, channel_center_freq_curr,
+                                                            bitrate, symbol_rate, rx_filt_bw, preamble_nibbles, preamble_word,
+                                                            crc_poly, crc_init, sync_word, sync_word_thr, dual_sync_en, sync_bits,
+                                                            freq_dev, mac_hdr_len, rx_link_addr, tx_link_addr))
+
         except ValueError as e:
             print(e)
 
@@ -275,11 +289,16 @@ for line in tx_log:
         tx_link_addr = match.group("tx_link_addr")
 
         try:
-            received_messages.add_base(message(descriptor, packet_nr, payload_len, rssi, rssi_offset, lqi, tx_power, 
-                                       channel, channel_center_freq_0, channel_spacing, channel_center_freq_curr,
-                                       bitrate, symbol_rate, rx_filt_bw, preamble_nibbles, preamble_word,
-                                       crc_poly, crc_init, sync_word, sync_word_thr, dual_sync_en, sync_bits,
-                                       freq_dev, mac_hdr_len, rx_link_addr, tx_link_addr))
+            if (not rx_link_addr in rx_nodes):
+                rx_nodes[rx_link_addr] = receiver_node(rx_link_addr)
+            
+            for n in rx_nodes:
+                rx_nodes[n].add_transmission(message(descriptor, packet_nr, payload_len, rssi, rssi_offset, lqi, tx_power, 
+                                                     channel, channel_center_freq_0, channel_spacing, channel_center_freq_curr,
+                                                     bitrate, symbol_rate, rx_filt_bw, preamble_nibbles, preamble_word,
+                                                     crc_poly, crc_init, sync_word, sync_word_thr, dual_sync_en, sync_bits,
+                                                     freq_dev, mac_hdr_len, rx_link_addr, tx_link_addr))
+            
         except ValueError as e:
             print(e)
 
@@ -287,29 +306,33 @@ print()
 print("Results for %s" % (rx_log_filename))
 print("-" * 80)
 
-for descriptor in received_messages.get_descriptors():
-    if (received_messages.amount(descriptor) > 0):
-        print("Amount of received_messages with descriptor %s: %d" % (descriptor, received_messages.amount(descriptor)))
+csv.writer(open(csv_filename, "w", newline='')).writerows([])
 
-        calculated_average_rssi = received_messages.average_rssi_all(descriptor)
-        calculated_packet_loss = received_messages.packet_loss_all(descriptor)
-        
-        print("Average RSSI: %.2f" % (calculated_average_rssi))
-        print("Packet loss rate: %.2f %%" % (calculated_packet_loss * 100))
-        print()
+for n in rx_nodes:
+    transmissions = rx_nodes[n].get_transmissions()
+    for t in transmissions:
+        for descriptor in transmissions[t].get_descriptors():
+            if (transmissions[t].amount(descriptor) > 0):
+                print("Amount of received_messages by %s from %s with descriptor %s: %d" 
+                      % (n, t, descriptor, transmissions[t].amount(descriptor)))
+                
+                calculated_average_rssi = transmissions[t].average_rssi_all(descriptor)
+                calculated_packet_loss = transmissions[t].packet_loss_all(descriptor)
 
-        if (args.csvfile):
-            try:
-                new_list = []
-                for foo in received_messages.as_list(descriptor):
-                    new_list.append(foo + ["%.2f" % (calculated_packet_loss * 100)])
+                print("Average RSSI: %.2f" % (calculated_average_rssi))
+                print("Packet loss rate: %.2f %%" % (calculated_packet_loss * 100))
+                print()
 
-                if (not received_messages.get_descriptors().index(descriptor)):
-                    csv.writer(open(csv_filename, "w", newline='')).writerows(new_list)
-                else:
-                    csv.writer(open(csv_filename, "a", newline='')).writerows(new_list)
-            except ValueError as e:
-                print(e)
-    else:
-        print("No messages received with descriptor %s" % (descriptor))
-        print()
+                if (args.csvfile):
+                    try:
+                        new_list = []
+                        for foo in transmissions[t].as_list_of_dict(descriptor):
+                            new_list.append(foo.update({"packet loss" : "%.2f" % (calculated_packet_loss * 100)}))
+
+                        # TODO write / append to csv file from list of dicts
+                    except ValueError as e:
+                        print(e)
+            
+            else:
+                print("No messages received by %s from %s with descriptor %s" % (n, t, descriptor))
+                print()
