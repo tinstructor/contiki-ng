@@ -73,3 +73,6 @@ cpu/x86/uefi/edk2
 
 # ignore csv files in ranger application
 examples/ranger/*.csv
+
+# ignore txt files in ranger application
+examples/ranger/*.txt

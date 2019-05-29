@@ -3,6 +3,7 @@ import sys
 import re
 import argparse
 import csv
+import math
 
 ################################################################################
 
@@ -37,36 +38,6 @@ class message:
         self.mac_hdr_len = mac_hdr_len
         self.rx_link_addr = rx_link_addr
         self.tx_link_addr = tx_link_addr
-    
-    # def as_list(self):
-    #     attribute_list = []
-    #     attribute_list.append(self.descriptor)
-    #     attribute_list.append(self.packet_nr)
-    #     attribute_list.append(self.payload_len)
-    #     attribute_list.append(self.rssi)
-    #     attribute_list.append(self.rssi_offset)
-    #     attribute_list.append(self.lqi)
-    #     attribute_list.append(self.tx_power)
-    #     attribute_list.append(self.channel)
-    #     attribute_list.append(self.channel_center_freq_0)
-    #     attribute_list.append(self.channel_spacing)
-    #     attribute_list.append(self.channel_center_freq_curr)
-    #     attribute_list.append(self.bitrate)
-    #     attribute_list.append(self.symbol_rate)
-    #     attribute_list.append(self.rx_filt_bw)
-    #     attribute_list.append(self.preamble_nibbles)
-    #     attribute_list.append(self.preamble_word)
-    #     attribute_list.append(self.crc_poly)
-    #     attribute_list.append(self.crc_init)
-    #     attribute_list.append(self.sync_word)
-    #     attribute_list.append(self.sync_word_thr)
-    #     attribute_list.append(self.dual_sync_en)
-    #     attribute_list.append(self.sync_bits)
-    #     attribute_list.append(self.freq_dev)
-    #     attribute_list.append(self.mac_hdr_len)
-    #     attribute_list.append(self.rx_link_addr)
-    #     attribute_list.append(self.tx_link_addr)
-    #     return attribute_list
 
 class received_messages:
     def __init__(self):
@@ -190,7 +161,9 @@ class receiver_node:
 parser = argparse.ArgumentParser()
 parser.add_argument("rxlog", help="The logfile containing all received messages.")
 parser.add_argument("txlog", help="The logfile containing all transmitted messages.")
-parser.add_argument("-c", "--csvfile", help="The csv file to which log-derived info must be appended.")
+parser.add_argument("csvfile", help="The csv file to which log-derived info must be appended.")
+parser.add_argument("nodeinfo", help="Configuration file for nodes.")
+parser.add_argument("losinfo", help="Configuration file for los conditions.")
 args = parser.parse_args()
 
 LOG_REGEXP = re.compile("^.*?csv-log: (?P<descriptor>.+), (?P<packet_nr>\d+), (?P<payload_len>\d+), (?P<rssi>[+-]?\d+), "
@@ -200,106 +173,171 @@ LOG_REGEXP = re.compile("^.*?csv-log: (?P<descriptor>.+), (?P<packet_nr>\d+), (?
                         "(?P<sync_word>.+), (?P<sync_word_thr>\d+), (?P<dual_sync_en>\d+), (?P<sync_bits>\d+), (?P<freq_dev>\d+), "
                         "(?P<mac_hdr_len>\d+), (?P<rx_link_addr>.+), (?P<tx_link_addr>.+)")
 
-if (args.csvfile):
-    csv_filename = args.csvfile
+csv_filename = args.csvfile
 rx_log_filename = args.rxlog
 tx_log_filename = args.txlog
-rx_log = open(rx_log_filename, "r")
-tx_log = open(tx_log_filename, "r")
 rx_nodes = {}
 
-for line in rx_log:
-    chomped_line = line.rstrip()
+with open(rx_log_filename, "r") as rx_log:
+    for line in rx_log:
+        chomped_line = line.rstrip()
 
-    match = re.match(LOG_REGEXP, chomped_line)
-    
-    if (match):
-        descriptor = match.group("descriptor")
-        packet_nr = int(match.group("packet_nr"))
-        payload_len = int(match.group("payload_len"))
-        rssi = int(match.group("rssi"))
-        rssi_offset = int(match.group("rssi_offset"))
-        lqi = int(match.group("lqi"))
-        tx_power = int(match.group("tx_power"))
-        channel = int(match.group("channel"))
-        channel_center_freq_0 = int(match.group("channel_center_freq_0"))
-        channel_spacing = int(match.group("channel_spacing"))
-        channel_center_freq_curr = int(match.group("channel_center_freq_curr"))
-        bitrate = int(match.group("bitrate"))
-        symbol_rate = int(match.group("symbol_rate"))
-        rx_filt_bw = int(match.group("rx_filt_bw"))
-        preamble_nibbles = int(match.group("preamble_nibbles"))
-        preamble_word = match.group("preamble_word")
-        crc_poly = match.group("crc_poly")
-        crc_init = match.group("crc_init")
-        sync_word = match.group("sync_word")
-        sync_word_thr = int(match.group("sync_word_thr"))
-        dual_sync_en = int(match.group("dual_sync_en"))
-        sync_bits = int(match.group("sync_bits"))
-        freq_dev = int(match.group("freq_dev"))
-        mac_hdr_len = int(match.group("mac_hdr_len"))
-        rx_link_addr = match.group("rx_link_addr")
-        tx_link_addr = match.group("tx_link_addr")
+        match = re.match(LOG_REGEXP, chomped_line)
+        
+        if (match):
+            descriptor = match.group("descriptor")
+            packet_nr = int(match.group("packet_nr"))
+            payload_len = int(match.group("payload_len"))
+            rssi = int(match.group("rssi"))
+            rssi_offset = int(match.group("rssi_offset"))
+            lqi = int(match.group("lqi"))
+            tx_power = int(match.group("tx_power"))
+            channel = int(match.group("channel"))
+            channel_center_freq_0 = int(match.group("channel_center_freq_0"))
+            channel_spacing = int(match.group("channel_spacing"))
+            channel_center_freq_curr = int(match.group("channel_center_freq_curr"))
+            bitrate = int(match.group("bitrate"))
+            symbol_rate = int(match.group("symbol_rate"))
+            rx_filt_bw = int(match.group("rx_filt_bw"))
+            preamble_nibbles = int(match.group("preamble_nibbles"))
+            preamble_word = match.group("preamble_word")
+            crc_poly = match.group("crc_poly")
+            crc_init = match.group("crc_init")
+            sync_word = match.group("sync_word")
+            sync_word_thr = int(match.group("sync_word_thr"))
+            dual_sync_en = int(match.group("dual_sync_en"))
+            sync_bits = int(match.group("sync_bits"))
+            freq_dev = int(match.group("freq_dev"))
+            mac_hdr_len = int(match.group("mac_hdr_len"))
+            rx_link_addr = match.group("rx_link_addr")
+            tx_link_addr = match.group("tx_link_addr")
 
-        try:
-            if (not rx_link_addr in rx_nodes):
-                rx_nodes[rx_link_addr] = receiver_node(rx_link_addr)
+            try:
+                if (not rx_link_addr in rx_nodes):
+                    rx_nodes[rx_link_addr] = receiver_node(rx_link_addr)
+                
+                rx_nodes[rx_link_addr].add_transmission(message(descriptor, packet_nr, payload_len, rssi, rssi_offset, lqi, tx_power, 
+                                                                channel, channel_center_freq_0, channel_spacing, channel_center_freq_curr,
+                                                                bitrate, symbol_rate, rx_filt_bw, preamble_nibbles, preamble_word,
+                                                                crc_poly, crc_init, sync_word, sync_word_thr, dual_sync_en, sync_bits,
+                                                                freq_dev, mac_hdr_len, rx_link_addr, tx_link_addr))
+
+            except ValueError as e:
+                print(e)
+
+with open(tx_log_filename, "r") as tx_log:
+    for line in tx_log:
+        chomped_line = line.rstrip()
+
+        match = re.match(LOG_REGEXP, chomped_line)
+        
+        if (match):
+            descriptor = match.group("descriptor")
+            packet_nr = int(match.group("packet_nr"))
+            payload_len = int(match.group("payload_len"))
+            rssi = int(match.group("rssi"))
+            rssi_offset = int(match.group("rssi_offset"))
+            lqi = int(match.group("lqi"))
+            tx_power = int(match.group("tx_power"))
+            channel = int(match.group("channel"))
+            channel_center_freq_0 = int(match.group("channel_center_freq_0"))
+            channel_spacing = int(match.group("channel_spacing"))
+            channel_center_freq_curr = int(match.group("channel_center_freq_curr"))
+            bitrate = int(match.group("bitrate"))
+            symbol_rate = int(match.group("symbol_rate"))
+            rx_filt_bw = int(match.group("rx_filt_bw"))
+            preamble_nibbles = int(match.group("preamble_nibbles"))
+            preamble_word = match.group("preamble_word")
+            crc_poly = match.group("crc_poly")
+            crc_init = match.group("crc_init")
+            sync_word = match.group("sync_word")
+            sync_word_thr = int(match.group("sync_word_thr"))
+            dual_sync_en = int(match.group("dual_sync_en"))
+            sync_bits = int(match.group("sync_bits"))
+            freq_dev = int(match.group("freq_dev"))
+            mac_hdr_len = int(match.group("mac_hdr_len"))
+            rx_link_addr = match.group("rx_link_addr")
+            tx_link_addr = match.group("tx_link_addr")
+
+            try:
+                if (not rx_link_addr in rx_nodes):
+                    rx_nodes[rx_link_addr] = receiver_node(rx_link_addr)
+                
+                for n in rx_nodes:
+                    rx_nodes[n].add_transmission(message(descriptor, packet_nr, payload_len, rssi, rssi_offset, lqi, tx_power, 
+                                                        channel, channel_center_freq_0, channel_spacing, channel_center_freq_curr,
+                                                        bitrate, symbol_rate, rx_filt_bw, preamble_nibbles, preamble_word,
+                                                        crc_poly, crc_init, sync_word, sync_word_thr, dual_sync_en, sync_bits,
+                                                        freq_dev, mac_hdr_len, rx_link_addr, tx_link_addr))
+                
+            except ValueError as e:
+                print(e)
+
+NODE_REGEXP = re.compile("^.*?node-info: (?P<link_addr>.+), (?P<node_id>.+), (?P<height>\d+), (?P<antenna>.+), "
+                         "(?P<temperature>\d+\.\d+), (?P<x>\d+), (?P<y>\d+), (?P<z>\d+)")
+
+node_info_filename = args.nodeinfo
+node_info = {}
+
+with open(node_info_filename, "r") as node_info_file:
+    for line in node_info_file:
+        chomped_line = line.rstrip()
+
+        match = re.match(NODE_REGEXP, chomped_line)
+
+        if(match):
+            link_addr = match.group("link_addr")
+            node_id = match.group("node_id")
+            height = int(match.group("height"))
+            antenna = match.group("antenna")
+            temperature = float(match.group("temperature"))
+            x = int(match.group("x"))
+            y = int(match.group("y"))
+            z = int(match.group("z"))
+
+            if (not link_addr in rx_nodes):
+                raise ValueError("Illegal node addr.")
             
-            rx_nodes[rx_link_addr].add_transmission(message(descriptor, packet_nr, payload_len, rssi, rssi_offset, lqi, tx_power, 
-                                                            channel, channel_center_freq_0, channel_spacing, channel_center_freq_curr,
-                                                            bitrate, symbol_rate, rx_filt_bw, preamble_nibbles, preamble_word,
-                                                            crc_poly, crc_init, sync_word, sync_word_thr, dual_sync_en, sync_bits,
-                                                            freq_dev, mac_hdr_len, rx_link_addr, tx_link_addr))
+            if (not link_addr in node_info):
+                node_info[link_addr] = [node_id, height, antenna, temperature, x, y, z]
 
-        except ValueError as e:
-            print(e)
+for n in rx_nodes:
+    if (not n in node_info):
+        print("Node with link addr %s not yet in infobase! Enter now:" % (n))
+        node_info[n] = []
+        node_info[n].append(input("ID: "))
+        node_info[n].append(int(input("Height: ")))
+        node_info[n].append(input("Antenna: "))
+        node_info[n].append(float(input("Temperature: ")))
+        node_info[n].append(int(input("x: ")))
+        node_info[n].append(int(input("y: ")))
+        node_info[n].append(int(input("z: ")))
+        print()
 
-for line in tx_log:
-    chomped_line = line.rstrip()
+LOS_REGEXP = re.compile("^.*?los-info: (?P<node_id_1>.+), (?P<node_id_2>.+), (?P<los>.+)")
 
-    match = re.match(LOG_REGEXP, chomped_line)
-    
-    if (match):
-        descriptor = match.group("descriptor")
-        packet_nr = int(match.group("packet_nr"))
-        payload_len = int(match.group("payload_len"))
-        rssi = int(match.group("rssi"))
-        rssi_offset = int(match.group("rssi_offset"))
-        lqi = int(match.group("lqi"))
-        tx_power = int(match.group("tx_power"))
-        channel = int(match.group("channel"))
-        channel_center_freq_0 = int(match.group("channel_center_freq_0"))
-        channel_spacing = int(match.group("channel_spacing"))
-        channel_center_freq_curr = int(match.group("channel_center_freq_curr"))
-        bitrate = int(match.group("bitrate"))
-        symbol_rate = int(match.group("symbol_rate"))
-        rx_filt_bw = int(match.group("rx_filt_bw"))
-        preamble_nibbles = int(match.group("preamble_nibbles"))
-        preamble_word = match.group("preamble_word")
-        crc_poly = match.group("crc_poly")
-        crc_init = match.group("crc_init")
-        sync_word = match.group("sync_word")
-        sync_word_thr = int(match.group("sync_word_thr"))
-        dual_sync_en = int(match.group("dual_sync_en"))
-        sync_bits = int(match.group("sync_bits"))
-        freq_dev = int(match.group("freq_dev"))
-        mac_hdr_len = int(match.group("mac_hdr_len"))
-        rx_link_addr = match.group("rx_link_addr")
-        tx_link_addr = match.group("tx_link_addr")
+los_info_filename = args.losinfo
+los_info = {}
 
-        try:
-            if (not rx_link_addr in rx_nodes):
-                rx_nodes[rx_link_addr] = receiver_node(rx_link_addr)
-            
-            for n in rx_nodes:
-                rx_nodes[n].add_transmission(message(descriptor, packet_nr, payload_len, rssi, rssi_offset, lqi, tx_power, 
-                                                     channel, channel_center_freq_0, channel_spacing, channel_center_freq_curr,
-                                                     bitrate, symbol_rate, rx_filt_bw, preamble_nibbles, preamble_word,
-                                                     crc_poly, crc_init, sync_word, sync_word_thr, dual_sync_en, sync_bits,
-                                                     freq_dev, mac_hdr_len, rx_link_addr, tx_link_addr))
-            
-        except ValueError as e:
-            print(e)
+with open(los_info_filename, "r") as los_info_file:
+    for line in los_info_file:
+        chomped_line = line.rstrip()
+
+        match = re.match(LOS_REGEXP, chomped_line)
+
+        if(match):
+            node_id_1 = match.group("node_id_1")
+            node_id_2 = match.group("node_id_2")
+            los = match.group("los")
+
+            if (not frozenset((node_id_1, node_id_2)) in los_info):
+                los_info[frozenset((node_id_1, node_id_2))] = los
+
+for i in node_info:
+    for j in node_info:
+        if (i != j and not frozenset((node_info[i][0], node_info[j][0])) in los_info):
+            print("Los conditions between %s and %s not yet in infobase! Enter now:" % (node_info[i][0], node_info[j][0]))
+            los_info[frozenset((node_info[i][0], node_info[j][0]))] = input("Los (yes/no): ")
 
 print()
 print("Results for %s" % (rx_log_filename))
@@ -322,14 +360,39 @@ for n in rx_nodes:
                 print("Packet loss rate: %.2f %%" % (calculated_packet_loss * 100))
                 print()
 
-                if (args.csvfile):
-                    try:
-                        for foo in transmissions[t].as_list_of_dict(descriptor):
-                            # TODO perform calculations here
-                            foo["packet loss"] = (calculated_packet_loss * 100)
-                            new_list.append(foo)
-                    except ValueError as e:
-                        print(e)
+                try:
+                    for foo in transmissions[t].as_list_of_dict(descriptor):
+                        new_dict = {}
+                        new_dict["Receiver_id"] = node_info[foo["rx_link_addr"]][0]
+                        new_dict["Transmitter_id"] = node_info[foo["tx_link_addr"]][0]
+                        new_dict["Receiver_height"] = node_info[foo["rx_link_addr"]][1]
+                        new_dict["Transmitter_height"] = node_info[foo["tx_link_addr"]][1]
+                        new_dict["Is_line_of_sight"] = los_info[frozenset((node_info[foo["rx_link_addr"]][0],node_info[foo["tx_link_addr"]][0]))]
+                        new_dict["Receiver_location"] = "%d, %d, %d" % (node_info[foo["rx_link_addr"]][4], node_info[foo["rx_link_addr"]][5], \
+                            node_info[foo["rx_link_addr"]][6])
+                        new_dict["Transmitter_location"] = "%d, %d, %d" % (node_info[foo["tx_link_addr"]][4], node_info[foo["tx_link_addr"]][5], \
+                            node_info[foo["tx_link_addr"]][6])
+                        new_dict["Antenna_type"] = node_info[foo["rx_link_addr"]][2]
+                        new_dict["Distance_from_tx"] = math.sqrt(math.pow(node_info[foo["tx_link_addr"]][4] - node_info[foo["rx_link_addr"]][4],2) \
+                            + math.pow(node_info[foo["tx_link_addr"]][5] - node_info[foo["rx_link_addr"]][5],2) + math.pow(node_info[foo["tx_link_addr"]][6] \
+                            - node_info[foo["rx_link_addr"]][6],2))
+                        new_dict["MCS"] = foo["descriptor"]
+                        new_dict["Center_frequency"] = foo["channel_center_freq_curr"]
+                        new_dict["Spreading_factor"] = ""
+                        new_dict["Bandwidth"] = foo["rx_filt_bw"] # REVIEW channel spacing, filter bandwidth or actual calculated bandwidth?
+                        new_dict["Bitrate"] = foo["bitrate"]
+                        new_dict["Packet_size"] = foo["preamble_nibbles"] / 2 + foo["sync_bits"] / 8 + 1 + foo["mac_hdr_len"] \
+                                                  + foo["payload_len"] + ((len(foo["crc_poly"]) - 2) / 2 if int(foo["crc_poly"],16) else 0)
+                        new_dict["Packet_id"] = foo["packet_nr"]
+                        new_dict["Received_power"] = foo["rssi"]
+                        new_dict["SNR"] = ""
+                        new_dict["LQI"] = foo["lqi"]
+                        new_dict["Temperature"] = node_info[foo["rx_link_addr"]][3]
+                        new_dict["Sync_word"] = foo["sync_word"]
+                        new_dict["Packet_loss"] = (calculated_packet_loss * 100)
+                        new_list.append(new_dict)
+                except (ValueError, KeyError) as e:
+                    print(e)
             
             else:
                 print("No messages received by %s from %s with descriptor %s" % (n, t, descriptor))
@@ -340,4 +403,3 @@ with open(csv_filename, "w", newline='') as output_file:
     dict_writer = csv.DictWriter(output_file, keys)
     dict_writer.writeheader()
     dict_writer.writerows(new_list)
-# TODO write / append to csv file from list of dicts
