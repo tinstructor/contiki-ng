@@ -9,8 +9,8 @@
 // Change these for your own use case
 // Make sure that the interval is long enough to send and receive your messages
 
-#define MAIN_INTERVAL           6*(CLOCK_SECOND/10)
-#define TX_DURATION             MAIN_INTERVAL*100
+#define MAIN_INTERVAL           CLOCK_SECOND
+#define TX_DURATION             MAIN_INTERVAL*60
 #define CONTENT_SIZE            28
 #define TX_POWER_DBM            14
 #define CHANNEL                 1
@@ -30,8 +30,8 @@ extern const cc1200_rf_cfg_t cc1200_868_2fsk_1_2kbps;
 //extern const cc1200_rf_cfg_t cc1200_868_2gfsk_19_2kbps;
 extern const cc1200_rf_cfg_t cc1200_868_2gfsk_50kbps;
 //extern const cc1200_rf_cfg_t cc1200_868_2gfsk_100kbps;
-//extern const cc1200_rf_cfg_t cc1200_868_4gfsk_150kbps;
-extern const cc1200_rf_cfg_t cc1200_868_2gfsk_200kbps;
+extern const cc1200_rf_cfg_t cc1200_868_4gfsk_150kbps;
+//extern const cc1200_rf_cfg_t cc1200_868_2gfsk_200kbps;
 //extern const cc1200_rf_cfg_t cc1200_868_2gfsk_200kbps; //FIXME: works, but not as expected
 //extern const cc1200_rf_cfg_t cc1200_868_2gfsk_500kbps; //NOTE: technically speaking this is MSK
 extern const cc1200_rf_cfg_t cc1200_868_4gfsk_1000kbps;
@@ -40,8 +40,8 @@ static const cc1200_rf_cfg_t * const rf_cfg_ptrs[] = {&cc1200_868_2fsk_1_2kbps,
                                                       //&cc1200_868_2gfsk_19_2kbps,
                                                       &cc1200_868_2gfsk_50kbps,
                                                       //&cc1200_868_2gfsk_100kbps,
-                                                      //&cc1200_868_4gfsk_150kbps,
-                                                      &cc1200_868_2gfsk_200kbps,
+                                                      &cc1200_868_4gfsk_150kbps,
+                                                      //&cc1200_868_2gfsk_200kbps,
                                                       //&cc1200_868_4gfsk_200kbps, //FIXME: works, but not as expected
                                                       //&cc1200_868_2gfsk_500kbps, //NOTE: technically speaking this is MSK
                                                       &cc1200_868_4gfsk_1000kbps};
