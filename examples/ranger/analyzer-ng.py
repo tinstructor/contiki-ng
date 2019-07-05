@@ -274,7 +274,7 @@ with open(tx_log_filename, "r") as tx_log:
                 print(e)
 
 NODE_REGEXP = re.compile("^.*?node-info: (?P<link_addr>.+), (?P<node_id>.+), (?P<height>\d+), (?P<antenna>.+), "
-                         "(?P<temperature>\d+\.\d+), (?P<x>\d+), (?P<y>\d+), (?P<z>\d+)")
+                         "(?P<temperature>\d+\.\d+), (?P<x>\d+), (?P<y>\d+), (?P<z>[+-]?\d+)")
 
 node_info_filename = args.nodeinfo
 node_info = {}
