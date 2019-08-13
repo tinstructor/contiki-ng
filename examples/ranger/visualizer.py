@@ -4,17 +4,16 @@ import matplotlib.pyplot as plt
 
 df = pd.read_csv("foo.csv")
 mcs = df['MCS'].unique()
-mcs
 
 for m in mcs:
-    df_mcs_1 = df[df['MCS'] == m][['Is_line_of_sight','MCS','Distance_from_tx','Packet_loss']]
-    df_mcs_1['Packet_reception_rate'] = 100 - df_mcs_1['Packet_loss']
-    df_mcs_1_drop = df_mcs_1.drop_duplicates()
+    df_mcs = df[df['MCS'] == m][['Is_line_of_sight','MCS','Distance_from_tx','Packet_loss']]
+    df_mcs['Packet_reception_rate'] = 100 - df_mcs['Packet_loss']
+    df_mcs_drop = df_mcs.drop_duplicates()
     
-    df_LOS = df_mcs_1_drop[df_mcs_1_drop['Is_line_of_sight'] == 'yes']
-    df_NLOS = df_mcs_1_drop[df_mcs_1_drop['Is_line_of_sight'] == 'no']
+    df_LOS = df_mcs_drop[df_mcs_drop['Is_line_of_sight'] == 'yes']
+    df_NLOS = df_mcs_drop[df_mcs_drop['Is_line_of_sight'] == 'no']
     
-    fig = plt.figure(figsize=(12, 6), dpi=300)
+    fig = plt.figure(figsize=(14.334, 6), dpi=240)
     ax = fig.add_subplot(1, 1, 1)
     ax.set_xlabel('Distance between TX and RX [cm]', fontsize=14)
     ax.set_ylabel('Packet Reception Rate [%]', fontsize=14)
