@@ -273,8 +273,8 @@ with open(tx_log_filename, "r") as tx_log:
             except ValueError as e:
                 print(e)
 
-NODE_REGEXP = re.compile("^.*?node-info: (?P<link_addr>.+), (?P<node_id>.+), (?P<height>\d+), (?P<antenna>.+), "
-                         "(?P<temperature>\d+\.\d+), (?P<x>\d+), (?P<y>\d+), (?P<z>\d+)")
+NODE_REGEXP = re.compile("^.*?node-info: (?P<link_addr>.+), (?P<node_id>.+), (?P<height>[+-]?\d+), (?P<antenna>.+), "
+                         "(?P<temperature>\d+\.\d+), (?P<x>\d+), (?P<y>\d+), (?P<z>[+-]?\d+)")
 
 node_info_filename = args.nodeinfo
 node_info = {}
@@ -389,6 +389,9 @@ for n in rx_nodes:
                         new_dict["LQI"] = foo["lqi"]
                         new_dict["Temperature"] = node_info[foo["rx_link_addr"]][3]
                         new_dict["Sync_word"] = foo["sync_word"]
+                        new_dict["Frequency_deviation"] = foo["freq_dev"]
+                        new_dict["CRC_polynomial"] = foo["crc_poly"]
+                        new_dict["CRC_init_vector"] = foo["crc_init"]
                         new_dict["Packet_loss"] = (calculated_packet_loss * 100)
                         new_list.append(new_dict)
                 except (ValueError, KeyError) as e:
