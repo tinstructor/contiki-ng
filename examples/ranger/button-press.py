@@ -4,21 +4,28 @@
 #    
 
 import pexpect
+import sys
 
 import RPi.GPIO as gpio
 from subprocess import call
 import time
 
 gpio.setmode(gpio.BCM)
-gpio.setup(26, gpio.IN, pull_up_down = gpio.PUD_UP)
+gpio.setup(12, gpio.IN, pull_up_down = gpio.PUD_UP)
+gpio.setup(16, gpio.IN, pull_up_down = gpio.PUD_UP)
 
 def start_test(channel):
-    child = pexpect.spawn('make login')
-    child.expect('^.*?[OK].*?\r\n')
     child.sendline('l')
-    child.interact()
-    
-gpio.add_event_detect(26, gpio.FALLING, callback=start_test, bouncetime=300)
+
+def reset_node(channel):
+    child.sendline('r')
+
+child = pexpect.spawn('make login PORT=/dev/ttyUSB0', encoding='utf-8')
+child.logfile = sys.stdout
+child.expect('^.*?[OK].*?\r\n')
+
+gpio.add_event_detect(12, gpio.FALLING, callback=start_test, bouncetime=300)
+gpio.add_event_detect(16, gpio.FALLING, callback=reset_node, bouncetime=300)
 
 while 1:
     time.sleep(360)
