@@ -2,13 +2,13 @@
 #include "cc1200-const.h"
 
 /* Base frequency in kHz */
-#define RF_CFG_CHAN_CENTER_F0           863125
+#define RF_CFG_CHAN_CENTER_F0           863225
 /* Channel spacing in Hz */
-#define RF_CFG_CHAN_SPACING             300000
+#define RF_CFG_CHAN_SPACING             400000
 /* The minimum channel */
 #define RF_CFG_MIN_CHANNEL              0
 /* The maximum channel */
-#define RF_CFG_MAX_CHANNEL              21
+#define RF_CFG_MAX_CHANNEL              16
 /* The maximum output power in dBm */
 #define RF_CFG_MAX_TXPOWER              CC1200_CONST_TX_POWER_MAX
 /* The carrier sense level used for CCA in dBm */
