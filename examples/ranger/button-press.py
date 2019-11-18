@@ -9,9 +9,14 @@ import atexit
 import logging
 import io
 import datetime
+import argparse
 
 import RPi.GPIO as gpio
 import time
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-t","--terminal",action="store_true",help="Also prints the log output to the terminal.")
+args = parser.parse_args()
 
 gpio.setmode(gpio.BCM)
 gpio.setup(12, gpio.IN, pull_up_down = gpio.PUD_UP)
@@ -41,14 +46,16 @@ atexit.register(exit_handler)
 
 log_0 = logging.getLogger('timestamper_0')
 log_0.setLevel(logging.INFO)
-# log_0.addHandler(logging.StreamHandler())
+if args.terminal:
+    log_0.addHandler(logging.StreamHandler())
 log_0_filename = "%s.log" % (datetime.datetime.now().strftime("log_0_%d-%m-%Y_%H-%M-%S-%f"))
 log_0.addHandler(logging.FileHandler(log_0_filename))
 log_0.info("Created logfile \"{}\"".format(log_0_filename))
 
 log_1 = logging.getLogger('timestamper_1')
 log_1.setLevel(logging.INFO)
-# log_1.addHandler(logging.StreamHandler())
+if args.terminal:
+    log_1.addHandler(logging.StreamHandler())
 log_1_filename = "%s.log" % (datetime.datetime.now().strftime("log_1_%d-%m-%Y_%H-%M-%S-%f"))
 log_1.addHandler(logging.FileHandler(log_1_filename))
 log_1.info("Created logfile \"{}\"".format(log_1_filename))
