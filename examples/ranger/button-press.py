@@ -1,13 +1,16 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 #
 #   button-press.py   11-12-2019
 #    
 
-import pexpect
-import sys
+import shlex
+import subprocess
+import atexit
+import logging
+import io
+import datetime
 
 import RPi.GPIO as gpio
-from subprocess import call
 import time
 
 gpio.setmode(gpio.BCM)
@@ -15,23 +18,44 @@ gpio.setup(12, gpio.IN, pull_up_down = gpio.PUD_UP)
 gpio.setup(16, gpio.IN, pull_up_down = gpio.PUD_UP)
 
 def start_test(channel):
-    child_0.sendline('l')
-    child_1.sendline('l')
+    shell_0.stdin.write("l")
+    shell_1.stdin.write("l")
 
 def reset_node(channel):
-    child_0.sendline('r')
-    child_1.sendline('r')
+    shell_0.stdin.write("r")
+    shell_1.stdin.write("r")
 
-shell_cmd_0 = 'make login PORT=/dev/ttyUSB0 | python3 timestamper.py -f test_0'
-child_0 = pexpect.spawn('/bin/bash', ['-c', shell_cmd_0], encoding='utf-8')
-child_0.expect('^.*?[OK].*?\r\n')
-
-shell_cmd_1 = 'make login PORT=/dev/ttyUSB1 | python3 timestamper.py -f test_1'
-child_1 = pexpect.spawn('/bin/bash', ['-c', shell_cmd_1], encoding='utf-8')
-child_1.expect('^.*?[OK].*?\r\n')
+shell_0 = subprocess.Popen(shlex.split('make login PORT=/dev/ttyUSB0'),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,bufsize=0)
+shell_1 = subprocess.Popen(shlex.split('make login PORT=/dev/ttyUSB1'),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,bufsize=0)
 
 gpio.add_event_detect(12, gpio.FALLING, callback=start_test, bouncetime=300)
 gpio.add_event_detect(16, gpio.FALLING, callback=reset_node, bouncetime=300)
 
-while 1:
-    time.sleep(360)
+def exit_handler():
+    shell_0.stdin.close()
+    shell_1.stdin.close()
+    logging.shutdown()
+    print("Exiting")
+
+atexit.register(exit_handler)
+
+log_0 = logging.getLogger('timestamper_0')
+log_0.setLevel(logging.INFO)
+# log_0.addHandler(logging.StreamHandler())
+log_0_filename = "%s.log" % (datetime.datetime.now().strftime("log_0_%d-%m-%Y_%H-%M-%S-%f"))
+log_0.addHandler(logging.FileHandler(log_0_filename))
+log_0.info("Created logfile \"{}\"".format(log_0_filename))
+
+log_1 = logging.getLogger('timestamper_1')
+log_1.setLevel(logging.INFO)
+# log_1.addHandler(logging.StreamHandler())
+log_1_filename = "%s.log" % (datetime.datetime.now().strftime("log_1_%d-%m-%Y_%H-%M-%S-%f"))
+log_1.addHandler(logging.FileHandler(log_1_filename))
+log_1.info("Created logfile \"{}\"".format(log_1_filename))
+
+start_time = datetime.datetime.now()
+
+while True:
+    current_time = datetime.datetime.now()
+    log_0.info("%s | %s | %s" % (current_time.isoformat(),(current_time - start_time),shell_0.stdout.readline().strip()))
+    log_1.info("%s | %s | %s" % (current_time.isoformat(),(current_time - start_time),shell_1.stdout.readline().strip()))
