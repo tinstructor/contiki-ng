@@ -25,13 +25,19 @@ gpio.setup(16, gpio.IN, pull_up_down = gpio.PUD_UP)
 def start_test(channel):
     shell_0.stdin.write("l")
     shell_1.stdin.write("l")
+    cmd = "/home/pi/Downloads/JLink_Linux_V620h_arm/JLinkRTTLogger -device CC2538SF53 -if JTAG -speed 50000 -RTTChannel 0 %s.log" % (datetime.datetime.now().strftime("log_uwb_%d-%m-%Y_%H-%M-%S-%f"))
+    global shell_2
+    shell_2 = subprocess.Popen(shlex.split(cmd),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,bufsize=0)subprocess.Popen(shlex.split(cmd),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,bufsize=0)
 
 def reset_node(channel):
     shell_0.stdin.write("r")
     shell_1.stdin.write("r")
+    if isinstance(shell_2, subprocess.Popen):
+        shell_2.terminate()
 
 shell_0 = subprocess.Popen(shlex.split('make login PORT=/dev/ttyUSB0'),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,bufsize=0)
 shell_1 = subprocess.Popen(shlex.split('make login PORT=/dev/ttyUSB1'),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,bufsize=0)
+shell_2 = None
 
 gpio.add_event_detect(12, gpio.FALLING, callback=start_test, bouncetime=300)
 gpio.add_event_detect(16, gpio.FALLING, callback=reset_node, bouncetime=300)
@@ -39,6 +45,10 @@ gpio.add_event_detect(16, gpio.FALLING, callback=reset_node, bouncetime=300)
 def exit_handler():
     shell_0.stdin.close()
     shell_1.stdin.close()
+    shell_0.terminate()
+    shell_1.terminate()
+    if isinstance(shell_2, subprocess.Popen):
+        shell_2.terminate()
     logging.shutdown()
     print("Exiting")
 
