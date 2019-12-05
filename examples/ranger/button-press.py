@@ -10,6 +10,7 @@ import logging
 import io
 import datetime
 import argparse
+import threading
 
 import RPi.GPIO as gpio
 import time
@@ -21,17 +22,34 @@ args = parser.parse_args()
 gpio.setmode(gpio.BCM)
 gpio.setup(12, gpio.IN, pull_up_down = gpio.PUD_UP)
 gpio.setup(16, gpio.IN, pull_up_down = gpio.PUD_UP)
+gpio.setup(25, gpio.OUT, initial = gpio.HIGH)
 
-def start_test(channel):
-    shell_0.stdin.write("l")
-    shell_1.stdin.write("l")
+test_running = False
+uwb_timer = threading.Timer(10, run_uwb)
+
+def run_uwb():
+    gpio.output(25, 0)
+    time.sleep(1)
+    gpio.output(25, 1)
     cmd = "/home/pi/Downloads/JLink_Linux_V620h_arm/JLinkRTTLogger -device CC2538SF53 -if JTAG -speed 50000 -RTTChannel 0 %s.log" % (datetime.datetime.now().strftime("log_uwb_%d-%m-%Y_%H-%M-%S-%f"))
     global shell_2
     shell_2 = subprocess.Popen(shlex.split(cmd),stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True,bufsize=0)
+    uwb_timer.start()
+
+def start_test(channel):
+    global test_running
+    if not test_running:
+        test_running = True
+        shell_0.stdin.write("l")
+        shell_1.stdin.write("l")
+        run_uwb()
 
 def reset_node(channel):
     shell_0.stdin.write("r")
     shell_1.stdin.write("r")
+    uwb_timer.cancel()
+    global test_running
+    test_running = False
     if isinstance(shell_2, subprocess.Popen):
         shell_2.terminate()
 
