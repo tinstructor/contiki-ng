@@ -1,8 +1,9 @@
-# Advanced Ranger for Zolertia Remote (rev-b)
+# Dual-Radio Interface RPL (DRiPL) for Zolertia Firefly
 This document describes the usage and configuration of the twofaced example for Contiki-NG. It is designed to work with Zolertia Firefly nodes. The purpose of the ranger application is to evaluate our implementation of a 6TiSCH-compliant dual-interface routing protocol named DRiPL.
 
 ## Table of Contents
-- [Advanced Ranger for Zolertia Remote (rev-b)](#advanced-ranger-for-zolertia-remote-rev-b)
+
+- [Dual-Radio Interface RPL (DRiPL) for Zolertia Firefly](#dual-radio-interface-rpl-dripl-for-zolertia-firefly)
   - [Table of Contents](#table-of-contents)
   - [Getting Started](#getting-started)
   - [Tips & Tricks](#tips--tricks)
