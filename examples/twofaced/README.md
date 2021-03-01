@@ -1,5 +1,5 @@
 # Dual-Radio Interface RPL (DRiPL) for Zolertia Firefly
-This document describes the usage and configuration of the twofaced example for Contiki-NG. It is designed to work with Zolertia Firefly nodes. The purpose of the ranger application is to evaluate our implementation of a 6TiSCH-compliant dual-interface routing protocol named DRiPL.
+This document describes the usage and configuration of the twofaced example for Contiki-NG. It is designed to work with Zolertia Firefly nodes. The purpose of the twofaced application is to evaluate our implementation of a 6TiSCH-compliant dual-interface routing protocol named DRiPL.
 
 ## Table of Contents
 
@@ -8,10 +8,11 @@ This document describes the usage and configuration of the twofaced example for 
   - [Getting Started](#getting-started)
   - [Tips & Tricks](#tips--tricks)
   - [Usage](#usage)
+  - [Renode](#renode)
   - [Recommended Reads](#recommended-reads)
 
 ## Getting Started
-The first step is to clone our remote repository to your local machine, updating all git submodules and checking out the `ranger-ng` branch as follows:
+The first step is to clone our remote repository to your local machine, updating all git submodules and checking out the `dripl` branch as follows:
 
 ```bash
 $ cd ~
@@ -97,14 +98,14 @@ $ sudo usermod -a -G plugdev <user>
 $ sudo usermod -a -G dialout <user>
 ```
 
-FINALLY you can start making changes to the code base. The twofaced application is located in `contiki-ng > examples > twofaced`. You might wan't to download [VSCode][vs-code] as a convenient IDE for browsing through the code base. It comes with features that are very usefull when coding, especially in terms of code completion.
+FINALLY you can start making changes to the code base. The twofaced application is located in `contiki-ng > examples > twofaced`. You might want to download [VSCode][vs-code] as a convenient IDE for browsing through the code base. It comes with features that are very usefull when coding, especially in terms of code completion.
 
 >**Note:** for more information on the structure of the code base and how to modify it, have a look at the [Contiki-NG Wiki][contiki-ng].
 
 [vs-code]: https://code.visualstudio.com/
 [contiki-ng]: https://github.com/contiki-ng/contiki-ng/wiki
 
-After a while, if you feel like the changes you've made are substantial and usefull, you can always try and send us a merge request on GitHub (for the `dripl` branch). However, before you do that, make sure the changes you've made don't introduce conflicts. You may check this by pulling from the `dripl` branch on the `origin` remote and compiling + uploading. If the code doesn't compile or the flashed remote shows unexpected behavior, try and solve the underlying issue before sending a merge request. 
+After a while, if you feel like the changes you've made are significant, you can always try and send us a merge request on GitHub (for the `dripl` branch). However, before you do that, make sure the changes you've made don't introduce conflicts. You may check this by pulling from the `dripl` branch on the `origin` remote and compiling + uploading. If the code doesn't compile or the flashed remote shows unexpected behavior, try and solve the underlying issue before sending a merge request. 
 
 >**Note:** a good entry book explaning git (and the tools it has to resolve conflicts) is [Jump Start Git][jump-start-git] by Shaumik Daityari. More advanced topics are covered in the git bible, i.e., [Pro Git][pro-git] which may be downloaded free of charge but can be hard to read for complete beginners.
 
@@ -116,6 +117,8 @@ $ git pull origin dripl
 $ cd ~/contiki-ng/examples/twofaced
 $ make TARGET=zoul BOARD=firefly twofaced.upload
 ```
+
+Alternatively, you may test the merged code (rebasing onto our dripl branch is also allowed and even preferred) by simulating the hardware in [Renode](https://renode.readthedocs.io/en/latest/). More about Renode in the [corresponding section](#renode).
 
 ## Tips & Tricks
 
@@ -140,6 +143,10 @@ using saved target 'zoul'
 >**Note:** Technically, the application probably works with other Zoul-based platforms with minimal changes to the code. The main difference will likely be in the pinout etc.
 
 ## Usage
+
+Coming soon.
+
+## Renode
 
 Coming soon.
 
