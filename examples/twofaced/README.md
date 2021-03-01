@@ -13,6 +13,7 @@ This document describes the usage and configuration of the twofaced example for 
 The first step is to clone our remote repository to your local machine, updating all git submodules and checking out the `ranger-ng` branch as follows:
 
 ```bash
+$ cd ~
 $ git clone https://github.com/tinstructor/contiki-ng.git
 $ cd ~/contiki-ng/
 $ git submodule update --init --recursive
