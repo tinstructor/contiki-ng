@@ -37,6 +37,10 @@
  */
 
 #include "contiki.h"
+#include "random.h"
+#include "net/netstack.h"
+#include "net/routing/routing.h"
+#include "net/ipv6/simple-udp.h"
 #include <stdio.h>
 
 #include "sys/log.h"
