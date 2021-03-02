@@ -212,7 +212,7 @@ Finally the supplied simulation script (`firefly.resc`) is run by executing the 
 
 The output should look something like this. You may recognize the right terminal window as the terminal output of a Contiki-NG node! That's because it is exactly that, the terminal of a virtualized Firefly node.
 
-![renode](https://imgur.com/a/P5ziNqp.png)
+![renode](https://i.imgur.com/3eEqN3d.png)
 
 Stopping a simulation is as easy as asking the Renode monitor to quit:
 
