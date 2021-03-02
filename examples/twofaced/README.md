@@ -8,6 +8,7 @@ This document describes the usage and configuration of the twofaced example for 
   - [Getting Started](#getting-started)
   - [Tips & Tricks](#tips--tricks)
   - [Usage](#usage)
+  - [Cooja](#cooja)
   - [Renode](#renode)
   - [Recommended Reads](#recommended-reads)
 
@@ -145,6 +146,50 @@ using saved target 'zoul'
 ## Usage
 
 Coming soon.
+
+## Cooja
+
+There are generally two ways to simulate experiments using the Cooja network simulator, i.e., by running Cooja in a Docker container or running it natively on Linux (tested for Ubuntu 18.04 LTS and should work on 20.04 LTS). The downside of the Docker approach is that you can't really modify the Cooja source itself (only the Contiki-NG codebase when installed as a bind mount). The downside of running Cooja natively is that not all node types are supported in a 64-bit version of Linux, which is most likely what you'll be running. While future implementations of this example will most likely rely on running Cooja natively, for now, the Docker approach suffices. Before you can run Cooja through Docker however, you must first go through the installation process.
+
+The installation process (for Ubuntu) starts by [making sure there are no older versions of Docker installed](https://docs.docker.com/engine/install/ubuntu/#uninstall-old-versions). Next, it is recommended to install Docker through its repository [as explained here](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository). Following the installation of Docker, you must first make sure your user is added to the `docker` group and rebooting as follows:
+
+```bash
+$ sudo usermod -aG docker <username>
+$ sudo reboot
+```
+
+Then, you can pull the latest Docker Contiki-NG image:
+
+```bash
+$ docker pull contiker/contiki-ng
+```
+
+Finally you must append the following lines to `~/.bashrc`:
+
+```bash
+export CNG_PATH="$PATH:$HOME/contiki-ng"
+alias contiker="docker run --privileged --sysctl net.ipv6.conf.all.disable_ipv6=0 --mount type=bind,source=$CNG_PATH,destination=$PATH:$HOME/contiki-ng -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix -v /dev/bus/usb:/dev/bus/usb -ti contiker/contiki-ng"
+```
+
+and running the following command:
+
+```bash
+$ exec bash
+```
+
+You are now ready to start simulating with Cooja! Running Cooja in a Docker container is as easy as typing:
+
+```bash
+$ contiker cooja
+```
+
+which creates a Docker container and opens Cooja. When exiting Cooja, the docker container will halt too. It will, however, not be removed and can be restarted if you wish. This also means that it takes up disk space though! Since the purpose of the Docker container is merely to provide all dependencies required to simulate and compile examples written for Contiki-NG, who's codebase is attached to a Docker container (that is, if it's created with the `contiker` command) as a bind mount, and nothing more, it makes no sense to leave halted containers in memory. Removing halted Docker containers can be done as follows:
+
+```bash
+$ docker container prune
+```
+
+Anyhow, when you've opened ... **continue here**
 
 ## Renode
 
