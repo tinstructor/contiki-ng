@@ -154,7 +154,7 @@ There are generally two ways to simulate experiments using the Cooja network sim
 The installation process (for Ubuntu) starts by [making sure there are no older versions of Docker installed](https://docs.docker.com/engine/install/ubuntu/#uninstall-old-versions). Next, it is recommended to install Docker through its repository [as explained here](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository). Following the installation of Docker, you must first make sure your user is added to the `docker` group and rebooting as follows:
 
 ```bash
-$ sudo usermod -aG docker <username>
+$ sudo usermod -a -G docker <user>
 $ sudo reboot
 ```
 
@@ -189,7 +189,23 @@ which creates a Docker container and opens Cooja. When exiting Cooja, the docker
 $ docker container prune
 ```
 
-Anyhow, when you've opened ... **continue here**
+>**Note:** A list of useful Docker commands is provided in [this cheatsheet](https://dockerlabs.collabnix.com/docker/cheatsheet/).
+
+Anyhow, when you've opened a Docker container and started Cooja, you can open the provided simulation file by clicking on `file > Open simulation > Browse` (from the tab menus in the top-left corner) as shown in the following figure:
+
+![cooja-tab](https://i.imgur.com/ZnRmFS6.png)
+
+Next, browse to the `twofaced` example directory as follows:
+
+![cooja-browse](https://i.imgur.com/msmEIut.png)
+
+Then select the Cooja simulation (`.csc`) file named `cooja.csc` (which we've named according to the platform we've originally compiled for when writing this guide). Cooja will then ask to (re-)compile the latest binaries of the selected firmware (which you may have altered outside the Docker container in the meantime) for each type of "mote" present in the simulation file. The only thing you need to do right now is press `compile` and `create` (in that order) for every "mote" type pop-up.
+
+![cooja-compile](https://i.imgur.com/NgsR98t.png)
+
+Upon pressing the `create` button for the last "mote" type pop-up (of which there'll be only one in our case), the Cooja simulation window will open. This window contains a number of panels, among which the `Simulation control` and `Mote output` panel. The `Simulation control` panel allows you to start, pauze, stop, and reload the current simulation and gives an indication of the simulated time and the simulation speed (i.e., how much faster or slower the simulation is w.r.t. system speed). Press the `start` button, wait for say 15 simulation seconds, and hit `pauze`. Note that the `Mote output` panel contains the terminal output for each node in the simulation. Different nodes can be distinguished by means of their color in the `Mote output` panel and via their Node ID. The `Mote output` panel also allows you to save the combined terminal output (of all nodes in the simulation) to a separate `.txt` file (or append to an existing `.txt` file) for further (external) processing.
+
+![cooja-simscreen](https://i.imgur.com/iy0VcFr.png)
 
 ## Renode
 
