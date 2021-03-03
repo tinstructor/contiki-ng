@@ -1,6 +1,9 @@
 CONTIKI_PROJECT = twofaced-node twofaced-root
 all: $(CONTIKI_PROJECT)
 
+PLATFORMS_ONLY = cooja zoul
+BOARDS_ONLY = firefly
+
 CONTIKI = ../..
 
 MAKE_MAC = MAKE_MAC_CSMA
