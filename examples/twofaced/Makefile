@@ -2,7 +2,7 @@ CONTIKI_PROJECT = twofaced-node twofaced-root
 all: $(CONTIKI_PROJECT)
 
 PLATFORMS_ONLY = cooja zoul
-BOARDS_ONLY = firefly
+BOARDS_ONLY = firefly remote-reva remote-revb
 
 CONTIKI = ../..
 
