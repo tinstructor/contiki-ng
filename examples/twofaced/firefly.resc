@@ -1,8 +1,8 @@
 :name: FIREFLY
-:description: This script runs the twofaced example from Contiki-NG on Zolertia Firefly.
+:description: This script runs the twofaced node example from Contiki-NG on Zolertia Firefly.
 
 $name?="firefly"
-$bin?=@build/zoul/firefly/twofaced.elf
+$bin?=@build/zoul/firefly/twofaced-node.elf
 
 using sysbus
 mach create $name

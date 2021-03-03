@@ -202,11 +202,11 @@ Next, browse to the `twofaced` example directory as follows:
 
 Then select the Cooja simulation (`.csc`) file named `cooja.csc` (which we've named according to the platform we've originally compiled for when writing this guide). Cooja will then ask to (re-)compile the latest binaries of the selected firmware (which you may have altered outside the Docker container in the meantime) for each type of "mote" present in the simulation file. The only thing you need to do right now is press `compile` and `create` (in that order) for every "mote" type pop-up.
 
-![cooja-compile](https://i.imgur.com/NgsR98t.png)
+![cooja-compile](https://i.imgur.com/tts80n7.png)
 
-Upon pressing the `create` button for the last "mote" type pop-up (of which there'll be only one in our case), the Cooja simulation window will open. This window contains a number of panels, among which the `Simulation control` and `Mote output` panel. The `Simulation control` panel allows you to start, pauze, stop, and reload the current simulation and gives an indication of the simulated time and the simulation speed (i.e., how much faster or slower the simulation is w.r.t. system speed). Press the `start` button, wait for say 15 simulation seconds, and hit `pauze`. Note that the `Mote output` panel contains the terminal output for each node in the simulation. Different nodes can be distinguished by means of their color in the `Mote output` panel and via their Node ID. The `Mote output` panel also allows you to save the combined terminal output (of all nodes in the simulation) to a separate `.txt` file (or append to an existing `.txt` file) for further (external) processing.
+Upon pressing the `create` button for the last "mote" type pop-up (of which there'll be 2 in our case), the Cooja simulation window will open. This window contains a number of panels, among which the `Simulation control` and `Mote output` panel. The `Simulation control` panel allows you to start, pauze, stop, and reload the current simulation and gives an indication of the simulated time and the simulation speed (i.e., how much faster or slower the simulation is w.r.t. system speed). Press the `start` button, wait for say 15 simulation seconds, and hit `pauze`. Note that the `Mote output` panel contains the terminal output for each node in the simulation. Different nodes can be distinguished by means of their color in the `Mote output` panel and via their Node ID. The `Mote output` panel also allows you to save the combined terminal output (of all nodes in the simulation) to a separate `.txt` file (or append to an existing `.txt` file) for further (external) processing.
 
-![cooja-simscreen](https://i.imgur.com/iy0VcFr.png)
+![cooja-simscreen](https://i.imgur.com/lT1WKIS.png)
 
 ## Renode
 
@@ -266,20 +266,20 @@ $ cd ~/contiki-ng/examples/twofaced/
 $ renode
 ```
 
-Finally the supplied simulation script (`firefly.resc`) is run by executing the following command in the monitor window (when opened from `~/contiki-ng/examples/twofaced/` that is):
+Finally the supplied simulation script (`twofaced.resc`) is run by executing the following command in the monitor window (when opened from `~/contiki-ng/examples/twofaced/` that is):
 
 ```bash
-(monitor) s @firefly.resc
+(monitor) s @twofaced.resc
 ```
 
-The output should look something like this. You may recognize the right terminal window as the terminal output of a Contiki-NG node! That's because it is exactly that, the terminal of a virtualized Firefly node.
+The output should look something like this. You may recognize some of the terminal windows as the terminal output of a Contiki-NG node! That's because they're exactly that, the terminal of a virtualized Firefly node.
 
-![renode](https://i.imgur.com/3eEqN3d.png)
+![renode](https://i.imgur.com/AbDSHam.png)
 
 Stopping a simulation is as easy as asking the Renode monitor to quit:
 
 ```bash
-(firefly) q
+(monitor) q
 Renode is quitting
 ```
 
@@ -340,7 +340,7 @@ $ exec bash
 
 In the following example we added some innapropriate indentation on line 50 and used the `checkcrust` command to see if the supplied code file was properly formatted (which of course it wasn't). Upon seeying that the only flaw (identified by uncrustify, that is) is said indentation, we used the `fixcrust` command to rectify this error automatically.
 
-![uncrustify](https://i.imgur.com/RdZvhRj.png)
+![uncrustify](https://i.imgur.com/fuRqqvq.png)
 
 >**Note:** As stated in [the official docs](https://github.com/contiki-ng/contiki-ng/wiki/Code-style), uncrustify is not some magic silver bullet and will sometimes misformat your code! Be aware of this! As such, it's probably better in most cases to only use `checkcrust` instead of `fixcrust`.
 

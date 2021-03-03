@@ -1,0 +1,42 @@
+:name: firefly range medium 3 nodes
+
+######################################################################
+#
+# Sample script creating 1 root node and 2 non-root nodes using a
+# range-based medium function - transmission is possible if nodes are
+# in range. Nodes are positioned in a 3D space (x,y,z),
+# at a distance of 10 (units) from each other.
+#
+######################################################################
+
+emulation CreateWirelessMedium "wireless"
+
+# The radio is using a range-based medium (with the `Range` set to `11`)
+# If not set, the default SimpleMediumFunction will be used (where range is not relevant)
+wireless SetRangeWirelessFunction 11
+
+######################### ROOT NODE - begin #########################
+$bin=@build/zoul/firefly/twofaced-root.elf
+$name="root"
+i @firefly.resc
+connector Connect radio wireless
+wireless SetPosition radio 0 0 0
+mach clear
+########################## ROOT NODE - end ##########################
+
+######################### NON-ROOT NODE - begin #########################
+$bin=@build/zoul/firefly/twofaced-node.elf
+$name="node-1"
+i @firefly.resc
+connector Connect radio wireless
+wireless SetPosition radio 10 0 0
+mach clear
+########################## NON-ROOT NODE - end ##########################
+
+######################### NON-ROOT NODE - begin #########################
+$name="node-2"
+i @firefly.resc
+connector Connect radio wireless
+wireless SetPosition radio 0 10 0
+mach clear
+########################## NON-ROOT NODE - end ##########################

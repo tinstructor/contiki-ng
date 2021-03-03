@@ -1,4 +1,4 @@
-CONTIKI_PROJECT = twofaced
+CONTIKI_PROJECT = twofaced-node twofaced-root
 all: $(CONTIKI_PROJECT)
 
 MAKE_MAC = MAKE_MAC_CSMA
