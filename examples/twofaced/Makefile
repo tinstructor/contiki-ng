@@ -13,12 +13,9 @@ MAKE_ROUTING = MAKE_ROUTING_RPL_CLASSIC
 # include $(CONTIKI)/Makefile.dir-variables
 # MODULES += $(CONTIKI_NG_SERVICES_DIR)/shell
 MODULES_REL += $(TARGET)/$(BOARD)
+MODULES_REL += $(TARGET)/dev/twofaced-rf
 
 # PROJECT_SOURCEFILES +=
-
-# ifeq ($(TARGET),zoul)
-#   CONTIKI_TARGET_SOURCEFILES += 
-# endif
 
 # WERROR = 0
 
