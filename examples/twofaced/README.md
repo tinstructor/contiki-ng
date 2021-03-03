@@ -10,6 +10,7 @@ This document describes the usage and configuration of the twofaced example for 
   - [Usage](#usage)
   - [Cooja](#cooja)
   - [Renode](#renode)
+  - [Uncrustify](#uncrustify)
   - [Recommended Reads](#recommended-reads)
 
 ## Getting Started
@@ -106,7 +107,7 @@ FINALLY you can start making changes to the code base. The twofaced application 
 [vs-code]: https://code.visualstudio.com/
 [contiki-ng]: https://github.com/contiki-ng/contiki-ng/wiki
 
-After a while, if you feel like the changes you've made are significant, you can always try and send us a merge request on GitHub (for the `dripl` branch). However, before you do that, make sure the changes you've made don't introduce conflicts. You may check this by pulling from the `dripl` branch on the `origin` remote and compiling + uploading. If the code doesn't compile or the flashed remote shows unexpected behavior, try and solve the underlying issue before sending a merge request. 
+After a while, if you feel like the changes you've made are significant, you can always try and send us a merge request on GitHub (for the `dripl` branch). However, before you do that, make sure the changes you've made don't introduce conflicts. You may check this by pulling from the `dripl` branch on the `origin` remote and compiling + uploading. If the code doesn't compile or the flashed remote shows unexpected behavior, try and solve the underlying issue before sending a merge request. Also, it is important that you first [uncrustify your code](#uncrustify) before submitting a merge request! 
 
 >**Note:** a good entry book explaning git (and the tools it has to resolve conflicts) is [Jump Start Git][jump-start-git] by Shaumik Daityari. More advanced topics are covered in the git bible, i.e., [Pro Git][pro-git] which may be downloaded free of charge but can be hard to read for complete beginners.
 
@@ -281,6 +282,67 @@ Stopping a simulation is as easy as asking the Renode monitor to quit:
 (firefly) q
 Renode is quitting
 ```
+
+## Uncrustify
+
+Before submitting merge requests of any kind, please make sure your code (and file-naming) adheres to [the code style guidelines of Contiki-NG](https://github.com/contiki-ng/contiki-ng/wiki/Code-style). A good way to rectify slopily written source code is to use `uncrustify` (a tool) with some style scripts provided by Contiki-NG. First off, install Uncrustify as follows:
+
+```bash
+$ sudo apt-get install uncrustify
+```
+
+Now, before I explain the general usage of the provided scripts I'll do you a favor and explain to you how to create some commands that'll make your life much easier. First, we'll create a folder that you can use to store all self-defined shell scripts (because including custom commands in `/usr/bin/` is just asking for trouble):
+
+```bash
+$ cd ~
+$ mkdir bin
+```
+
+As always, add the `~/bin/` folder to your `PATH` variable by appending the following line to `~/.bashrc`:
+
+```bash
+export PATH="$PATH:$HOME/bin"
+```
+
+Ok so now that's out of the way we'll create two commands that'll allow you to either retrieve the recommended style changes to a file (`checkcrust`) or automatically apply these changes on disk (`fixcrust`). For safety's sake, I've limited the amount of arguments the `fixcrust` command accepts to just one file (or its location) instead of the space-delimited list of files (or their locations) it normally accepts (that is, the underlying script does). The `checkcrust` command only accepts a single argument (i.e., a code file or its location) as well. However, this is not a safety feature, but merely a limitation of the underlying script provided by Contiki-NG. Anyhow, we first create two files in `~/bin/`:
+
+```bash
+$ cd ~/bin/
+$ touch checkcrust fixcrust
+```
+
+Next, add the following lines to `checkcrust`:
+
+```bash
+#!/bin/bash
+~/contiki-ng/tools/code-style/uncrustify-check-style.sh $1 2>&1
+```
+
+and the following lines to `fixcrust`:
+
+```bash
+#!/bin/bash
+~/contiki-ng/tools/code-style/uncrustify-fix-style.sh $1 2>&1
+```
+
+Then, we give these files all rights imaginable because we're only partially pedantic about good practices and sometimes (read: often) we only pretend to care:
+
+```bash
+$ cd ~/bin/
+$ sudo chmod 777 checkcrust fixcrust
+```
+
+Finally, restart your shell or execute the following convenient command so that the `PATH` variable is updated and now also points to `~/bin/`:
+
+```bash
+$ exec bash
+```
+
+In the following example we added some innapropriate indentation on line 50 and used the `checkcrust` command to see if the supplied code file was properly formatted (which of course it wasn't). Upon seeying that the only flaw (identified by uncrustify, that is) is said indentation, we used the `fixcrust` command to rectify this error automatically.
+
+![uncrustify](https://i.imgur.com/RdZvhRj.png)
+
+>**Note:** As stated in [the official docs](https://github.com/contiki-ng/contiki-ng/wiki/Code-style), uncrustify is not some magic silver bullet and will sometimes misformat your code! Be aware of this! As such, it's probably better in most cases to only use `checkcrust` instead of `fixcrust`.
 
 ## Recommended Reads
 
