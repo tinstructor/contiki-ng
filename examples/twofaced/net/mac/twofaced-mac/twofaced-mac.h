@@ -31,32 +31,16 @@
 
 /**
  * \file
- *      Project-specific configuration for the twofaced DRiPL example
+ *      A MAC protocol configuration that works together with DRiPL
  * \author
  *      Robbe Elsas <robbe.elsas@ugent.be>
  */
 
-#ifndef PROJECT_CONF_H_
-#define PROJECT_CONF_H_
+#ifndef TWOFACED_MAC_H_
+#define TWOFACED_MAC_H_
 
-#if MAC_CONF_WITH_OTHER == 1
-#define NETSTACK_CONF_MAC twofaced_mac_driver
-#endif
+#include "contiki.h"
 
-#ifndef NETSTACK_MAX_ROUTE_ENTRIES
-#define NETSTACK_MAX_ROUTE_ENTRIES 10
-#endif
+/* TODO add MAC config here */
 
-#ifndef NBR_TABLE_CONF_MAX_NEIGHBORS
-#define NBR_TABLE_CONF_MAX_NEIGHBORS 10
-#endif
-
-#define LOG_CONF_LEVEL_APP      LOG_LEVEL_INFO
-#define LOG_CONF_LEVEL_RPL      LOG_LEVEL_INFO
-#define LOG_CONF_LEVEL_TCPIP    LOG_LEVEL_NONE
-#define LOG_CONF_LEVEL_IPV6     LOG_LEVEL_NONE
-#define LOG_CONF_LEVEL_6LOWPAN  LOG_LEVEL_NONE
-#define LOG_CONF_LEVEL_MAC      LOG_LEVEL_NONE
-#define LOG_CONF_LEVEL_FRAMER   LOG_LEVEL_NONE
-
-#endif /* PROJECT_CONF_H_ */
+#endif /* TWOFACED_MAC_H_ */
