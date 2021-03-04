@@ -31,9 +31,9 @@
 
 /**
  * \file
- *      A MAC protocol implementation that works together with DRiPL
+ *      The Parent-Oriented Objective Function (POOF)
  * \author
  *      Robbe Elsas <robbe.elsas@ugent.be>
  */
 
-#include "twofaced-mac.h"
+#include "rpl-poof.h"

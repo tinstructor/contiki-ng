@@ -31,9 +31,16 @@
 
 /**
  * \file
- *      A MAC protocol implementation that works together with DRiPL
+ *      Configuration for the DRiPL Objective Function (DRiPLOF)
  * \author
  *      Robbe Elsas <robbe.elsas@ugent.be>
  */
 
-#include "twofaced-mac.h"
+#ifndef RPL_DRIPLOF_H_
+#define RPL_DRIPLOF_H_
+
+#include "contiki.h"
+
+/* TODO add OF-specific config here */
+
+#endif /* RPL_DRIPLOF_H_ */
