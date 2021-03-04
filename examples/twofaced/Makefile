@@ -14,7 +14,7 @@ MAKE_ROUTING = MAKE_ROUTING_RPL_CLASSIC
 # include $(CONTIKI)/Makefile.dir-variables
 # MODULES += $(CONTIKI_NG_SERVICES_DIR)/shell
 MODULES_REL += net/mac/twofaced-mac
-MODULES_REL += net/routing/dripl # change to po if desired
+MODULES_REL += net/routing/twofaced-routing
 MODULES_REL += $(TARGET)/$(BOARD)
 MODULES_REL += $(TARGET)/dev/twofaced-rf
 
