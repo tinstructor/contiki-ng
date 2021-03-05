@@ -309,6 +309,8 @@ $ exec bash
 
 Since you've already added the `~/renode_portable/` directory to the `PATH` variable previously, what you've done is renamed the `test.sh` shell script and made it into a globally available command called `renode-test`. This command would've automatically been available had we installed Renode from a package instead. Anyhow, using the Robot framework with Renode is actually pretty straightforward if you know how to work with vanilla Renode (i.e., how to use `.resc` and `.repl` files) and hence, instead of boring you with details, we'll jump straight into executing the provided `.robot` script:
 
+>**Note:** I realise that I forgot to mention you have to specify the Contiki-NG home directory on [line 11](tests/twofaced.robot#L11) of `twofaced.robot` before running it. Otherwise, the test will automatically fail (unless your username is also robbe and you happend to install Contiki-NG in `/home/robbe/contiki-ng`).
+
 ```bash
 $ cd ~/contiki-ng/examples/twofaced
 $ make distclean
