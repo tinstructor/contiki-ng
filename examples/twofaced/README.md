@@ -10,6 +10,7 @@ This document describes the usage and configuration of the twofaced example for 
   - [Usage](#usage)
   - [Cooja](#cooja)
   - [Renode](#renode)
+    - [The Robot Framework](#the-robot-framework)
   - [Uncrustify](#uncrustify)
   - [Recommended Reads](#recommended-reads)
 
@@ -227,7 +228,9 @@ $ rm renode-*.linux-portable.tar.gz
 $ sudo apt-get install libcanberra-gtk-module libcanberra-gtk3-module
 ```
 
-Optionally, you may install the dependencies for the Robot framework. Although we will not elaborate on it, you can read more about this powerful testing framework [over here](https://renode.readthedocs.io/en/latest/introduction/testing.html).
+Optionally, you may install the dependencies for the Robot framework. ~~Although we will not elaborate on it,~~ you can read more about this powerful testing framework [over here](https://renode.readthedocs.io/en/latest/introduction/testing.html).
+
+>**Note:** We've added an extra subsection on using the Robot testing framework with Renode because it is just such a powerful testing tool that it will save you an eternity when you're running freshly modified firmware and trying to make sure everything still works prior to pushing to your remote or, better yet, filing a merge request!
 
 ```bash
 $ cd ~/renode_portable
@@ -283,6 +286,32 @@ Stopping a simulation is as easy as asking the Renode monitor to quit:
 (monitor) q
 Renode is quitting
 ```
+
+### The Robot Framework
+
+If you've not yet installed the dependencies for the Robot testing framework then, in the immortal words of Arnold Schwarzenegger: "C'MON ... DO IT NOOOOW!", as follows:
+
+```bash
+$ cd ~/renode_portable
+$ python3 -m pip install -r tests/requirements.txt
+```
+
+![arnold](https://i.imgur.com/mz9YqE8.jpeg)
+
+Next up, if you've downloaded Renode as [the Linux portable release](https://github.com/renode/renode/releases/download/v1.11.0/renode-1.11.0.linux-portable.tar.gz) (which you probably have if you've just been mindlessly following my instructions), we're going to modify it just a tiny bit on order to make it easier for you (but more importantly, me) to follow [the Renode docs for working with Robot](https://renode.readthedocs.io/en/latest/introduction/testing.html).
+
+```bash
+$ cd ~/renode_portable
+$ mv test.sh renode-test
+$ sudo chmod 777 renode-test
+$ exec bash
+```
+
+>**Note:** you could always modify the access rights of files with `sudo chmod 755 <filename>` for safety if you actually care and / or are using a computer with a native Linux install instead of a basically disposable virtual machine like I am currently running
+
+Since you've already added the `~/renode_portable/` directory to the `PATH` variable previously, what you've done is renamed the `test.sh` shell script and made it into a globally available command called `renode-test`. This command would've automatically been available had we installed Renode from a package instead. 
+
+more coming soon ...
 
 ## Uncrustify
 
