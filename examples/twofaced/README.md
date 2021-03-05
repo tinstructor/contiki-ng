@@ -296,8 +296,6 @@ $ cd ~/renode_portable
 $ python3 -m pip install -r tests/requirements.txt
 ```
 
-![arnold](https://i.imgur.com/mz9YqE8.jpeg)
-
 Next up, if you've downloaded Renode as [the Linux portable release](https://github.com/renode/renode/releases/download/v1.11.0/renode-1.11.0.linux-portable.tar.gz) (which you probably have if you've just been mindlessly following my instructions), we're going to modify it just a tiny bit on order to make it easier for you (but more importantly, me) to follow [the Renode docs for working with Robot](https://renode.readthedocs.io/en/latest/introduction/testing.html).
 
 ```bash
@@ -309,9 +307,32 @@ $ exec bash
 
 >**Note:** you could always modify the access rights of files with `sudo chmod 755 <filename>` for safety if you actually care and / or are using a computer with a native Linux install instead of a basically disposable virtual machine like I am currently running
 
-Since you've already added the `~/renode_portable/` directory to the `PATH` variable previously, what you've done is renamed the `test.sh` shell script and made it into a globally available command called `renode-test`. This command would've automatically been available had we installed Renode from a package instead. 
+Since you've already added the `~/renode_portable/` directory to the `PATH` variable previously, what you've done is renamed the `test.sh` shell script and made it into a globally available command called `renode-test`. This command would've automatically been available had we installed Renode from a package instead. Anyhow, using the Robot framework with Renode is actually pretty straightforward if you know how to work with vanilla Renode (i.e., how to use `.resc` and `.repl` files) and hence, instead of boring you with details, we'll jump straight into executing the provided `.robot` script:
 
-more coming soon ...
+```bash
+$ cd ~/contiki-ng/examples/twofaced
+$ make distclean
+$ make TARGET=zoul BOARD=firefly
+$ cd tests/
+$ renode-test twofaced.robot
+Preparing suites
+Started Renode instance on port 9999; pid 15697
+Starting suites
+Running twofaced.robot
++++++ Starting test 'twofaced.Should Talk Over Wireless Network'
++++++ Finished test 'twofaced.Should Talk Over Wireless Network' in 166.67 seconds with status OK
+Cleaning up suites
+Closing Renode pid 15697
+Aggregating all robot results
+Output:  /home/robbe/contiki-ng/examples/twofaced/tests/robot_output.xml
+Log:     /home/robbe/contiki-ng/examples/twofaced/tests/log.html
+Report:  /home/robbe/contiki-ng/examples/twofaced/tests/report.html
+Tests finished successfully :)
+```
+
+>**Note:** obviously running the Robot script requires (as do vanilla Renode scripts) the appropriate binaries to be available in the `twofaced/build` folder. Since our test script was written to work with the Zolertia Firefly specifically, we've added the appropriate commands to compile the correct binaries.
+
+If, for some reason, the test fails, opening the `twofaced/tests/log.html` file in your browser of choice can really tell you a lot about the origin of the supposed error. However, in order to understand most errors you probably need a basic understanding of how Robot scripts work. To this extent, [the Renode docs](https://renode.readthedocs.io/en/latest/introduction/testing.html) are a great starting point.
 
 ## Uncrustify
 
