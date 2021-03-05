@@ -41,6 +41,13 @@
 
 #include "contiki.h"
 
+#include "rpl.h"
+#if ROUTING_CONF_RPL_CLASSIC == 1
+#include "rpl-private.h"
+#endif /* ROUTING_CONF_RPL_CLASSIC == 1 */
+
+#include "twofaced-routing-conf.h"
+
 /* Experimental Objective Code Points */
 #define RPL_OCP_POOF    0xE1
 #define RPL_OCP_DRIPLOF 0xE2

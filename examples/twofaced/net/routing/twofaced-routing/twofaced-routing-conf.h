@@ -40,7 +40,6 @@
 #define TWOFACED_ROUTING_CONF_H_
 
 #include "contiki.h"
-#include "twofaced-routing.h"
 
 #ifndef RPL_CONF_MIN_HOPRANKINC
 /* TODO explain this parameter */
