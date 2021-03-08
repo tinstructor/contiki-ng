@@ -149,7 +149,54 @@ using saved target 'zoul'
 
 ### Custom Commands on Linux
 
-Coming soon.
+I'll do you a favor and briefly explain how to create Linux commands in order to make your life much easier. First, create a folder that you can use to store all self-defined shell scripts (because including custom commands in `/usr/bin/` is just asking for trouble):
+
+```bash
+$ cd ~
+$ mkdir bin
+```
+
+Add the `~/bin/` folder to your `PATH` variable by appending the following line to `~/.bashrc`:
+
+```bash
+export PATH="$PATH:$HOME/bin"
+```
+
+Ok so now that's out of the way we'll create a command that lists all connected (via USB) boards or "motes" supported by Contiki-NG. More specifically, the command we'll create leverages some funtionality provided by the `~/contiki-ng/tools/motelist/motelist.py` script but makes it a bit more user-friendly. First, create a file in `~/bin/`:
+
+```bash
+$ cd ~/bin/
+$ touch motelist
+```
+
+Next, add the following lines to `motelist`:
+
+```bash
+#!/bin/bash
+python3 ~/contiki-ng/tools/motelist/motelist.py 2>&1
+```
+
+Then, we give the file all rights imaginable because we're only partially pedantic about good practices and sometimes (read: often) we only pretend to care:
+
+```bash
+$ cd ~/bin/
+$ sudo chmod 777 motelist
+```
+
+Finally, restart your shell or execute the following convenient command so that the `PATH` variable is updated and now also points to `~/bin/`:
+
+```bash
+$ exec bash
+```
+
+Now, if you plugin (via USB) a board supported by Contiki-NG and run the `motelist` command, it'll list all sorts of useful information:
+
+```bash
+$ motelist
+Port          Serial          VID     PID     Product                    Vendor      
+------------  --------------  ------  ------  -------------------------  ------------
+/dev/ttyUSB0  ZOL-RM01-A0208  0x10C4  0xEA60  Zolertia RE-Mote platform  Silicon Labs
+```
 
 ## Usage
 
@@ -409,20 +456,7 @@ Before submitting merge requests of any kind, please make sure your code (and fi
 $ sudo apt-get install uncrustify
 ```
 
-Now, before I explain the general usage of the provided scripts I'll do you a favor and explain to you how to create some commands that'll make your life much easier. First, we'll create a folder that you can use to store all self-defined shell scripts (because including custom commands in `/usr/bin/` is just asking for trouble):
-
-```bash
-$ cd ~
-$ mkdir bin
-```
-
-As always, add the `~/bin/` folder to your `PATH` variable by appending the following line to `~/.bashrc`:
-
-```bash
-export PATH="$PATH:$HOME/bin"
-```
-
-Ok so now that's out of the way we'll create two commands that'll allow you to either retrieve the recommended style changes to a file (`checkcrust`) or automatically apply these changes on disk (`fixcrust`). For safety's sake, I've limited the amount of arguments the `fixcrust` command accepts to just one file (or its location) instead of the space-delimited list of files (or their locations) it normally accepts (that is, the underlying script does). The `checkcrust` command only accepts a single argument (i.e., a code file or its location) as well. However, this is not a safety feature, but merely a limitation of the underlying script provided by Contiki-NG. Anyhow, we first create two files in `~/bin/`:
+Now, before I explain the general usage of the provided scripts, you're going to define some custom Linux commands. More specifically, let's create two commands that'll allow you to either retrieve the recommended style changes to a file (`checkcrust`) or automatically apply these changes on disk (`fixcrust`). For safety's sake, I've limited the amount of arguments the `fixcrust` command accepts to just one file (or its location) instead of the space-delimited list of files (or their locations) it normally accepts (that is, the underlying script does). The `checkcrust` command only accepts a single argument (i.e., a code file or its location) as well. However, this is not a safety feature, but merely a limitation of the underlying script provided by Contiki-NG. Anyhow, we first create two files in `~/bin/`:
 
 ```bash
 $ cd ~/bin/
@@ -443,7 +477,7 @@ and the following lines to `fixcrust`:
 ~/contiki-ng/tools/code-style/uncrustify-fix-style.sh $1 2>&1
 ```
 
-Then, we give these files all rights imaginable because we're only partially pedantic about good practices and sometimes (read: often) we only pretend to care:
+Then, we give these files all rights imaginable because, once again, we're only partially pedantic about good practices and sometimes (read: often) we only pretend to care:
 
 ```bash
 $ cd ~/bin/
