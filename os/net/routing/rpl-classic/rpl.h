@@ -86,6 +86,10 @@ typedef uint16_t rpl_ocp_t;
 #define RPL_OCP_OF0     0
 #define RPL_OCP_MRHOF   1
 
+/* Experimental Objective Code Points */
+#define RPL_OCP_POOF    0xE1
+#define RPL_OCP_DRIPLOF 0xE2
+
 struct rpl_metric_object_energy {
   uint8_t flags;
   uint8_t energy_est;

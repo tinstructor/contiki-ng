@@ -162,7 +162,7 @@
  * use 128 for RPL_MIN_HOPRANKINC, resulting in a rank equal to the
  * ETX path cost. Larger values may also be desirable, as discussed
  * in section 6.1 of RFC6719. */
-#if RPL_OF_OCP == RPL_OCP_MRHOF
+#if RPL_OF_OCP == RPL_OCP_MRHOF || RPL_OF_OCP == RPL_OCP_DRIPLOF
 #define RPL_MIN_HOPRANKINC          128
 #else /* RPL_OF_OCP == RPL_OCP_MRHOF */
 #define RPL_MIN_HOPRANKINC          256

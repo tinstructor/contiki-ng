@@ -8,6 +8,7 @@ This document describes the usage and configuration of the twofaced example for 
   - [Getting Started](#getting-started)
   - [Tips & Tricks](#tips--tricks)
   - [Usage](#usage)
+    - [Project Structure](#project-structure)
   - [Cooja](#cooja)
   - [Renode](#renode)
     - [The Robot Framework](#the-robot-framework)
@@ -146,6 +147,10 @@ using saved target 'zoul'
 >**Note:** Technically, the application probably works with other Zoul-based platforms with minimal changes to the code. The main difference will likely be in the pinout etc.
 
 ## Usage
+
+Coming soon.
+
+### Project Structure
 
 Coming soon.
 

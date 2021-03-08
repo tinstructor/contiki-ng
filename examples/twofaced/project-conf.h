@@ -51,7 +51,7 @@
  * support a given OF. The OFs a node (both root and non-root) supports
  * are configured through the RPL_CONF_SUPPORTED_OFS parameter.
  */
-#define RPL_CONF_OF_OCP RPL_OCP_MRHOF
+#define RPL_CONF_OF_OCP RPL_OCP_POOF
 
 /* The RPL_CONF_SUPPORTED_OFS parameter configures the OFs supported by
  * any node (root or non-root) at runtime. A node may only join a RPL
@@ -59,7 +59,7 @@
  * this set as indicated by the OCP in the DODAG Configuration option
  * attached to a DIO.
  */
-#define RPL_CONF_SUPPORTED_OFS { &rpl_mrhof }
+#define RPL_CONF_SUPPORTED_OFS { &rpl_poof, &rpl_driplof }
 
 #define LOG_CONF_LEVEL_APP      LOG_LEVEL_INFO
 #define LOG_CONF_LEVEL_RPL      LOG_LEVEL_INFO
