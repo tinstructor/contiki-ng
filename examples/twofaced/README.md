@@ -152,7 +152,37 @@ Coming soon.
 
 ### Project Structure
 
-Coming soon.
+The following files have been added or adapted outside the twofaced example filestructure and are hence of interest (more info coming soon):
+
+[line 90-91](../../os/net/routing/rpl-classic/rpl.h#L90-L91) of `~/contiki-ng/os/net/routing/rpl-classic/rpl.h`
+
+[line 73](../../os/net/routing/rpl-classic/rpl-dag.c#L73) of `~/contiki-ng/os/net/routing/rpl-classic/rpl-dag.c`
+
+[line 165](../../os/net/routing/rpl-classic/rpl-private.h#L165) of `~/contiki-ng/os/net/routing/rpl-classic/rpl-private.h`
+
+[the PO OF](../../os/net/routing/rpl-classic/rpl-poof.c) implemented in `~/contiki-ng/os/net/routing/rpl-classic/rpl-poof.c`
+
+[the DRiPL OF](../../os/net/routing/rpl-classic/rpl-driplof.c) implemented in `~/contiki-ng/os/net/routing/rpl-classic/rpl-driplof.c`
+
+[a link-table](../../os/net/link-table.c) implemented in `~/contiki-ng/os/net/link-table.c`
+
+[the same link-table](../../os/net/link-table.h) configured in `~/contiki-ng/os/net/link-table.h`
+
+The following files are part of the twofaced example filestructure and are hence of interest (more info coming soon):
+
+[a MAC abstraction for DRiPL and PO](net/mac/twofaced-mac/twofaced-mac.c) implemented in `~/contiki-ng/examples/twofaced/net/mac/twofaced-mac/twofaced-mac.c`
+
+[the same MAC abstraction for DRiPL and PO](net/mac/twofaced-mac/twofaced-mac.h) configured in `~/contiki-ng/examples/twofaced/net/mac/twofaced-mac/twofaced-mac.h`
+
+[a cooja-specific dual-interface radio driver](cooja/dev/twofaced-rf/twofaced-rf.c) implemented in `~/contiki-ng/examples/twofaced/cooja/dev/twofaced-rf/twofaced-rf.c`
+
+[the same dual-interface radio driver](cooja/dev/twofaced-rf/twofaced-rf.h) configured in `~/contiki-ng/examples/twofaced/cooja/dev/twofaced-rf/twofaced-rf.h`
+
+[a zoul-specific dual-interface radio driver](zoul/dev/twofaced-rf/twofaced-rf.c) implemented in `~/contiki-ng/examples/twofaced/zoul/dev/twofaced-rf/twofaced-rf.c`
+
+[the same dual-interface radio driver](zoul/dev/twofaced-rf/twofaced-rf.h) configured in `~/contiki-ng/examples/twofaced/zoul/dev/twofaced-rf/twofaced-rf.h`
+
+The `target-conf.h` files in the BOARD-specific `~/contiki-ng/examples/twofaced/zoul` subdirectories are, as the name implies, configuration files for each supported / corresponding zoul board.
 
 ## Cooja
 

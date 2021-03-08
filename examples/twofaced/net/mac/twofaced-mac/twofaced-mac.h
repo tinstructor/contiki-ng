@@ -31,7 +31,7 @@
 
 /**
  * \file
- *      A MAC protocol configuration that works together with DRiPL
+ *      A MAC protocol configuration that works together with DRiPL and PO
  * \author
  *      Robbe Elsas <robbe.elsas@ugent.be>
  */
