@@ -7,6 +7,7 @@ This document describes the usage and configuration of the twofaced example for 
   - [Table of Contents](#table-of-contents)
   - [Getting Started](#getting-started)
   - [Tips & Tricks](#tips--tricks)
+    - [Custom Commands on Linux](#custom-commands-on-linux)
   - [Usage](#usage)
     - [Project Structure](#project-structure)
   - [Cooja](#cooja)
@@ -146,9 +147,38 @@ using saved target 'zoul'
 
 >**Note:** Technically, the application probably works with other Zoul-based platforms with minimal changes to the code. The main difference will likely be in the pinout etc.
 
-## Usage
+### Custom Commands on Linux
 
 Coming soon.
+
+## Usage
+
+This example may be used to achieve several goals, each of which implies a slightly different way in which to use it. Nonetheless, in any case, compiling this example for a certain (supported) platform results in the creation of binaries for two different kinds of RPL nodes: non-root nodes and root nodes. When compiling for the Zolertia Firefly (as follows), the make command output lists all files that are output in this process:
+
+```bash
+$ cd ~/contiki-ng/examples/twofaced
+$ make distclean
+$ make TARGET=zoul BOARD=firefly
+...
+LD        build/zoul/firefly/twofaced-node.elf
+OBJCOPY   build/zoul/firefly/twofaced-node.elf --> build/zoul/firefly/twofaced-node.i16hex
+SREC_CAT  build/zoul/firefly/twofaced-node.i16hex --> build/zoul/firefly/twofaced-node.hex
+OBJCOPY   build/zoul/firefly/twofaced-node.elf --> build/zoul/firefly/twofaced-node.bin
+CP        build/zoul/firefly/twofaced-node.elf --> build/zoul/firefly/twofaced-node.zoul
+CP        build/zoul/firefly/twofaced-node.zoul --> twofaced-node.zoul
+CC        twofaced-root.c
+LD        build/zoul/firefly/twofaced-root.elf
+OBJCOPY   build/zoul/firefly/twofaced-root.elf --> build/zoul/firefly/twofaced-root.i16hex
+SREC_CAT  build/zoul/firefly/twofaced-root.i16hex --> build/zoul/firefly/twofaced-root.hex
+OBJCOPY   build/zoul/firefly/twofaced-root.elf --> build/zoul/firefly/twofaced-root.bin
+CP        build/zoul/firefly/twofaced-root.elf --> build/zoul/firefly/twofaced-root.zoul
+CP        build/zoul/firefly/twofaced-root.zoul --> twofaced-root.zoul
+rm twofaced-node.o twofaced-root.o build/zoul/firefly/twofaced-root.i16hex build/zoul/firefly/obj/startup-gcc.o build/zoul/firefly/twofaced-node.i16hex
+```
+
+If, for some reason, you need direct access to the appropriate binaries for (in this case) the Zolertia Firefly (e.g., because you want to use them in conjunction with simulated hardware through [Renode](#renode)), you can thus find them in the `build/zoul/firefly/` directory. More specifically, `twofaced-node.elf` is the binary file for a non-root RPL node (as implemented in `twofaced-node.c`), while `twofaced-root.elf` is the binary file for a RPL root node (as implemented in `twofaced-root.c`). A similar output build directory is created if you compile for another (supported) platform.
+
+More coming soon.
 
 ### Project Structure
 
