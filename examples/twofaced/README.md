@@ -245,6 +245,8 @@ The following files have been added or adapted outside the twofaced example file
 
 [the same link-table](../../os/net/link-table.h) configured in `~/contiki-ng/os/net/link-table.h`
 
+> **Note:** we've also made [some changes](../../tools/viewconf/viewconf.c#L92-L93) to `~/contiki-ng/tools/viewconf/viewconf.c` such that the `make viewconf` command outputs the correct string when printing the OF configuration to the terminal.
+
 The following files are part of the twofaced example filestructure and are hence of interest (more info coming soon):
 
 [a MAC abstraction for DRiPL and PO](net/mac/twofaced-mac/twofaced-mac.c) implemented in `~/contiki-ng/examples/twofaced/net/mac/twofaced-mac/twofaced-mac.c`

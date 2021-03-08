@@ -89,6 +89,8 @@
 
 #undef RPL_OCP_OF0
 #undef RPL_OCP_MRHOF
+#undef RPL_OCP_POOF
+#undef RPL_OCP_DRIPLOF
 
 #ifdef RPL_CONF_MOP
 ##### "RPL_CONF_MOP": __________________________ == RPL_CONF_MOP
