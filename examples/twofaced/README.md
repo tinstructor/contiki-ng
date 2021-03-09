@@ -267,6 +267,8 @@ The following files are part of the twofaced example filestructure and are hence
 
 The `target-conf.h` files in the BOARD-specific `~/contiki-ng/examples/twofaced/zoul` subdirectories are, as the name implies, configuration files for each supported / corresponding zoul board.
 
+[generic type defintions for all twofaced radio drivers](dev/radio/twofaced-rf/twofaced-rf-types.h) in `~/contiki-ng/examples/twofaced/dev/radio/twofaced-rf/twofaced-rf-types.h`
+
 ## Cooja
 
 There are generally two ways to simulate experiments using the Cooja network simulator, i.e., by running Cooja in a Docker container or running it natively on Linux (tested for Ubuntu 18.04 LTS and should work on 20.04 LTS). The downside of the Docker approach is that you can't really modify the Cooja source itself (only the Contiki-NG codebase when installed as a bind mount). The downside of running Cooja natively is that not all node types are supported in a 64-bit version of Linux, which is most likely what you'll be running. While future implementations of this example will most likely rely on running Cooja natively, for now, the Docker approach suffices. Before you can run Cooja through Docker however, you must first go through the installation process.
