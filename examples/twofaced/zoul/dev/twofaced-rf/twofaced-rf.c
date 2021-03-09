@@ -161,8 +161,8 @@ get_value(radio_param_t param, radio_value_t *value)
   }
 
   switch(param) {
-  case RADIO_CONST_DUAL_RF:
-    *value = RADIO_DUAL_RF_EN;
+  case RADIO_CONST_MULTI_RF:
+    *value = RADIO_MULTI_RF_EN;
     return RADIO_RESULT_OK;
   default:
     return RADIO_RESULT_NOT_SUPPORTED;

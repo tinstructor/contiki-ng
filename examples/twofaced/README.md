@@ -245,7 +245,7 @@ The following files have been added or adapted outside the twofaced example file
 
 [the same link-table](../../os/net/link-table.h) configured in `~/contiki-ng/os/net/link-table.h`
 
-[a new radio constant](../../os/dev/radio.h#L383) which retrieves dual-rf capabilities via the radio driver in `~/contiki-ng/os/dev/radio.h`
+[a new radio constant](../../os/dev/radio.h#L383) which retrieves multi-rf capabilities via the radio driver in `~/contiki-ng/os/dev/radio.h`
 
 [possible states of this new constant](../../os/dev/radio.h#L423-L430) in `~/contiki-ng/os/dev/radio.h`
 
