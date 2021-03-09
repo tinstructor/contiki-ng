@@ -37,6 +37,7 @@
  */
 
 #include "twofaced-rf.h"
+#include "dev/radio/twofaced-rf/twofaced-rf-types.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
 
@@ -159,7 +160,10 @@ get_value(radio_param_t param, radio_value_t *value)
 static radio_result_t
 set_value(radio_param_t param, radio_value_t value)
 {
-  return RADIO_RESULT_NOT_SUPPORTED;
+  switch(param) {
+  default:
+    return RADIO_RESULT_NOT_SUPPORTED;
+  }
 }
 /*---------------------------------------------------------------------------*/
 static radio_result_t
