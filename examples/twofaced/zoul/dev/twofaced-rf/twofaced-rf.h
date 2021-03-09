@@ -31,7 +31,7 @@
 
 /**
  * \file
- *      Device-specific configuration: the twofaced-rf driver
+ *      Device-specific configuration: the twofaced-rf driver for zoul devices
  * \author
  *      Robbe Elsas <robbe.elsas@ugent.be>
  */

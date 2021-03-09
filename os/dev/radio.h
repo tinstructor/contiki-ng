@@ -372,6 +372,15 @@ enum radio_param_e {
    * mandatory.
    */
   RADIO_CONST_MAX_PAYLOAD_LEN,
+
+  /**
+   * Checks whether or not a radio driver provides dual interface services.
+   * 
+   * This constant may be of the value `RADIO_SHR_SEARCH_DIS`, indicating
+   * dual-interface services are provided by a given radio driver, or
+   * `RADIO_SHR_SEARCH_EN`, which indicates the opposite.
+   */
+  RADIO_CONST_DUAL_RF,
 };
 
 /**
@@ -409,6 +418,15 @@ enum radio_power_mode_e {
 enum radio_shr_search_e {
   RADIO_SHR_SEARCH_DIS = 0, /**< Disable SHR search or SHR search is enabled */
   RADIO_SHR_SEARCH_EN = 1,  /**< Enable SHR search or SHR search is enabled */
+};
+
+/**
+ * Possible values of the `get_value()` `value` argument when the `param` 
+ * argument is `RADIO_CONST_DUAL_RF`.
+ */
+enum radio_dual_rf_e {
+  RADIO_DUAL_RF_DIS = 0, /**< Dual-rf is disabled */
+  RADIO_DUAL_RF_EN = 1,  /**< Dual-rf is enabled */
 };
 
 /*---------------------------------------------------------------------------*/

@@ -245,6 +245,10 @@ The following files have been added or adapted outside the twofaced example file
 
 [the same link-table](../../os/net/link-table.h) configured in `~/contiki-ng/os/net/link-table.h`
 
+[a new radio constant](../../os/dev/radio.h#L383) which retrieves dual-rf capabilities via the radio driver in `~/contiki-ng/os/dev/radio.h`
+
+[possible states of this new constant](../../os/dev/radio.h#L423-L430) in `~/contiki-ng/os/dev/radio.h`
+
 > **Note:** we've also made [some changes](../../tools/viewconf/viewconf.c#L92-L93) to `~/contiki-ng/tools/viewconf/viewconf.c` such that the `make viewconf` command outputs the correct string when printing the OF configuration to the terminal.
 
 The following files are part of the twofaced example filestructure and are hence of interest (more info coming soon):

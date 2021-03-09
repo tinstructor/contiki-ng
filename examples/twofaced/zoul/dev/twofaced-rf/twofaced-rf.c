@@ -31,7 +31,7 @@
 
 /**
  * \file
- *      The twofaced-rf driver source file
+ *      The twofaced-rf driver source file for zoul devices
  * \author
  *      Robbe Elsas <robbe.elsas@ugent.be>
  */
@@ -148,7 +148,9 @@ get_value(radio_param_t param, radio_value_t *value)
   }
 
   switch(param) {
-  /* TODO add case to check if dual-interface enabled */
+  case RADIO_CONST_DUAL_RF:
+    *value = RADIO_DUAL_RF_EN;
+    return RADIO_RESULT_OK;
   default:
     return RADIO_RESULT_NOT_SUPPORTED;
   }
