@@ -41,9 +41,21 @@
 #include "net/netstack.h"
 #include "net/packetbuf.h"
 
+/*---------------------------------------------------------------------------*/
+/* Constants */
+/*---------------------------------------------------------------------------*/
 extern const struct radio_driver cc2538_rf_driver;
 extern const struct radio_driver cc1200_driver;
-
+/*---------------------------------------------------------------------------*/
+/* Variables */
+/*---------------------------------------------------------------------------*/
+/* The currently selected interface for outgoing traffic */
+static struct radio_driver outgoing_interface;
+/* The supported interface drivers */
+static struct radio_driver *const available_interfaces[] = { &cc2538_rf_driver, &cc1200_driver };
+/*---------------------------------------------------------------------------*/
+/* The twofaced radio driver exported to Contiki-NG */
+/*---------------------------------------------------------------------------*/
 const struct radio_driver twofaced_rf_driver = {
   init,
   prepare,
@@ -72,15 +84,15 @@ PROCESS_THREAD(twofaced_rf_process, ev, data)
   PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
-/*
- * Radio driver functions
- */
+/* Radio driver functions */
 /*---------------------------------------------------------------------------*/
 static int
 init(void)
 {
   cc2538_rf_driver.init();
   cc1200_driver.init();
+
+  outgoing_interface = cc2538_rf_driver;
 
   process_start(&twofaced_rf_process, NULL);
 
@@ -169,18 +181,22 @@ set_value(radio_param_t param, radio_value_t value)
 static radio_result_t
 get_object(radio_param_t param, void *dest, size_t size)
 {
-  return RADIO_RESULT_NOT_SUPPORTED;
+  switch(param) {
+  default:
+    return RADIO_RESULT_NOT_SUPPORTED;
+  }
 }
 /*---------------------------------------------------------------------------*/
 static radio_result_t
 set_object(radio_param_t param, const void *src, size_t size)
 {
-  return RADIO_RESULT_NOT_SUPPORTED;
+  switch(param) {
+  default:
+    return RADIO_RESULT_NOT_SUPPORTED;
+  }
 }
 /*---------------------------------------------------------------------------*/
-/*
- * Internal driver functions
- */
+/* Internal driver functions */
 /*---------------------------------------------------------------------------*/
 static void
 reset(void)

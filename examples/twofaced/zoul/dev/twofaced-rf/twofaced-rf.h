@@ -45,9 +45,7 @@
 /* TODO add documentation for function prototypes */
 
 /*---------------------------------------------------------------------------*/
-/*
- * Prototypes for radio driver functions
- */
+/* Prototypes for radio driver functions */
 /*---------------------------------------------------------------------------*/
 static int init(void);
 /*---------------------------------------------------------------------------*/
@@ -77,9 +75,7 @@ static radio_result_t get_object(radio_param_t param, void *dest, size_t size);
 /*---------------------------------------------------------------------------*/
 static radio_result_t set_object(radio_param_t param, const void *src, size_t size);
 /*---------------------------------------------------------------------------*/
-/*
- * Prototypes for internal radio driver functions
- */
+/* Prototypes for internal radio driver functions */
 /*---------------------------------------------------------------------------*/
 static void reset(void);
 /*---------------------------------------------------------------------------*/
