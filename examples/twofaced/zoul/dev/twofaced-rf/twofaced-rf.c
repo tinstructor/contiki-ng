@@ -37,3 +37,146 @@
  */
 
 #include "twofaced-rf.h"
+#include "net/netstack.h"
+#include "net/packetbuf.h"
+
+extern const struct radio_driver cc2538_rf_driver;
+extern const struct radio_driver cc1200_driver;
+
+const struct radio_driver twofaced_rf_driver = {
+  init,
+  prepare,
+  transmit,
+  send,
+  read,
+  channel_clear,
+  receiving_packet,
+  pending_packet,
+  on,
+  off,
+  get_value,
+  set_value,
+  get_object,
+  set_object
+};
+/*---------------------------------------------------------------------------*/
+PROCESS(twofaced_rf_process, "twofaced radio driver");
+/*---------------------------------------------------------------------------*/
+PROCESS_THREAD(twofaced_rf_process, ev, data)
+{
+  PROCESS_BEGIN();
+
+  PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_EXIT);
+
+  PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
+/*
+ * Radio driver functions
+ */
+/*---------------------------------------------------------------------------*/
+static int
+init(void)
+{
+  cc2538_rf_driver.init();
+  cc1200_driver.init();
+
+  process_start(&twofaced_rf_process, NULL);
+
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
+static int
+prepare(const void *payload, unsigned short payload_len)
+{
+  return RADIO_TX_ERR;
+}
+/*---------------------------------------------------------------------------*/
+static int
+transmit(unsigned short payload_len)
+{
+  return RADIO_TX_ERR;
+}
+/*---------------------------------------------------------------------------*/
+static int
+send(const void *payload, unsigned short payload_len)
+{
+  return RADIO_TX_ERR;
+}
+/*---------------------------------------------------------------------------*/
+static int
+read(void *buf, unsigned short bufsize)
+{
+  int len = 0;
+  return len;
+}
+/*---------------------------------------------------------------------------*/
+static int
+channel_clear(void)
+{
+  return 0;
+}
+/*---------------------------------------------------------------------------*/
+static int
+receiving_packet(void)
+{
+  return 0;
+}
+/*---------------------------------------------------------------------------*/
+static int
+pending_packet(void)
+{
+  return 0;
+}
+/*---------------------------------------------------------------------------*/
+static int
+on(void)
+{
+  return 0;
+}
+static int
+off(void)
+{
+  return 0;
+}
+/*---------------------------------------------------------------------------*/
+static radio_result_t
+get_value(radio_param_t param, radio_value_t *value)
+{
+  if(!value) {
+    return RADIO_RESULT_INVALID_VALUE;
+  }
+
+  switch(param) {
+  /* TODO add case to check if dual-interface enabled */
+  default:
+    return RADIO_RESULT_NOT_SUPPORTED;
+  }
+}
+/*---------------------------------------------------------------------------*/
+static radio_result_t
+set_value(radio_param_t param, radio_value_t value)
+{
+  return RADIO_RESULT_NOT_SUPPORTED;
+}
+/*---------------------------------------------------------------------------*/
+static radio_result_t
+get_object(radio_param_t param, void *dest, size_t size)
+{
+  return RADIO_RESULT_NOT_SUPPORTED;
+}
+/*---------------------------------------------------------------------------*/
+static radio_result_t
+set_object(radio_param_t param, const void *src, size_t size)
+{
+  return RADIO_RESULT_NOT_SUPPORTED;
+}
+/*---------------------------------------------------------------------------*/
+/*
+ * Internal driver functions
+ */
+/*---------------------------------------------------------------------------*/
+static void
+reset(void)
+{
+}
