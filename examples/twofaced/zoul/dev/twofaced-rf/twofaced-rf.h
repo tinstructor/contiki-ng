@@ -42,6 +42,12 @@
 #include "contiki.h"
 #include "dev/radio.h"
 
+#ifdef TWOFACED_RF_CONF_AVAILABLE_IFS
+#define TWOFACED_RF_AVAILABLE_IFS TWOFACED_RF_CONF_AVAILABLE_IFS
+#else
+#define TWOFACED_RF_AVAILABLE_IFS { &cc2538_rf_driver, &cc1200_driver }
+#endif
+
 /* TODO add documentation for function prototypes */
 
 /*---------------------------------------------------------------------------*/

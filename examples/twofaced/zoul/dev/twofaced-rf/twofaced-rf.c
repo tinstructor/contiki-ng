@@ -50,9 +50,9 @@ extern const struct radio_driver cc1200_driver;
 /* Variables */
 /*---------------------------------------------------------------------------*/
 /* The currently selected interface for outgoing traffic */
-static struct radio_driver outgoing_interface;
+static struct radio_driver *outgoing_interface;
 /* The supported interface drivers */
-static struct radio_driver *const available_interfaces[] = { &cc2538_rf_driver, &cc1200_driver };
+static struct radio_driver *const available_interfaces[] = TWOFACED_RF_AVAILABLE_IFS;
 /*---------------------------------------------------------------------------*/
 /* The twofaced radio driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -89,10 +89,11 @@ PROCESS_THREAD(twofaced_rf_process, ev, data)
 static int
 init(void)
 {
-  cc2538_rf_driver.init();
-  cc1200_driver.init();
+  for(uint8_t i = 0; i < sizeof(available_interfaces) / sizeof(available_interfaces[0]); i++) {
+    available_interfaces[i]->init();
+  }
 
-  outgoing_interface = cc2538_rf_driver;
+  /* TODO initialize the outgoing interface */
 
   process_start(&twofaced_rf_process, NULL);
 
