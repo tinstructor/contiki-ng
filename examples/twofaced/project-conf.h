@@ -39,10 +39,10 @@
 #ifndef PROJECT_CONF_H_
 #define PROJECT_CONF_H_
 
-// #define NETSTACK_CONF_RADIO twofaced_rf_driver
-// #define REMOTE_DUAL_RF_ENABLED 1
+#define NETSTACK_CONF_RADIO twofaced_rf_driver
+#define REMOTE_DUAL_RF_ENABLED 1
 
-// // #define TWOFACED_RF_CONF_AVAILABLE_IFS { &cc1200_driver }
+// #define TWOFACED_RF_CONF_AVAILABLE_IFS { &cc1200_driver }
 
 #if MAC_CONF_WITH_OTHER == 1
 #define NETSTACK_CONF_MAC twofaced_mac_driver
