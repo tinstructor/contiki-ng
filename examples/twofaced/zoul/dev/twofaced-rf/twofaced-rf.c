@@ -44,15 +44,15 @@
 /*---------------------------------------------------------------------------*/
 /* Constants */
 /*---------------------------------------------------------------------------*/
+/* The supported interface drivers */
 extern const struct radio_driver cc2538_rf_driver;
 extern const struct radio_driver cc1200_driver;
+static const struct radio_driver *const available_interfaces[] = TWOFACED_RF_AVAILABLE_IFS;
 /*---------------------------------------------------------------------------*/
 /* Variables */
 /*---------------------------------------------------------------------------*/
 /* The currently selected interface for outgoing traffic */
-static struct radio_driver *outgoing_interface;
-/* The supported interface drivers */
-static struct radio_driver *const available_interfaces[] = TWOFACED_RF_AVAILABLE_IFS;
+static const struct radio_driver *outgoing_interface;
 /*---------------------------------------------------------------------------*/
 /* The twofaced radio driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -93,7 +93,7 @@ init(void)
     available_interfaces[i]->init();
   }
 
-  /* TODO initialize the outgoing interface */
+  outgoing_interface = available_interfaces[0];
 
   process_start(&twofaced_rf_process, NULL);
 
@@ -103,32 +103,32 @@ init(void)
 static int
 prepare(const void *payload, unsigned short payload_len)
 {
-  return RADIO_TX_ERR;
+  return outgoing_interface->prepare(payload, payload_len);
 }
 /*---------------------------------------------------------------------------*/
 static int
-transmit(unsigned short payload_len)
+transmit(unsigned short transmit_len)
 {
-  return RADIO_TX_ERR;
+  return outgoing_interface->transmit(transmit_len);
 }
 /*---------------------------------------------------------------------------*/
 static int
 send(const void *payload, unsigned short payload_len)
 {
-  return RADIO_TX_ERR;
+  prepare(payload, payload_len);
+  return transmit(payload_len);
 }
 /*---------------------------------------------------------------------------*/
 static int
-read(void *buf, unsigned short bufsize)
+read(void *buf, unsigned short buf_len)
 {
-  int len = 0;
-  return len;
+  return 0;
 }
 /*---------------------------------------------------------------------------*/
 static int
 channel_clear(void)
 {
-  return 0;
+  return outgoing_interface->channel_clear();
 }
 /*---------------------------------------------------------------------------*/
 static int
@@ -140,7 +140,11 @@ receiving_packet(void)
 static int
 pending_packet(void)
 {
-  return 0;
+  int ret = 0;
+  for(uint8_t i = 0; i < sizeof(available_interfaces) / sizeof(available_interfaces[0]); i++) {
+    ret = ret || available_interfaces[i]->pending_packet();
+  }
+  return ret;
 }
 /*---------------------------------------------------------------------------*/
 static int

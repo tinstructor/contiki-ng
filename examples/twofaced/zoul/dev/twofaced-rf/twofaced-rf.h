@@ -57,11 +57,11 @@ static int init(void);
 /*---------------------------------------------------------------------------*/
 static int prepare(const void *payload, unsigned short payload_len);
 /*---------------------------------------------------------------------------*/
-static int transmit(unsigned short payload_len);
+static int transmit(unsigned short transmit_len);
 /*---------------------------------------------------------------------------*/
 static int send(const void *payload, unsigned short payload_len);
 /*---------------------------------------------------------------------------*/
-static int read(void *buf, unsigned short bufsize);
+static int read(void *buf, unsigned short buf_len);
 /*---------------------------------------------------------------------------*/
 static int channel_clear(void);
 /*---------------------------------------------------------------------------*/
