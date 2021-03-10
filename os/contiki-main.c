@@ -113,6 +113,14 @@ main(void)
   LOG_INFO("- 802.15.4 Default channel: %u\n", IEEE802154_DEFAULT_CHANNEL);
 #endif /* MAC_CONF_WITH_TSCH */
 
+  char sel_if_desc[32];
+  if(NETSTACK_RADIO.get_object(RADIO_PARAM_SEL_IF, sel_if_desc, sizeof(sel_if_desc)/sizeof(sel_if_desc[0])) == RADIO_RESULT_OK) {
+    LOG_INFO("- Radio: %s\n", sel_if_desc);
+  }
+  else {
+    LOG_INFO("- Radio: %s\n", NETSTACK_RADIO.driver_descriptor);
+  }
+
   LOG_INFO("Node ID: %u\n", node_id);
   LOG_INFO("Link-layer address: ");
   LOG_INFO_LLADDR(&linkaddr_node_addr);

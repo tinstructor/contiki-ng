@@ -39,7 +39,10 @@
 #ifndef PROJECT_CONF_H_
 #define PROJECT_CONF_H_
 
-/* #define NETSTACK_CONF_RADIO twofaced_rf_driver */
+// #define NETSTACK_CONF_RADIO twofaced_rf_driver
+// #define REMOTE_DUAL_RF_ENABLED 1
+
+// // #define TWOFACED_RF_CONF_AVAILABLE_IFS { &cc1200_driver }
 
 #if MAC_CONF_WITH_OTHER == 1
 #define NETSTACK_CONF_MAC twofaced_mac_driver
@@ -55,7 +58,8 @@
  */
 #define RPL_CONF_OF_OCP RPL_OCP_MRHOF
 
-/* The RPL_CONF_SUPPORTED_OFS parameter configures the OFs supported by
+/* 
+ * The RPL_CONF_SUPPORTED_OFS parameter configures the OFs supported by
  * any node (root or non-root) at runtime. A node may only join a RPL
  * instance (advertised in a DIO) which is based on one of the OFs in
  * this set as indicated by the OCP in the DODAG Configuration option
@@ -64,7 +68,7 @@
 #define RPL_CONF_SUPPORTED_OFS { &rpl_mrhof, &rpl_poof, &rpl_driplof }
 
 #define LOG_CONF_LEVEL_APP      LOG_LEVEL_INFO
-#define LOG_CONF_LEVEL_RPL      LOG_LEVEL_INFO
+#define LOG_CONF_LEVEL_RPL      LOG_LEVEL_NONE
 #define LOG_CONF_LEVEL_TCPIP    LOG_LEVEL_NONE
 #define LOG_CONF_LEVEL_IPV6     LOG_LEVEL_NONE
 #define LOG_CONF_LEVEL_6LOWPAN  LOG_LEVEL_NONE

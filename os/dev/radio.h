@@ -295,6 +295,31 @@ enum radio_param_e {
    */
   RADIO_PARAM_SHR_SEARCH,
 
+  /**
+   * To retrieve the current or switch to another selected interface
+   * 
+   * Manipulating this parameter is only relevant to radio drivers that return
+   * `RADIO_MULTI_RF_EN` when performing `get_value()` for RADIO_CONST_MULTI_RF,
+   * meaning they support multiple underlying interfaces / drivers.
+   * 
+   * This parameter may only be accessed through `get_object()`/`set_object()`,
+   * as it expects the `driver_descriptor` string of the driver you wish
+   * to select for subsequent usage (when setting this param) or returns
+   * the `driver_descriptor` of the currently selected interface (when getting
+   * this param).
+   * 
+   * Note that calling `set_object()` for this parameter and supplying a 
+   * `driver_descriptor` string shall result in the first interface in the
+   * driver's list of available interfaces to be selected. This is especially
+   * important to know when trying to select an interface driver with an empty
+   * `driver_descriptor` string.
+   * 
+   * In addition, it should be noted that a platform may contain at most one
+   * interface of a given type and as such the terms "interface" and "radio
+   * driver" are considered to have identical meaning.
+   */
+  RADIO_PARAM_SEL_IF,
+
   /* Constants (read only) */
 
   /**
@@ -796,6 +821,11 @@ struct radio_driver {
    */
   radio_result_t (* set_object)(radio_param_t param, const void *src,
                                 size_t size);
+
+  /**
+   * A string describing the radio driver.
+   */
+  const char *driver_descriptor;
 };
 /** @} */
 /*---------------------------------------------------------------------------*/

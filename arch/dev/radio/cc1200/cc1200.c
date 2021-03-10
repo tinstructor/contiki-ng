@@ -485,7 +485,8 @@ const struct radio_driver cc1200_driver = {
   get_value,
   set_value,
   get_object,
-  set_object
+  set_object,
+  "cc1200_driver"
 };
 /*---------------------------------------------------------------------------*/
 /* Prototypes for CC1200 low level function. All of these functions are

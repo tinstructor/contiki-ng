@@ -41,6 +41,8 @@
 #include "net/netstack.h"
 #include "net/packetbuf.h"
 
+#include <string.h>
+
 /*---------------------------------------------------------------------------*/
 /* Constants */
 /*---------------------------------------------------------------------------*/
@@ -51,8 +53,8 @@ static const struct radio_driver *const available_interfaces[] = TWOFACED_RF_AVA
 /*---------------------------------------------------------------------------*/
 /* Variables */
 /*---------------------------------------------------------------------------*/
-/* The currently selected interface for outgoing traffic */
-static const struct radio_driver *outgoing_interface;
+/* The currently selected interface */
+static const struct radio_driver *selected_interface;
 /*---------------------------------------------------------------------------*/
 /* The twofaced radio driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -70,7 +72,8 @@ const struct radio_driver twofaced_rf_driver = {
   get_value,
   set_value,
   get_object,
-  set_object
+  set_object,
+  "twofaced_rf_driver"
 };
 /*---------------------------------------------------------------------------*/
 PROCESS(twofaced_rf_process, "twofaced radio driver");
@@ -89,11 +92,12 @@ PROCESS_THREAD(twofaced_rf_process, ev, data)
 static int
 init(void)
 {
-  for(uint8_t i = 0; i < sizeof(available_interfaces) / sizeof(available_interfaces[0]); i++) {
+  for(uint8_t i = 0; i < sizeof(available_interfaces) /
+      sizeof(available_interfaces[0]); i++) {
     available_interfaces[i]->init();
   }
 
-  outgoing_interface = available_interfaces[0];
+  selected_interface = available_interfaces[0];
 
   process_start(&twofaced_rf_process, NULL);
 
@@ -103,13 +107,13 @@ init(void)
 static int
 prepare(const void *payload, unsigned short payload_len)
 {
-  return outgoing_interface->prepare(payload, payload_len);
+  return selected_interface->prepare(payload, payload_len);
 }
 /*---------------------------------------------------------------------------*/
 static int
 transmit(unsigned short transmit_len)
 {
-  return outgoing_interface->transmit(transmit_len);
+  return selected_interface->transmit(transmit_len);
 }
 /*---------------------------------------------------------------------------*/
 static int
@@ -122,40 +126,36 @@ send(const void *payload, unsigned short payload_len)
 static int
 read(void *buf, unsigned short buf_len)
 {
-  return 0;
+  return selected_interface->read(buf, buf_len);
 }
 /*---------------------------------------------------------------------------*/
 static int
 channel_clear(void)
 {
-  return outgoing_interface->channel_clear();
+  return selected_interface->channel_clear();
 }
 /*---------------------------------------------------------------------------*/
 static int
 receiving_packet(void)
 {
-  return 0;
+  return selected_interface->receiving_packet();
 }
 /*---------------------------------------------------------------------------*/
 static int
 pending_packet(void)
 {
-  int ret = 0;
-  for(uint8_t i = 0; i < sizeof(available_interfaces) / sizeof(available_interfaces[0]); i++) {
-    ret = ret || available_interfaces[i]->pending_packet();
-  }
-  return ret;
+  return selected_interface->pending_packet();
 }
 /*---------------------------------------------------------------------------*/
 static int
 on(void)
 {
-  return 0;
+  return selected_interface->on();
 }
 static int
 off(void)
 {
-  return 0;
+  return selected_interface->off();
 }
 /*---------------------------------------------------------------------------*/
 static radio_result_t
@@ -170,7 +170,7 @@ get_value(radio_param_t param, radio_value_t *value)
     *value = RADIO_MULTI_RF_EN;
     return RADIO_RESULT_OK;
   default:
-    return RADIO_RESULT_NOT_SUPPORTED;
+    return selected_interface->get_value(param, value);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -179,7 +179,7 @@ set_value(radio_param_t param, radio_value_t value)
 {
   switch(param) {
   default:
-    return RADIO_RESULT_NOT_SUPPORTED;
+    return selected_interface->set_value(param, value);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -187,8 +187,14 @@ static radio_result_t
 get_object(radio_param_t param, void *dest, size_t size)
 {
   switch(param) {
+  case RADIO_PARAM_SEL_IF:
+    if(size < strlen(selected_interface->driver_descriptor) + 1) {
+      return RADIO_RESULT_ERROR;
+    }
+    strcpy((char *)dest, selected_interface->driver_descriptor);
+    return RADIO_RESULT_OK;
   default:
-    return RADIO_RESULT_NOT_SUPPORTED;
+    return selected_interface->get_object(param, dest, size);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -196,8 +202,19 @@ static radio_result_t
 set_object(radio_param_t param, const void *src, size_t size)
 {
   switch(param) {
+  case RADIO_PARAM_SEL_IF:
+    if(size < strlen("") + 1) {
+      return RADIO_RESULT_ERROR;
+    }
+    for(uint8_t i = 0; i < sizeof(available_interfaces) /
+        sizeof(available_interfaces[0]); i++) {
+      if((!strcmp((char *)src, available_interfaces[i]->driver_descriptor))) {
+        selected_interface = available_interfaces[i];
+        return RADIO_RESULT_OK;
+      }
+    }
   default:
-    return RADIO_RESULT_NOT_SUPPORTED;
+    return selected_interface->set_object(param, src, size);
   }
 }
 /*---------------------------------------------------------------------------*/

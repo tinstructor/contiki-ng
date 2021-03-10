@@ -245,9 +245,17 @@ The following files have been added or adapted outside the twofaced example file
 
 [the same link-table](../../os/net/link-table.h) configured in `~/contiki-ng/os/net/link-table.h`
 
-[a new radio constant](../../os/dev/radio.h#L383) which retrieves multi-rf capabilities via the radio driver in `~/contiki-ng/os/dev/radio.h`
+[a new member in the radio_driver struct](../../os/dev/radio.h#L828) which is a string that describes the radio driver, see `~/contiki-ng/os/dev/radio.h`
 
-[possible states of this new constant](../../os/dev/radio.h#L423-L430) in `~/contiki-ng/os/dev/radio.h`
+[initialization of this new member](../../arch/cpu/cc2538/dev/cc2538-rf.c#L1098) in `~/contiki-ng/arch/cpu/cc2538/dev/cc2538-rf.c`
+
+[initialization of this new member](../../arch/dev/radio/cc1200/cc1200.c#L489) in `~/contiki-ng/arch/dev/radio/cc1200/cc1200.c`
+
+[a new radio parameter](../../os/dev/radio.h#L321) which selects / retrieves the current interface `~/contiki-ng/os/dev/radio.h`
+
+[a new radio constant](../../os/dev/radio.h#L408) which retrieves multi-rf capabilities via the radio driver in `~/contiki-ng/os/dev/radio.h`
+
+[possible states of this new constant](../../os/dev/radio.h#L448-455) in `~/contiki-ng/os/dev/radio.h`
 
 > **Note:** we've also made [some changes](../../tools/viewconf/viewconf.c#L92-L93) to `~/contiki-ng/tools/viewconf/viewconf.c` such that the `make viewconf` command outputs the correct string when printing the OF configuration to the terminal.
 
@@ -268,6 +276,8 @@ The following files are part of the twofaced example filestructure and are hence
 The `target-conf.h` files in the BOARD-specific `~/contiki-ng/examples/twofaced/zoul` subdirectories are, as the name implies, configuration files for each supported / corresponding zoul board.
 
 [generic type defintions for all twofaced radio drivers](dev/radio/twofaced-rf/twofaced-rf-types.h) in `~/contiki-ng/examples/twofaced/dev/radio/twofaced-rf/twofaced-rf-types.h`
+
+[printing the currently selected radio driver at boot](../../os/contiki-main.c#L116-L122) in `~/contiki-ng/os/contiki-main.c`
 
 ## Cooja
 
