@@ -10,6 +10,7 @@ This document describes the usage and configuration of the twofaced example for 
     - [Custom Commands on Linux](#custom-commands-on-linux)
   - [Usage](#usage)
     - [Project Structure](#project-structure)
+    - [Project Configuration](#project-configuration)
   - [Cooja](#cooja)
   - [Renode](#renode)
     - [The Robot Framework](#the-robot-framework)
@@ -278,6 +279,10 @@ The `target-conf.h` files in the BOARD-specific `~/contiki-ng/examples/twofaced/
 [generic type defintions for all twofaced radio drivers](dev/radio/twofaced-rf/twofaced-rf-types.h) in `~/contiki-ng/examples/twofaced/dev/radio/twofaced-rf/twofaced-rf-types.h`
 
 [printing the currently selected radio driver at boot](../../os/contiki-main.c#L116-L122) in `~/contiki-ng/os/contiki-main.c`
+
+### Project Configuration
+
+Coming soon.
 
 ## Cooja
 
