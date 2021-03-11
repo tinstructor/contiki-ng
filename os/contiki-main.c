@@ -114,10 +114,10 @@ main(void)
 #endif /* MAC_CONF_WITH_TSCH */
 
   char sel_if_desc[32];
-  if(NETSTACK_RADIO.get_object(RADIO_PARAM_SEL_IF, sel_if_desc, sizeof(sel_if_desc)/sizeof(sel_if_desc[0])) == RADIO_RESULT_OK) {
+  if(NETSTACK_RADIO.get_object(RADIO_PARAM_SEL_IF, sel_if_desc, sizeof(sel_if_desc) /
+                               sizeof(sel_if_desc[0])) == RADIO_RESULT_OK) {
     LOG_INFO("- Radio: %s (%s)\n", NETSTACK_RADIO.driver_descriptor, sel_if_desc);
-  }
-  else {
+  } else {
     LOG_INFO("- Radio: %s\n", NETSTACK_RADIO.driver_descriptor);
   }
 

@@ -930,6 +930,62 @@ PT_THREAD(cmd_llsec_setkey(struct pt *pt, shell_output_func output, char *args))
 }
 #endif /* LLSEC802154_ENABLED */
 /*---------------------------------------------------------------------------*/
+static
+PT_THREAD(cmd_set_radio(struct pt *pt, shell_output_func output, char *args))
+{
+
+  PT_BEGIN(pt);
+
+  radio_value_t multi_rf_flag;
+  radio_result_t foo = NETSTACK_RADIO.get_value(RADIO_CONST_MULTI_RF, &multi_rf_flag);
+
+  if(foo == RADIO_RESULT_NOT_SUPPORTED || multi_rf_flag == RADIO_MULTI_RF_DIS) {
+    SHELL_OUTPUT(output, "This device doesn't support multi-rf operation\n");
+    PT_EXIT(pt);
+  } else if(args == NULL) {
+    SHELL_OUTPUT(output, "Provide the descriptor of the radio driver to select\n");
+    PT_EXIT(pt);
+  } else {
+    foo = NETSTACK_RADIO.set_object(RADIO_PARAM_SEL_IF, args, strlen(args) + 1);
+    if(foo == RADIO_RESULT_OK) {
+      char sel_if_desc[32];
+      if(NETSTACK_RADIO.get_object(RADIO_PARAM_SEL_IF, sel_if_desc, sizeof(sel_if_desc) /
+                                   sizeof(sel_if_desc[0])) == RADIO_RESULT_OK) {
+        SHELL_OUTPUT(output, "Radio driver changed to: %s\n", sel_if_desc);
+      } else {
+        SHELL_OUTPUT(output, "Radio driver changed\n");
+      }
+    } else if(foo == RADIO_RESULT_INVALID_VALUE) {
+      SHELL_OUTPUT(output, "Invalid driver descriptor supplied\n");
+    } else if(foo == RADIO_RESULT_NOT_SUPPORTED) {
+      SHELL_OUTPUT(output, "This device doesn't allow switching radio drivers via shell\n");
+    } else {
+      SHELL_OUTPUT(output, "Oops! Something went wrong: unknown radio result\n");
+    }
+  }
+
+  PT_END(pt);
+}
+/*---------------------------------------------------------------------------*/
+static
+PT_THREAD(cmd_get_radio(struct pt *pt, shell_output_func output, char *args))
+{
+
+  PT_BEGIN(pt);
+
+  char sel_if_desc[32];
+  if(NETSTACK_RADIO.get_object(RADIO_PARAM_SEL_IF, sel_if_desc, sizeof(sel_if_desc) /
+                               sizeof(sel_if_desc[0])) == RADIO_RESULT_OK) {
+    SHELL_OUTPUT(output, "Current radio driver / subdriver: %s (%s)\n",
+                 NETSTACK_RADIO.driver_descriptor, sel_if_desc);
+  } else {
+    SHELL_OUTPUT(output, "Current radio driver: %s\n",
+                 NETSTACK_RADIO.driver_descriptor);
+  }
+
+  PT_END(pt);
+}
+/*---------------------------------------------------------------------------*/
 void
 shell_commands_init(void)
 {
@@ -1015,6 +1071,8 @@ const struct shell_command_t builtin_shell_commands[] = {
   { "llsec-set-level", cmd_llsec_setlv, "'> llsec-set-level <lv>': Set the level of link layer security (show if no lv argument)"},
   { "llsec-set-key", cmd_llsec_setkey, "'> llsec-set-key <id> <key>': Set the key of link layer security"},
 #endif /* LLSEC802154_ENABLED */
+  { "set-radio", cmd_set_radio, "'> set-radio <driver>': Select a radio by supplying a driver descriptor string, defaults to first match." },
+  { "get-radio", cmd_get_radio, "'> get-radio': Show the currently selected radio by printing its driver descriptor." },
   { NULL, NULL, NULL },
 };
 

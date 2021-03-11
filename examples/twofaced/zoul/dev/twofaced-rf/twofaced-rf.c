@@ -167,7 +167,11 @@ get_value(radio_param_t param, radio_value_t *value)
 
   switch(param) {
   case RADIO_CONST_MULTI_RF:
-    *value = RADIO_MULTI_RF_EN;
+    if((sizeof(available_interfaces) / sizeof(available_interfaces[0])) > 1) {
+      *value = RADIO_MULTI_RF_EN;
+    } else {
+      *value = RADIO_MULTI_RF_DIS;
+    }
     return RADIO_RESULT_OK;
   default:
     return selected_interface->get_value(param, value);
@@ -204,7 +208,7 @@ set_object(radio_param_t param, const void *src, size_t size)
   switch(param) {
   case RADIO_PARAM_SEL_IF:
     if(size < strlen("") + 1) {
-      return RADIO_RESULT_ERROR;
+      return RADIO_RESULT_INVALID_VALUE;
     }
     for(uint8_t i = 0; i < sizeof(available_interfaces) /
         sizeof(available_interfaces[0]); i++) {
@@ -213,6 +217,7 @@ set_object(radio_param_t param, const void *src, size_t size)
         return RADIO_RESULT_OK;
       }
     }
+    return RADIO_RESULT_INVALID_VALUE;
   default:
     return selected_interface->set_object(param, src, size);
   }

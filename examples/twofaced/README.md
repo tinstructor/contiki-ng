@@ -258,6 +258,10 @@ The following files have been added or adapted outside the twofaced example file
 
 [possible states of this new constant](../../os/dev/radio.h#L448-455) in `~/contiki-ng/os/dev/radio.h`
 
+[printing the currently selected radio driver at boot](../../os/contiki-main.c#L116-L122) in `~/contiki-ng/os/contiki-main.c`
+
+[new shell commmands](../../os/services/shell/shell-commands.c#L933#L987) to get or set the selected radio driver in `~/contiki-ng/os/services/shell/shell-commands.c`
+
 > **Note:** we've also made [some changes](../../tools/viewconf/viewconf.c#L92-L93) to `~/contiki-ng/tools/viewconf/viewconf.c` such that the `make viewconf` command outputs the correct string when printing the OF configuration to the terminal.
 
 The following files are part of the twofaced example filestructure and are hence of interest (more info coming soon):
@@ -277,8 +281,6 @@ The following files are part of the twofaced example filestructure and are hence
 The `target-conf.h` files in the BOARD-specific `~/contiki-ng/examples/twofaced/zoul` subdirectories are, as the name implies, configuration files for each supported / corresponding zoul board.
 
 [generic type defintions for all twofaced radio drivers](dev/radio/twofaced-rf/twofaced-rf-types.h) in `~/contiki-ng/examples/twofaced/dev/radio/twofaced-rf/twofaced-rf-types.h`
-
-[printing the currently selected radio driver at boot](../../os/contiki-main.c#L116-L122) in `~/contiki-ng/os/contiki-main.c`
 
 ### Project Configuration
 
