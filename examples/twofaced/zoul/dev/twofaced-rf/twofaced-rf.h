@@ -44,9 +44,9 @@
 
 #ifdef TWOFACED_RF_CONF_AVAILABLE_IFS
 #define TWOFACED_RF_AVAILABLE_IFS TWOFACED_RF_CONF_AVAILABLE_IFS
-#else
+#else /* TWOFACED_RF_CONF_AVAILABLE_IFS */
 #define TWOFACED_RF_AVAILABLE_IFS { &cc2538_rf_driver, &cc1200_driver }
-#endif
+#endif /* TWOFACED_RF_CONF_AVAILABLE_IFS */
 
 /* TODO add documentation for function prototypes */
 
@@ -83,7 +83,6 @@ static radio_result_t set_object(radio_param_t param, const void *src, size_t si
 /*---------------------------------------------------------------------------*/
 /* Prototypes for internal radio driver functions */
 /*---------------------------------------------------------------------------*/
-static void reset(void);
-/*---------------------------------------------------------------------------*/
+/* NOTE add internal radio driver function prototypes here as required */
 
 #endif /* TWOFACED_RF_H_ */
