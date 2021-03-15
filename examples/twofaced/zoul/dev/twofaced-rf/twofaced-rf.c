@@ -152,6 +152,7 @@ on(void)
 {
   return selected_interface->on();
 }
+/*---------------------------------------------------------------------------*/
 static int
 off(void)
 {
@@ -214,6 +215,7 @@ set_object(radio_param_t param, const void *src, size_t size)
         sizeof(available_interfaces[0]); i++) {
       if((!strcmp((char *)src, available_interfaces[i]->driver_descriptor))) {
         selected_interface = available_interfaces[i];
+        // TODO re-init the MAC layer if selected interface changed
         return RADIO_RESULT_OK;
       }
     }
@@ -225,7 +227,4 @@ set_object(radio_param_t param, const void *src, size_t size)
 /*---------------------------------------------------------------------------*/
 /* Internal driver functions */
 /*---------------------------------------------------------------------------*/
-static void
-reset(void)
-{
-}
+/* NOTE add internal radio driver functions here as required */
