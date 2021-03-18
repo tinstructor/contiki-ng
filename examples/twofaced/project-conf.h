@@ -40,17 +40,15 @@
 #define PROJECT_CONF_H_
 
 #define NETSTACK_CONF_RADIO twofaced_rf_driver
-#define REMOTE_DUAL_RF_ENABLED 1
 
 #ifndef NETSTACK_CONF_RADIO
-#define NETSTACK_CONF_RADIO             cc1200_driver
-#define CC1200_CONF_RF_CFG              cc1200_802154g_863_870_fsk_50kbps
-#define ANTENNA_SW_SELECT_DEF_CONF      ANTENNA_SW_SELECT_SUBGHZ
-#define CC1200_CONF_USE_GPIO2           0
-#define CC1200_CONF_USE_RX_WATCHDOG     0
-#define CC1200_CONF_802154G             0
-#define CC1200_CONF_802154G_CRC16       0
-#define CC1200_CONF_802154G_WHITENING   0
+#define ZOUL_CONF_USE_CC1200_RADIO 1
+#else /* NETSTACK_CONF_RADIO */
+#if MAC_CONF_WITH_CSMA
+#define CSMA_CONF_ACK_WAIT_TIME                 (RTIMER_SECOND / 200)
+#define CSMA_CONF_AFTER_ACK_DETECTED_WAIT_TIME  (RTIMER_SECOND / 1500)
+#endif /* MAC_CONF_WITH_CSMA */
+#define REMOTE_DUAL_RF_ENABLED 1
 #endif /* NETSTACK_CONF_RADIO */
 
 #if MAC_CONF_WITH_OTHER == 1
@@ -67,7 +65,7 @@
  */
 #define RPL_CONF_OF_OCP RPL_OCP_MRHOF
 
-/* 
+/*
  * The RPL_CONF_SUPPORTED_OFS parameter configures the OFs supported by
  * any node (root or non-root) at runtime. A node may only join a RPL
  * instance (advertised in a DIO) which is based on one of the OFs in
@@ -77,9 +75,9 @@
 #define RPL_CONF_SUPPORTED_OFS { &rpl_mrhof, &rpl_poof, &rpl_driplof }
 
 #define LOG_CONF_LEVEL_APP      LOG_LEVEL_INFO
-#define LOG_CONF_LEVEL_RPL      LOG_LEVEL_DBG
-#define LOG_CONF_LEVEL_TCPIP    LOG_LEVEL_DBG
-#define LOG_CONF_LEVEL_IPV6     LOG_LEVEL_DBG
+#define LOG_CONF_LEVEL_RPL      LOG_LEVEL_INFO
+#define LOG_CONF_LEVEL_TCPIP    LOG_LEVEL_NONE
+#define LOG_CONF_LEVEL_IPV6     LOG_LEVEL_NONE
 #define LOG_CONF_LEVEL_6LOWPAN  LOG_LEVEL_NONE
 #define LOG_CONF_LEVEL_MAC      LOG_LEVEL_NONE
 #define LOG_CONF_LEVEL_FRAMER   LOG_LEVEL_NONE

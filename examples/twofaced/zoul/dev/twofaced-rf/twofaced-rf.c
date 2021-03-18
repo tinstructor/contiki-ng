@@ -213,7 +213,7 @@ set_object(radio_param_t param, const void *src, size_t size)
     }
     for(uint8_t i = 0; i < sizeof(available_interfaces) /
         sizeof(available_interfaces[0]); i++) {
-      if((!strcmp((char *)src, available_interfaces[i]->driver_descriptor))) {
+      if(!strcmp((char *)src, available_interfaces[i]->driver_descriptor)) {
         selected_interface = available_interfaces[i];
         // TODO re-init the MAC layer if selected interface changed
         return RADIO_RESULT_OK;

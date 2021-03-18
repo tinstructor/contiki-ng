@@ -202,8 +202,9 @@ send_one_packet(struct neighbor_queue *n, struct packet_queue *q)
          sending with auto ack. */
       ret = MAC_TX_COLLISION;
     } else {
-
-      switch(NETSTACK_RADIO.transmit(packetbuf_totlen())) {
+      radio_result_t foo = NETSTACK_RADIO.transmit(packetbuf_totlen());
+      RTIMER_BUSYWAIT(RTIMER_SECOND / 200);
+      switch(foo) {
       case RADIO_TX_OK:
         if(is_broadcast) {
           ret = MAC_TX_OK;
@@ -227,12 +228,23 @@ send_one_packet(struct neighbor_queue *n, struct packet_queue *q)
               len = NETSTACK_RADIO.read(ackbuf, CSMA_ACK_LEN);
               if(len == CSMA_ACK_LEN && ackbuf[2] == dsn) {
                 /* Ack received */
+                LOG_DBG("ACK received\n");
                 ret = MAC_TX_OK;
               } else {
+                if(ackbuf[2] != dsn) {
+                  LOG_DBG("NOACK: dsn %d doesn't match expected (%d)\n", ackbuf[2], dsn);
+                } else {
+                  LOG_DBG("NOACK: len %d doesn't match expected (%d)\n", len, CSMA_ACK_LEN);
+                }
                 /* Not an ack or ack not for us: collision */
                 ret = MAC_TX_COLLISION;
               }
+            } else {
+              LOG_DBG("NOACK: CSMA_AFTER_ACK_DETECTED_WAIT_TIME = %d exceeded\n",
+                      CSMA_AFTER_ACK_DETECTED_WAIT_TIME);
             }
+          } else {
+            LOG_DBG("NOACK: CSMA_ACK_WAIT_TIME = %d exceeded\n", CSMA_ACK_WAIT_TIME);
           }
         }
         break;

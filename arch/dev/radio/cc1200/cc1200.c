@@ -89,7 +89,7 @@ static rtimer_clock_t sfd_timestamp = 0;
  * This is requried by TSCH, for shorter and more predictable delay in the Tx
  * chain. This, however, restircts the payload length to the Tx FIFO size.
  */
-#define CC1200_WITH_TX_BUF (!MAC_CONF_WITH_TSCH)
+#define CC1200_WITH_TX_BUF (!MAC_CONF_WITH_TSCH) && (!MAC_CONF_WITH_CSMA)
 /*
  * Set this parameter to 1 in order to use the MARC_STATE register when
  * polling the chips's status. Else use the status byte returned when sending
@@ -104,11 +104,11 @@ static rtimer_clock_t sfd_timestamp = 0;
  *
  * TODO: Option to be removed upon approval of the driver
  */
-#if MAC_CONF_WITH_TSCH
+#if MAC_CONF_WITH_TSCH || MAC_CONF_WITH_CSMA
 #define USE_SFSTXON                     0
-#else /* MAC_CONF_WITH_TSCH */
+#else /* MAC_CONF_WITH_TSCH || MAC_CONF_WITH_CSMA */
 #define USE_SFSTXON                     1
-#endif /* MAC_CONF_WITH_TSCH */
+#endif /* MAC_CONF_WITH_TSCH || MAC_CONF_WITH_CSMA */
 /*---------------------------------------------------------------------------*/
 /* Phy header length */
 #if CC1200_802154G
@@ -148,15 +148,15 @@ static rtimer_clock_t sfd_timestamp = 0;
 /* Use GPIO2 as RX / TX FIFO threshold indicator pin */
 #define GPIO2_IOCFG                     CC1200_IOCFG_RXFIFO_THR
 /* This is the FIFO threshold we use */
-#if MAC_CONF_WITH_TSCH
+#if MAC_CONF_WITH_TSCH || MAC_CONF_WITH_CSMA
 #if CC1200_802154G
 #define FIFO_THRESHOLD                  1
 #else
 #define FIFO_THRESHOLD                  0
 #endif
-#else /* MAC_CONF_WITH_TSCH */
+#else /* MAC_CONF_WITH_TSCH || MAC_CONF_WITH_CSMA */
 #define FIFO_THRESHOLD                  32
-#endif /* MAC_CONF_WITH_TSCH */
+#endif /* MAC_CONF_WITH_TSCH || MAC_CONF_WITH_CSMA */
 /* Turn on RX after packet reception */
 #define RXOFF_MODE_RX                   1
 /* Let the CC1200 append RSSI + LQI */
