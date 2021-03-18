@@ -141,12 +141,14 @@ init(void)
 static int
 prepare(const void *payload, unsigned short payload_len)
 {
+  /* TODO lock the possibility of changing radio here */
   return selected_interface->prepare(payload, payload_len);
 }
 /*---------------------------------------------------------------------------*/
 static int
 transmit(unsigned short transmit_len)
 {
+  /* TODO unlock the possibility of changing radio here */
   return selected_interface->transmit(transmit_len);
 }
 /*---------------------------------------------------------------------------*/
@@ -260,9 +262,7 @@ set_object(radio_param_t param, const void *src, size_t size)
   case RADIO_PARAM_CHANNEL:
     return RADIO_RESULT_NOT_SUPPORTED;
   case RADIO_PARAM_SEL_IF:
-    /*
-     * TODO prevent changing the interface in certain situations
-     */
+    /* TODO prevent changing the interface in certain situations */
     if(size < strlen("") + 1) {
       return RADIO_RESULT_INVALID_VALUE;
     }
@@ -274,6 +274,7 @@ set_object(radio_param_t param, const void *src, size_t size)
         return RADIO_RESULT_OK;
       }
     }
+    /* TODO change channel of new if to default channel before returning */
     return RADIO_RESULT_INVALID_VALUE;
   case RADIO_PARAM_64BIT_ADDR:
     /* TODO handle this case */
