@@ -211,6 +211,8 @@ get_value(radio_param_t param, radio_value_t *value)
   case RADIO_CONST_MAX_PAYLOAD_LEN:
     *value = (radio_value_t)max_payload_len;
     return RADIO_RESULT_OK;
+  case RADIO_PARAM_CHANNEL:
+    /* TODO handle this case */
   default:
     return selected_interface->get_value(param, value);
   }
@@ -220,6 +222,15 @@ static radio_result_t
 set_value(radio_param_t param, radio_value_t value)
 {
   switch(param) {
+  case RADIO_PARAM_SEL_IF:
+  case RADIO_PARAM_64BIT_ADDR:
+    return RADIO_RESULT_NOT_SUPPORTED;
+  case RADIO_PARAM_PAN_ID:
+    /* TODO handle this case */
+  case RADIO_PARAM_16BIT_ADDR:
+    /* TODO handle this case */
+  case RADIO_PARAM_CHANNEL:
+    /* TODO handle this case */
   default:
     return selected_interface->set_value(param, value);
   }
@@ -244,7 +255,14 @@ static radio_result_t
 set_object(radio_param_t param, const void *src, size_t size)
 {
   switch(param) {
+  case RADIO_PARAM_PAN_ID:
+  case RADIO_PARAM_16BIT_ADDR:
+  case RADIO_PARAM_CHANNEL:
+    return RADIO_RESULT_NOT_SUPPORTED;
   case RADIO_PARAM_SEL_IF:
+    /*
+     * TODO prevent changing the interface in certain situations
+     */
     if(size < strlen("") + 1) {
       return RADIO_RESULT_INVALID_VALUE;
     }
@@ -257,6 +275,8 @@ set_object(radio_param_t param, const void *src, size_t size)
       }
     }
     return RADIO_RESULT_INVALID_VALUE;
+  case RADIO_PARAM_64BIT_ADDR:
+    /* TODO handle this case */
   default:
     return selected_interface->set_object(param, src, size);
   }
