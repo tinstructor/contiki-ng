@@ -43,6 +43,11 @@
 
 #include <string.h>
 
+/* Log configuration */
+#include "sys/log.h"
+#define LOG_MODULE "twofaced-rf"
+#define LOG_LEVEL LOG_LEVEL_DBG
+
 /*---------------------------------------------------------------------------*/
 /* Constants */
 /*---------------------------------------------------------------------------*/
@@ -55,6 +60,8 @@ static const struct radio_driver *const available_interfaces[] = TWOFACED_RF_AVA
 /*---------------------------------------------------------------------------*/
 /* The currently selected interface */
 static const struct radio_driver *selected_interface;
+/* Lowest reported max payload length of all drivers. Initialized in init() */
+static uint16_t max_payload_len;
 /*---------------------------------------------------------------------------*/
 /* The twofaced radio driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -94,7 +101,34 @@ init(void)
 {
   for(uint8_t i = 0; i < sizeof(available_interfaces) /
       sizeof(available_interfaces[0]); i++) {
-    available_interfaces[i]->init();
+
+    radio_value_t reported_max_payload_len = 0;
+
+    if(!available_interfaces[i]->init()) {
+      if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+        LOG_DBG("Failed to init() underlying radio driver\n");
+      } else {
+        LOG_DBG("Failed to init() underlying radio driver (%s)\n",
+                available_interfaces[i]->driver_descriptor);
+      }
+      return 0; /* REVIEW does one failed driver init() warrant abort? */
+    } else {
+      if(available_interfaces[i]->get_value(RADIO_CONST_MAX_PAYLOAD_LEN,
+                                            &reported_max_payload_len) != RADIO_RESULT_OK) {
+        if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+          LOG_DBG("Failed to retrieve max payload len of underlying radio driver\n");
+        } else {
+          LOG_DBG("Failed to retrieve max payload len of underlying radio driver (%s)\n",
+                  available_interfaces[i]->driver_descriptor);
+        }
+        LOG_DBG("Setting max_payload_len to 0\n");
+        max_payload_len = 0;
+      } else if(reported_max_payload_len < max_payload_len || i == 0) {
+        LOG_INFO("Updated max_payload length from %d to %d\n",
+                 max_payload_len, reported_max_payload_len);
+        max_payload_len = (uint16_t)reported_max_payload_len;
+      }
+    }
   }
 
   selected_interface = available_interfaces[0];
@@ -174,6 +208,9 @@ get_value(radio_param_t param, radio_value_t *value)
       *value = RADIO_MULTI_RF_DIS;
     }
     return RADIO_RESULT_OK;
+  case RADIO_CONST_MAX_PAYLOAD_LEN:
+    *value = (radio_value_t)max_payload_len;
+    return RADIO_RESULT_OK;
   default:
     return selected_interface->get_value(param, value);
   }
@@ -215,7 +252,7 @@ set_object(radio_param_t param, const void *src, size_t size)
         sizeof(available_interfaces[0]); i++) {
       if(!strcmp((char *)src, available_interfaces[i]->driver_descriptor)) {
         selected_interface = available_interfaces[i];
-        // TODO re-init the MAC layer if selected interface changed
+        /* TODO re-init the MAC layer if selected interface changed */
         return RADIO_RESULT_OK;
       }
     }
