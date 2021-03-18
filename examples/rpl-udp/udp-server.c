@@ -31,6 +31,7 @@
 #include "net/routing/routing.h"
 #include "net/netstack.h"
 #include "net/ipv6/simple-udp.h"
+#include "sys/etimer.h"
 
 #include "sys/log.h"
 #define LOG_MODULE "App"
@@ -41,6 +42,7 @@
 #define UDP_SERVER_PORT	5678
 
 static struct simple_udp_connection udp_conn;
+static struct etimer root_start_timer;
 
 PROCESS(udp_server_process, "UDP server");
 AUTOSTART_PROCESSES(&udp_server_process);
@@ -69,7 +71,11 @@ PROCESS_THREAD(udp_server_process, ev, data)
   PROCESS_BEGIN();
 
   /* Initialize DAG root */
-  NETSTACK_ROUTING.root_start();
+  etimer_set(&root_start_timer, 10 * CLOCK_SECOND);
+  while(NETSTACK_ROUTING.root_start() != 0) {
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&root_start_timer));
+    etimer_reset(&root_start_timer);
+  } 
 
   /* Initialize UDP connection */
   simple_udp_register(&udp_conn, UDP_SERVER_PORT, NULL,
