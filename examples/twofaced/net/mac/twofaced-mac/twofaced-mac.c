@@ -37,3 +37,23 @@
  */
 
 #include "twofaced-mac.h"
+#include "net/netstack.h"
+#include "net/ipv6/uip.h"
+#include "net/ipv6/tcpip.h"
+#include "net/packetbuf.h"
+#include "net/mac/mac-sequence.h"
+
+/* Log configuration */
+#include "sys/log.h"
+#define LOG_MODULE "twofaced-mac"
+#define LOG_LEVEL LOG_LEVEL_DBG
+
+/*---------------------------------------------------------------------------*/
+/* Constants */
+/*---------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
+/* Variables */
+/*---------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
+/* The twofaced mac driver exported to Contiki-NG */
+/*---------------------------------------------------------------------------*/
