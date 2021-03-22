@@ -31,26 +31,20 @@
 
 /**
  * \file
- *      Generic type definitions for all twofaced-rf drivers
+ *      Common configuration for all twofaced-rf drivers
  * \author
  *      Robbe Elsas <robbe.elsas@ugent.be>
  */
 
-#ifndef TWOFACED_RF_TYPES_H_
-#define TWOFACED_RF_TYPES_H_
+#ifndef TWOFACED_RF_CONF_H_
+#define TWOFACED_RF_CONF_H_
 
-#include "sys/mutex.h"
+#include "contiki.h"
 
-typedef enum {
-  TWOFACED_RF_PREPARE,
-  TWOFACED_RF_TRANSMIT,
-  TWOFACED_RF_SET_OBJECT,
-  TWOFACED_RF_NO_OWNER,
-} twofaced_rf_lock_owner_t;
+#ifdef TWOFACED_RF_CONF_DEFAULT_CHANNEL
+#define TWOFACED_RF_DEFAULT_CHANNEL TWOFACED_RF_CONF_DEFAULT_CHANNEL
+#else /* TWOFACED_RF_CONF_DEFAULT_CHANNEL */
+#define TWOFACED_RF_DEFAULT_CHANNEL 0U
+#endif /* TWOFACED_RF_CONF_DEFAULT_CHANNEL */
 
-typedef struct twofaced_rf_lock {
-  mutex_t lock;
-  twofaced_rf_lock_owner_t owner;
-} twofaced_rf_lock_t;
-
-#endif /* TWOFACED_RF_TYPES_H_ */
+#endif /* TWOFACED_RF_CONF_H_ */

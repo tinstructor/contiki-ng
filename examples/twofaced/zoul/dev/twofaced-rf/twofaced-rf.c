@@ -38,6 +38,7 @@
 
 #include "twofaced-rf.h"
 #include "dev/radio/twofaced-rf/twofaced-rf-types.h"
+#include "dev/radio/twofaced-rf/twofaced-rf-conf.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
 #include "sys/mutex.h"
@@ -260,7 +261,6 @@ get_value(radio_param_t param, radio_value_t *value)
     *value = (radio_value_t)max_payload_len;
     return RADIO_RESULT_OK;
   case RADIO_PARAM_CHANNEL:
-  /* TODO handle this case */
   default:
     return selected_interface->get_value(param, value);
   }
@@ -274,11 +274,13 @@ set_value(radio_param_t param, radio_value_t value)
   case RADIO_PARAM_64BIT_ADDR:
     return RADIO_RESULT_NOT_SUPPORTED;
   case RADIO_PARAM_PAN_ID:
-  /* TODO handle this case */
   case RADIO_PARAM_16BIT_ADDR:
-  /* TODO handle this case */
+    for(uint8_t i = 0; i < sizeof(available_interfaces) /
+        sizeof(available_interfaces[0]); i++) {
+      available_interfaces[i]->set_value(param, value);
+    }
+    return RADIO_RESULT_OK;
   case RADIO_PARAM_CHANNEL:
-  /* TODO handle this case */
   default:
     return selected_interface->set_value(param, value);
   }
@@ -311,18 +313,34 @@ set_object(radio_param_t param, const void *src, size_t size)
     if(mutex_try_lock(&rf_lock.lock)) {
       rf_lock.owner = TWOFACED_RF_SET_OBJECT;
       LOG_DBG("RF lock acquired by set_object()\n");
+
       if(size < strlen("") + 1) {
         rf_lock.owner = TWOFACED_RF_NO_OWNER;
         mutex_unlock(&rf_lock.lock);
         LOG_DBG("Unlocking RF lock held by set_object(), no descriptor\n");
         return RADIO_RESULT_INVALID_VALUE;
       }
+
+      if(!strcmp((char *)src, selected_interface->driver_descriptor)) {
+        rf_lock.owner = TWOFACED_RF_NO_OWNER;
+        mutex_unlock(&rf_lock.lock);
+        LOG_DBG("Unlocking RF lock held by set_object(), interface already selected\n");
+        return RADIO_RESULT_OK;
+      }
+
       for(uint8_t i = 0; i < sizeof(available_interfaces) /
           sizeof(available_interfaces[0]); i++) {
         if(!strcmp((char *)src, available_interfaces[i]->driver_descriptor)) {
+          NETSTACK_MAC.off();
           selected_interface = available_interfaces[i];
-          /* TODO re-init the MAC layer if selected interface changed */
-          /* TODO change channel of new if to default channel before returning */
+          NETSTACK_MAC.on();
+          /*
+           * TODO we should check if setting the channel of the new iface
+           * is successful before continuing and if not, doing something
+           * about it.
+           */
+          selected_interface->set_value(RADIO_PARAM_CHANNEL, TWOFACED_RF_DEFAULT_CHANNEL);
+          LOG_DBG("Set channel to %i after switching to new interface\n", TWOFACED_RF_DEFAULT_CHANNEL);
           rf_lock.owner = TWOFACED_RF_NO_OWNER;
           mutex_unlock(&rf_lock.lock);
           LOG_DBG("Unlocking RF lock held by set_object(), interface set\n");
@@ -338,7 +356,11 @@ set_object(radio_param_t param, const void *src, size_t size)
     }
     return RADIO_RESULT_ERROR;
   case RADIO_PARAM_64BIT_ADDR:
-  /* TODO handle this case */
+    for(uint8_t i = 0; i < sizeof(available_interfaces) /
+        sizeof(available_interfaces[0]); i++) {
+      available_interfaces[i]->set_object(param, src, size);
+    }
+    return RADIO_RESULT_OK;
   default:
     return selected_interface->set_object(param, src, size);
   }
