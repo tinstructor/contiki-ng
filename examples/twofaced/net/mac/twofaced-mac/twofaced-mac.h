@@ -40,7 +40,28 @@
 #define TWOFACED_MAC_H_
 
 #include "contiki.h"
+#include "net/mac/mac.h"
+#include "dev/radio.h"
 
-/* TODO add MAC config here */
+/* TODO add documentation for function prototypes */
+
+/*---------------------------------------------------------------------------*/
+/* Prototypes for mac driver functions */
+/*---------------------------------------------------------------------------*/
+static void init(void);
+/*---------------------------------------------------------------------------*/
+static void send(mac_callback_t sent_callback, void *ptr);
+/*---------------------------------------------------------------------------*/
+static void input(void);
+/*---------------------------------------------------------------------------*/
+static int on(void);
+/*---------------------------------------------------------------------------*/
+static int off(void);
+/*---------------------------------------------------------------------------*/
+static int max_payload(void);
+/*---------------------------------------------------------------------------*/
+/* Prototypes for internal mac driver functions */
+/*---------------------------------------------------------------------------*/
+/* NOTE add internal radio driver function prototypes here as required */
 
 #endif /* TWOFACED_MAC_H_ */
