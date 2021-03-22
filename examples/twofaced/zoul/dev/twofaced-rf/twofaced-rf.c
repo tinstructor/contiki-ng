@@ -40,7 +40,6 @@
 #include "dev/radio/twofaced-rf/twofaced-rf-types.h"
 #include "dev/radio/twofaced-rf/twofaced-rf-conf.h"
 #include "net/netstack.h"
-#include "net/packetbuf.h"
 #include "sys/mutex.h"
 
 #include <string.h>
@@ -87,17 +86,6 @@ const struct radio_driver twofaced_rf_driver = {
   "twofaced_rf_driver"
 };
 /*---------------------------------------------------------------------------*/
-PROCESS(twofaced_rf_process, "twofaced radio driver");
-/*---------------------------------------------------------------------------*/
-PROCESS_THREAD(twofaced_rf_process, ev, data)
-{
-  PROCESS_BEGIN();
-
-  PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_EXIT);
-
-  PROCESS_END();
-}
-/*---------------------------------------------------------------------------*/
 /* Radio driver functions */
 /*---------------------------------------------------------------------------*/
 static int
@@ -136,8 +124,6 @@ init(void)
   }
 
   selected_interface = available_interfaces[0];
-
-  process_start(&twofaced_rf_process, NULL);
 
   return 1;
 }
