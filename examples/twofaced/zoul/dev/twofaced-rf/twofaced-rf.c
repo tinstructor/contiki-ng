@@ -40,6 +40,7 @@
 #include "dev/radio/twofaced-rf/twofaced-rf-types.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
+#include "sys/mutex.h"
 
 #include <string.h>
 
@@ -62,6 +63,8 @@ static const struct radio_driver *const available_interfaces[] = TWOFACED_RF_AVA
 static const struct radio_driver *selected_interface;
 /* Lowest reported max payload length of all drivers. Initialized in init() */
 static uint16_t max_payload_len;
+/* A lock that prevents changing interfaces when innapropriate */
+static volatile twofaced_rf_lock_t rf_lock = { .owner = TWOFACED_RF_NO_OWNER };
 /*---------------------------------------------------------------------------*/
 /* The twofaced radio driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -141,22 +144,65 @@ init(void)
 static int
 prepare(const void *payload, unsigned short payload_len)
 {
-  /* TODO lock the possibility of changing radio here */
-  return selected_interface->prepare(payload, payload_len);
+  if(mutex_try_lock(&rf_lock.lock)) {
+    rf_lock.owner = TWOFACED_RF_PREPARE;
+    LOG_DBG("RF lock acquired by prepare()\n");
+    if(selected_interface->prepare(payload, payload_len) == 1) {
+      rf_lock.owner = TWOFACED_RF_NO_OWNER;
+      mutex_unlock(&rf_lock.lock);
+      LOG_DBG("Unlocking RF lock held by prepare(), copy was unsuccessful\n");
+    } else {
+      return 0;
+    }
+  } else {
+    LOG_DBG("Could not prepare packet, interfaces are locked\n");
+  }
+
+  return 1;
 }
 /*---------------------------------------------------------------------------*/
 static int
 transmit(unsigned short transmit_len)
 {
-  /* TODO unlock the possibility of changing radio here */
-  return selected_interface->transmit(transmit_len);
+  uint8_t ret = RADIO_TX_ERR;
+
+  if(mutex_try_lock(&rf_lock.lock)) {
+    /* REVIEW is this case really necessary? */
+    rf_lock.owner = TWOFACED_RF_TRANSMIT;
+    LOG_DBG("RF lock acquired by transmit()\n");
+    ret = selected_interface->transmit(transmit_len);
+    rf_lock.owner = TWOFACED_RF_NO_OWNER;
+    mutex_unlock(&rf_lock.lock);
+    LOG_DBG("Unlocking RF lock held by transmit()\n");
+  } else if(rf_lock.owner == TWOFACED_RF_PREPARE) {
+    /*
+     * NOTE this branch may very rarely erroneously evaluate as true. Say
+     * someone acquired the lock, set its owner to TWOFACED_RF_PREPARE and
+     * didn't change its owner to TWOFACED_RF_NO_OWNER before unlocking.
+     * Then, if and only if, someone else were to lock the lock but forgets
+     * to change the owner from TWOFACED_RF_PREPARE (which should have been
+     * TWOFACED_RF_NO_OWNER in the first place) to itself, this branch could
+     * be entered. THIS MUST NOT HAPPEN!!!
+     */
+    ret = selected_interface->transmit(transmit_len);
+    rf_lock.owner = TWOFACED_RF_NO_OWNER;
+    mutex_unlock(&rf_lock.lock);
+    LOG_DBG("Unlocking RF lock held by prepare() after tx attempt\n");
+  } else {
+    LOG_DBG("Could not transmit packet, interfaces are locked\n");
+  }
+
+  return ret;
 }
 /*---------------------------------------------------------------------------*/
 static int
 send(const void *payload, unsigned short payload_len)
 {
-  prepare(payload, payload_len);
-  return transmit(payload_len);
+  if(!prepare(payload, payload_len)) {
+    return transmit(payload_len);
+  }
+
+  return RADIO_TX_ERR;
 }
 /*---------------------------------------------------------------------------*/
 static int
@@ -214,7 +260,7 @@ get_value(radio_param_t param, radio_value_t *value)
     *value = (radio_value_t)max_payload_len;
     return RADIO_RESULT_OK;
   case RADIO_PARAM_CHANNEL:
-    /* TODO handle this case */
+  /* TODO handle this case */
   default:
     return selected_interface->get_value(param, value);
   }
@@ -228,11 +274,11 @@ set_value(radio_param_t param, radio_value_t value)
   case RADIO_PARAM_64BIT_ADDR:
     return RADIO_RESULT_NOT_SUPPORTED;
   case RADIO_PARAM_PAN_ID:
-    /* TODO handle this case */
+  /* TODO handle this case */
   case RADIO_PARAM_16BIT_ADDR:
-    /* TODO handle this case */
+  /* TODO handle this case */
   case RADIO_PARAM_CHANNEL:
-    /* TODO handle this case */
+  /* TODO handle this case */
   default:
     return selected_interface->set_value(param, value);
   }
@@ -262,22 +308,37 @@ set_object(radio_param_t param, const void *src, size_t size)
   case RADIO_PARAM_CHANNEL:
     return RADIO_RESULT_NOT_SUPPORTED;
   case RADIO_PARAM_SEL_IF:
-    /* TODO prevent changing the interface in certain situations */
-    if(size < strlen("") + 1) {
-      return RADIO_RESULT_INVALID_VALUE;
-    }
-    for(uint8_t i = 0; i < sizeof(available_interfaces) /
-        sizeof(available_interfaces[0]); i++) {
-      if(!strcmp((char *)src, available_interfaces[i]->driver_descriptor)) {
-        selected_interface = available_interfaces[i];
-        /* TODO re-init the MAC layer if selected interface changed */
-        return RADIO_RESULT_OK;
+    if(mutex_try_lock(&rf_lock.lock)) {
+      rf_lock.owner = TWOFACED_RF_SET_OBJECT;
+      LOG_DBG("RF lock acquired by set_object()\n");
+      if(size < strlen("") + 1) {
+        rf_lock.owner = TWOFACED_RF_NO_OWNER;
+        mutex_unlock(&rf_lock.lock);
+        LOG_DBG("Unlocking RF lock held by set_object(), no descriptor\n");
+        return RADIO_RESULT_INVALID_VALUE;
       }
+      for(uint8_t i = 0; i < sizeof(available_interfaces) /
+          sizeof(available_interfaces[0]); i++) {
+        if(!strcmp((char *)src, available_interfaces[i]->driver_descriptor)) {
+          selected_interface = available_interfaces[i];
+          /* TODO re-init the MAC layer if selected interface changed */
+          /* TODO change channel of new if to default channel before returning */
+          rf_lock.owner = TWOFACED_RF_NO_OWNER;
+          mutex_unlock(&rf_lock.lock);
+          LOG_DBG("Unlocking RF lock held by set_object(), interface set\n");
+          return RADIO_RESULT_OK;
+        }
+      }
+      rf_lock.owner = TWOFACED_RF_NO_OWNER;
+      mutex_unlock(&rf_lock.lock);
+      LOG_DBG("Unlocking RF lock held by set_object(), unknown descriptor\n");
+      return RADIO_RESULT_INVALID_VALUE;
+    } else {
+      LOG_DBG("Could not switch interface, interfaces are locked\n");
     }
-    /* TODO change channel of new if to default channel before returning */
-    return RADIO_RESULT_INVALID_VALUE;
+    return RADIO_RESULT_ERROR;
   case RADIO_PARAM_64BIT_ADDR:
-    /* TODO handle this case */
+  /* TODO handle this case */
   default:
     return selected_interface->set_object(param, src, size);
   }
