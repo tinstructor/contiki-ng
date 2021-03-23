@@ -48,7 +48,7 @@
 
 /* Packet metadata */
 struct qbuf_metadata {
-  mac_callback_t sent;
+  mac_callback_t sent_callback;
   void *cptr;
   uint8_t max_transmissions;
 };

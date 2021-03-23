@@ -53,9 +53,15 @@
 #define IEEE802154_CONF_DEFAULT_CHANNEL TWOFACED_RF_CONF_DEFAULT_CHANNEL
 #endif /* NETSTACK_CONF_RADIO */
 
-#if MAC_CONF_WITH_TWOFACED == 1
+#if MAC_CONF_WITH_TWOFACED
+#define TWOFACED_MAC_CONF_ACK_WAIT_TIME                 (RTIMER_SECOND / 200)
+#define TWOFACED_MAC_CONF_AFTER_ACK_DETECTED_WAIT_TIME  (RTIMER_SECOND / 1500)
 #define NETSTACK_CONF_MAC twofaced_mac_driver
-#endif
+#endif /* MAC_CONF_WITH_TWOFACED */
+
+#if MAC_CONF_WITH_TSCH
+#error "The twofaced project currently doesn't support TSCH"
+#endif /* MAC_CONF_WITH_TSCH */
 
 /*
  * The RPL_CONF_OF_OCP parameter configures the OF used and disseminated

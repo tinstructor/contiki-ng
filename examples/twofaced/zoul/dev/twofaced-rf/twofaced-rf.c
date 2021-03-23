@@ -47,7 +47,7 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "twofaced-rf"
-#define LOG_LEVEL LOG_LEVEL_DBG
+#define LOG_LEVEL LOG_LEVEL_NONE
 
 /*---------------------------------------------------------------------------*/
 /* Constants */

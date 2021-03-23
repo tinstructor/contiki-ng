@@ -48,7 +48,7 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "twofaced-mac"
-#define LOG_LEVEL LOG_LEVEL_DBG
+#define LOG_LEVEL LOG_LEVEL_MAC
 
 #if LLSEC802154_ENABLED
 #error "The twofaced MAC layer doesn't support IEEE 802.15.4 link-layer security (yet)!"
@@ -57,9 +57,11 @@
 /*---------------------------------------------------------------------------*/
 /* Constants */
 /*---------------------------------------------------------------------------*/
+#define TWOFACED_MAC_MAX_HEADER 21
 /*---------------------------------------------------------------------------*/
 /* Variables */
 /*---------------------------------------------------------------------------*/
+/* NOTE add variables here as required */
 /*---------------------------------------------------------------------------*/
 /* The twofaced mac driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
