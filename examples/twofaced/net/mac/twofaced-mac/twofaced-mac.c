@@ -37,6 +37,8 @@
  */
 
 #include "twofaced-mac.h"
+#include "twofaced-mac-conf.h"
+#include "twofaced-mac-output.h"
 #include "net/netstack.h"
 #include "net/ipv6/uip.h"
 #include "net/ipv6/tcpip.h"
@@ -47,6 +49,10 @@
 #include "sys/log.h"
 #define LOG_MODULE "twofaced-mac"
 #define LOG_LEVEL LOG_LEVEL_DBG
+
+#if LLSEC802154_ENABLED
+#error "The twofaced MAC layer doesn't support IEEE 802.15.4 link-layer security (yet)!"
+#endif /* LLSEC802154_ENABLED */
 
 /*---------------------------------------------------------------------------*/
 /* Constants */
@@ -67,41 +73,111 @@ const struct mac_driver twofaced_mac_driver = {
   max_payload,
 };
 /*---------------------------------------------------------------------------*/
+/* Internal driver functions */
+/*---------------------------------------------------------------------------*/
+/* NOTE add internal mac driver functions here as required */
+/*---------------------------------------------------------------------------*/
 /* Mac driver functions */
 /*---------------------------------------------------------------------------*/
 static void
 init(void)
 {
+  radio_value_t radio_multi_rf;
+  radio_value_t radio_max_payload_len;
+
+  /* Check that the radio driver is multi-rf enabled */
+  if(NETSTACK_RADIO.get_value(RADIO_CONST_MAX_PAYLOAD_LEN, &radio_multi_rf) != RADIO_RESULT_OK) {
+    LOG_ERR("! radio does not support getting RADIO_CONST_MULTI_RF. Abort init.\n");
+    return;
+  } else if(radio_multi_rf != RADIO_MULTI_RF_EN) {
+    LOG_ERR("! radio does not support multiple concurrent interfaces. Abort init.\n");
+    return;
+  }
+
+  /* Check that the radio can correctly report its max supported payload */
+  if(NETSTACK_RADIO.get_value(RADIO_CONST_MAX_PAYLOAD_LEN, &radio_max_payload_len) != RADIO_RESULT_OK) {
+    LOG_ERR("! radio does not support getting RADIO_CONST_MAX_PAYLOAD_LEN. Abort init.\n");
+    return;
+  }
+
+  /* TODO make sure the underlying radio(s) support hardware ACKs */
+
+  twofaced_mac_output_init();
+  on();
 }
 /*---------------------------------------------------------------------------*/
 static void
 send(mac_callback_t sent_callback, void *ptr)
 {
+  twofaced_mac_output(sent_callback, ptr);
 }
 /*---------------------------------------------------------------------------*/
 static void
 input(void)
 {
+  if(packetbuf_datalen() == TWOFACED_MAC_ACK_LEN) {
+    /* Ignore ack packets */
+    LOG_DBG("ignored ack\n");
+  } else if(twofaced_mac_output_parse_frame() < 0) {
+    LOG_ERR("failed to parse %u\n", packetbuf_datalen());
+  } else if(!linkaddr_cmp(packetbuf_addr(PACKETBUF_ADDR_RECEIVER),
+                          &linkaddr_node_addr) && !packetbuf_holds_broadcast()) {
+    LOG_WARN("not for us\n");
+  } else if(linkaddr_cmp(packetbuf_addr(PACKETBUF_ADDR_SENDER), &linkaddr_node_addr)) {
+    LOG_WARN("frame from ourselves\n");
+  } else {
+    int duplicate = 0;
+
+    /* Check for duplicate packet. */
+    duplicate = mac_sequence_is_duplicate();
+    if(duplicate) {
+      /* Drop the packet. */
+      LOG_WARN("drop duplicate link layer packet from ");
+      LOG_WARN_LLADDR(packetbuf_addr(PACKETBUF_ADDR_SENDER));
+      LOG_WARN_(", seqno %u\n", packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO));
+    } else {
+      mac_sequence_register_seqno();
+    }
+
+    if(!duplicate) {
+      LOG_INFO("received packet from ");
+      LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_SENDER));
+      LOG_INFO_(", seqno %u, len %u\n", packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO), packetbuf_datalen());
+      NETSTACK_NETWORK.input();
+    }
+  }
 }
 /*---------------------------------------------------------------------------*/
 static int
 on(void)
 {
-  return 0;
+  return NETSTACK_RADIO.on();
 }
 /*---------------------------------------------------------------------------*/
 static int
 off(void)
 {
-  return 0;
+  return NETSTACK_RADIO.off();
 }
 /*---------------------------------------------------------------------------*/
 static int
 max_payload(void)
 {
-  return 0;
+  radio_value_t radio_max_payload_len;
+  int framer_hdr_len;
+
+  if(NETSTACK_RADIO.get_value(RADIO_CONST_MAX_PAYLOAD_LEN, &radio_max_payload_len)
+     == RADIO_RESULT_NOT_SUPPORTED) {
+    LOG_DBG("Failed to retrieve max payload length from radio driver\n");
+    return 0;
+  }
+
+  framer_hdr_len = NETSTACK_FRAMER.length();
+
+  if(framer_hdr_len < 0) {
+    LOG_DBG("Framer returned error, assuming max header length\n");
+    framer_hdr_len = TWOFACED_MAC_MAX_HEADER;
+  }
+
+  return MIN(radio_max_payload_len, PACKETBUF_SIZE) - framer_hdr_len;
 }
-/*---------------------------------------------------------------------------*/
-/* Internal driver functions */
-/*---------------------------------------------------------------------------*/
-/* NOTE add internal mac driver functions here as required */

@@ -31,54 +31,52 @@
 
 /**
  * \file
- *      Device-specific configuration: the twofaced-rf driver for zoul devices
+ *      Output function definitions for the twofaced MAC protocol
  * \author
  *      Robbe Elsas <robbe.elsas@ugent.be>
  */
 
-#ifndef TWOFACED_RF_H_
-#define TWOFACED_RF_H_
+#include "twofaced-mac-conf.h"
+#include "net/packetbuf.h"
+#include "net/queuebuf.h"
+#include "net/netstack.h"
+#include "lib/list.h"
+#include "lib/memb.h"
+#include "net/mac/framer/frame802154.h"
+#include "net/mac/framer/framer-802154.h"
 
-#include "contiki.h"
-#include "dev/radio.h"
-
-#ifdef TWOFACED_RF_CONF_AVAILABLE_IFS
-#define TWOFACED_RF_AVAILABLE_IFS TWOFACED_RF_CONF_AVAILABLE_IFS
-#else /* TWOFACED_RF_CONF_AVAILABLE_IFS */
-#define TWOFACED_RF_AVAILABLE_IFS { &cc2538_rf_driver, &cc1200_driver }
-#endif /* TWOFACED_RF_CONF_AVAILABLE_IFS */
-
-/* TODO add documentation for function prototypes */
+/* Log configuration */
+#include "sys/log.h"
+#define LOG_MODULE "twofaced-mac"
+#define LOG_LEVEL LOG_LEVEL_DBG
 
 /*---------------------------------------------------------------------------*/
-/* Prototypes for radio driver functions */
+/* Constants */
 /*---------------------------------------------------------------------------*/
-static int init(void);
 /*---------------------------------------------------------------------------*/
-static int prepare(const void *payload, unsigned short payload_len);
+/* Variables */
 /*---------------------------------------------------------------------------*/
-static int transmit(unsigned short transmit_len);
 /*---------------------------------------------------------------------------*/
-static int send(const void *payload, unsigned short payload_len);
+/* Internal output functions */
 /*---------------------------------------------------------------------------*/
-static int read(void *buf, unsigned short buf_len);
+/* NOTE add internal mac output functions here as required */
 /*---------------------------------------------------------------------------*/
-static int channel_clear(void);
+/* Mac output functions */
 /*---------------------------------------------------------------------------*/
-static int receiving_packet(void);
+void
+twofaced_mac_output_init(void)
+{
+}
 /*---------------------------------------------------------------------------*/
-static int pending_packet(void);
+int
+twofaced_mac_output_create_frame(void)
+{
+  packetbuf_set_attr(PACKETBUF_ATTR_FRAME_TYPE, FRAME802154_DATAFRAME);
+  return NETSTACK_FRAMER.create();
+}
 /*---------------------------------------------------------------------------*/
-static int on(void);
-/*---------------------------------------------------------------------------*/
-static int off(void);
-/*---------------------------------------------------------------------------*/
-static radio_result_t get_value(radio_param_t param, radio_value_t *value);
-/*---------------------------------------------------------------------------*/
-static radio_result_t set_value(radio_param_t param, radio_value_t value);
-/*---------------------------------------------------------------------------*/
-static radio_result_t get_object(radio_param_t param, void *dest, size_t size);
-/*---------------------------------------------------------------------------*/
-static radio_result_t set_object(radio_param_t param, const void *src, size_t size);
-
-#endif /* TWOFACED_RF_H_ */
+int
+twofaced_mac_output_parse_frame(void)
+{
+  return NETSTACK_FRAMER.parse();
+}

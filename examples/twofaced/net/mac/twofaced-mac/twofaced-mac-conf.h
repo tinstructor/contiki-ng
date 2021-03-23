@@ -31,33 +31,31 @@
 
 /**
  * \file
- *      Driver function declarations for the twofaced MAC driver
+ *      A MAC protocol configuration that works together with DRiPL and PO
  * \author
  *      Robbe Elsas <robbe.elsas@ugent.be>
  */
 
-#ifndef TWOFACED_MAC_H_
-#define TWOFACED_MAC_H_
+#ifndef TWOFACED_MAC_CONF_H_
+#define TWOFACED_MAC_CONF_H_
 
 #include "contiki.h"
 #include "net/mac/mac.h"
 #include "dev/radio.h"
 
-/* TODO add documentation for function prototypes */
+#ifdef TWOFACED_MAC_CONF_ACK_WAIT_TIME
+#define TWOFACED_MAC_ACK_WAIT_TIME TWOFACED_MAC_CONF_ACK_WAIT_TIME
+#else /* TWOFACED_MAC_CONF_ACK_WAIT_TIME */
+#define TWOFACED_MAC_ACK_WAIT_TIME RTIMER_SECOND / 2500
+#endif /* TWOFACED_MAC_CONF_ACK_WAIT_TIME */
 
-/*---------------------------------------------------------------------------*/
-/* Prototypes for mac driver functions */
-/*---------------------------------------------------------------------------*/
-static void init(void);
-/*---------------------------------------------------------------------------*/
-static void send(mac_callback_t sent_callback, void *ptr);
-/*---------------------------------------------------------------------------*/
-static void input(void);
-/*---------------------------------------------------------------------------*/
-static int on(void);
-/*---------------------------------------------------------------------------*/
-static int off(void);
-/*---------------------------------------------------------------------------*/
-static int max_payload(void);
+#ifdef TWOFACED_MAC_CONF_AFTER_ACK_DETECTED_WAIT_TIME
+#define TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME TWOFACED_MAC_CONF_AFTER_ACK_DETECTED_WAIT_TIME
+#else /* TWOFACED_MAC_CONF_AFTER_ACK_DETECTED_WAIT_TIME */
+#define TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME RTIMER_SECOND / 1500
+#endif /* TWOFACED_MAC_CONF_AFTER_ACK_DETECTED_WAIT_TIME */
 
-#endif /* TWOFACED_MAC_H_ */
+#define TWOFACED_MAC_ACK_LEN 3
+#define TWOFACED_MAC_MAX_HEADER 21
+
+#endif /* TWOFACED_MAC_CONF_H_ */

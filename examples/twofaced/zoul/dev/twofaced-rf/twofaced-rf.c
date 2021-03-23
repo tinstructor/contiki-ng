@@ -86,6 +86,10 @@ const struct radio_driver twofaced_rf_driver = {
   "twofaced_rf_driver"
 };
 /*---------------------------------------------------------------------------*/
+/* Internal driver functions */
+/*---------------------------------------------------------------------------*/
+/* NOTE add internal radio driver functions here as required */
+/*---------------------------------------------------------------------------*/
 /* Radio driver functions */
 /*---------------------------------------------------------------------------*/
 static int
@@ -351,7 +355,3 @@ set_object(radio_param_t param, const void *src, size_t size)
     return selected_interface->set_object(param, src, size);
   }
 }
-/*---------------------------------------------------------------------------*/
-/* Internal driver functions */
-/*---------------------------------------------------------------------------*/
-/* NOTE add internal radio driver functions here as required */
