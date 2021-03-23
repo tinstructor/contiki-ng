@@ -73,9 +73,9 @@ const struct mac_driver twofaced_mac_driver = {
   max_payload,
 };
 /*---------------------------------------------------------------------------*/
-/* Internal driver functions */
+/* Internal driver functions and prototypes */
 /*---------------------------------------------------------------------------*/
-/* NOTE add internal mac driver functions here as required */
+/* NOTE add internal mac driver functions and prototypes here as required */
 /*---------------------------------------------------------------------------*/
 /* Mac driver functions */
 /*---------------------------------------------------------------------------*/

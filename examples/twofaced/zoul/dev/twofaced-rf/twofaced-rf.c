@@ -86,9 +86,9 @@ const struct radio_driver twofaced_rf_driver = {
   "twofaced_rf_driver"
 };
 /*---------------------------------------------------------------------------*/
-/* Internal driver functions */
+/* Internal driver functions and prototypes */
 /*---------------------------------------------------------------------------*/
-/* NOTE add internal radio driver functions here as required */
+/* NOTE add internal radio driver functions and prototypes here as required */
 /*---------------------------------------------------------------------------*/
 /* Radio driver functions */
 /*---------------------------------------------------------------------------*/

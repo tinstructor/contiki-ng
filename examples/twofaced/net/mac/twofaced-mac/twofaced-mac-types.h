@@ -31,58 +31,43 @@
 
 /**
  * \file
- *      Output function definitions for the twofaced MAC protocol
+ *      Type and struct definitions for the twofaced MAC protocol
  * \author
  *      Robbe Elsas <robbe.elsas@ugent.be>
  */
 
-#include "twofaced-mac-conf.h"
-#include "twofaced-mac-types.h"
+#ifndef TWOFACED_MAC_TYPES_H_
+#define TWOFACED_MAC_TYPES_H_
+
 #include "net/packetbuf.h"
 #include "net/queuebuf.h"
 #include "net/netstack.h"
 #include "lib/list.h"
-#include "lib/memb.h"
-#include "net/mac/framer/frame802154.h"
-#include "net/mac/framer/framer-802154.h"
+#include "sys/ctimer.h"
+#include "net/mac/mac.h"
 
-/* Log configuration */
-#include "sys/log.h"
-#define LOG_MODULE "twofaced-mac"
-#define LOG_LEVEL LOG_LEVEL_DBG
+/* Packet metadata */
+struct qbuf_metadata {
+  mac_callback_t sent;
+  void *cptr;
+  uint8_t max_transmissions;
+};
 
-/*---------------------------------------------------------------------------*/
-/* Constants */
-/*---------------------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
-/* Variables */
-/*---------------------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
-/* Internal output functions and prototypes */
-/*---------------------------------------------------------------------------*/
-/* NOTE add internal mac output functions and prototypes here as required */
-/*---------------------------------------------------------------------------*/
-/* Mac output functions */
-/*---------------------------------------------------------------------------*/
-void 
-twofaced_mac_output(mac_callback_t sent_callback, void *ptr)
-{
-}
-/*---------------------------------------------------------------------------*/
-void
-twofaced_mac_output_init(void)
-{
-}
-/*---------------------------------------------------------------------------*/
-int
-twofaced_mac_output_create_frame(void)
-{
-  packetbuf_set_attr(PACKETBUF_ATTR_FRAME_TYPE, FRAME802154_DATAFRAME);
-  return NETSTACK_FRAMER.create();
-}
-/*---------------------------------------------------------------------------*/
-int
-twofaced_mac_output_parse_frame(void)
-{
-  return NETSTACK_FRAMER.parse();
-}
+/* Every neighbor has its own packet queue */
+struct neighbor_queue {
+  struct neighbor_queue *next;
+  linkaddr_t addr;
+  struct ctimer transmit_timer;
+  uint8_t transmissions;
+  uint8_t collisions;
+  LIST_STRUCT(packet_queue);
+};
+
+/* Neighbor packet queue */
+struct packet_queue {
+  struct packet_queue *next;
+  struct queuebuf *buf;
+  void *ptr;
+};
+
+#endif /* TWOFACED_MAC_TYPES_H_ */
