@@ -53,7 +53,7 @@ struct qbuf_metadata {
   uint8_t max_tx;
 };
 
-/* Every neighbor list entry has its own packet queue */
+/* An entry in a neighbor queue */
 struct neighbor_queue {
   struct neighbor_queue *next;
   linkaddr_t laddr;
@@ -63,11 +63,11 @@ struct neighbor_queue {
   LIST_STRUCT(packet_queue);
 };
 
-/* Neighbor packet queue */
+/* An entry in the packet queue of a neighbor queue entry */
 struct packet_queue {
   struct packet_queue *next;
   struct queuebuf *qbuf;
-  void *ptr;
+  void *metadata;
 };
 
 #endif /* TWOFACED_MAC_TYPES_H_ */

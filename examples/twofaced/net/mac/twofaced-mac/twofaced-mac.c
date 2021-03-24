@@ -84,11 +84,11 @@ const struct mac_driver twofaced_mac_driver = {
 static void
 init(void)
 {
-  radio_value_t radio_multi_rf;
-  radio_value_t radio_max_payload_len;
+  radio_value_t radio_multi_rf = RADIO_MULTI_RF_DIS;
+  radio_value_t radio_max_payload_len = 0;
 
   /* Check that the radio driver is multi-rf enabled */
-  if(NETSTACK_RADIO.get_value(RADIO_CONST_MAX_PAYLOAD_LEN, &radio_multi_rf) != RADIO_RESULT_OK) {
+  if(NETSTACK_RADIO.get_value(RADIO_CONST_MULTI_RF, &radio_multi_rf) != RADIO_RESULT_OK) {
     LOG_ERR("! radio does not support getting RADIO_CONST_MULTI_RF. Abort init.\n");
     return;
   } else if(radio_multi_rf != RADIO_MULTI_RF_EN) {

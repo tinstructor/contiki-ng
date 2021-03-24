@@ -64,6 +64,16 @@
 /*---------------------------------------------------------------------------*/
 /* Variables */
 /*---------------------------------------------------------------------------*/
+/* NOTE looking at twofaced-mac-types.h you can see that each entry in the
+   following neighbor_list is of the type neighbor_queue, and so, each entry
+   in the neighbor_list contains: information that allows one to identify the
+   neighbor to which the entry is tied (by means of its link-layer address),
+   a timer indicating when the next transmission to said neighbor is supposed
+   to take place, some statistical information, and finally, a "packet list"
+   if you will. This packet list is unfortunately called the packet_queue,
+   which is confusing because that's also the type of each element in this
+   "packet list". Anyhow, each entry is said list represents a packet to be
+   transmitted to the given neighbor. */
 MEMB(neighbor_memb, struct neighbor_queue, TWOFACED_MAC_MAX_NEIGHBOR_QUEUES);
 MEMB(packet_memb, struct packet_queue, MAX_QUEUED_PACKETS);
 MEMB(metadata_memb, struct qbuf_metadata, MAX_QUEUED_PACKETS);
@@ -74,7 +84,7 @@ LIST(neighbor_list);
 static void packet_sent(struct neighbor_queue *nq, struct packet_queue *pq,
                         int status, int num_tx);
 /*---------------------------------------------------------------------------*/
-static void transmit_from_queue(void *ptr);
+static void tx_from_packet_queue(void *ptr);
 /*---------------------------------------------------------------------------*/
 static struct neighbor_queue *
 neighbor_queue_from_addr(const linkaddr_t *laddr)
@@ -171,13 +181,6 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
                 LOG_DBG("ACK received\n");
                 ret = MAC_TX_OK;
               } else {
-                if(ackbuf[2] != dsn) {
-                  LOG_DBG("NOACK: dsn %d doesn't match expected (%d)\n",
-                          ackbuf[2], dsn);
-                } else {
-                  LOG_DBG("NOACK: len %d doesn't match expected (%d)\n",
-                          len, TWOFACED_MAC_ACK_LEN);
-                }
                 /* Not an ack or ack not for us: collision */
                 ret = MAC_TX_COLLISION;
               }
@@ -209,10 +212,13 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
 }
 /*---------------------------------------------------------------------------*/
 static void
-transmit_from_queue(void *ptr)
+tx_from_packet_queue(void *ptr)
 {
+  /* The supplied pointer points to the neighbor list entry of which the
+     packet_queue or (less confusingly) "packet list" is a member */
   struct neighbor_queue *nq = ptr;
   if(nq) {
+    /* Retrieve the first entry in the neighbor list entry's "packet list" */
     struct packet_queue *pq = list_head(nq->packet_queue);
     if(pq != NULL) {
       LOG_INFO("preparing packet for ");
@@ -220,7 +226,7 @@ transmit_from_queue(void *ptr)
       LOG_INFO_(", seqno %u, tx %u, queue %d\n",
                 queuebuf_attr(pq->qbuf, PACKETBUF_ATTR_MAC_SEQNO),
                 nq->num_tx, list_length(nq->packet_queue));
-      /* Send first packet in the neighbor queue */
+      /* Send first packet in the neighbor list entry's "packet list" */
       queuebuf_to_packetbuf(pq->qbuf);
       send_one_packet(nq, pq);
     }
@@ -228,7 +234,7 @@ transmit_from_queue(void *ptr)
 }
 /*---------------------------------------------------------------------------*/
 static void
-schedule_transmission(struct neighbor_queue *nq)
+schedule_tx(struct neighbor_queue *nq)
 {
   clock_time_t delay;
   int backoff_exponent; /* BE in IEEE 802.15.4 */
@@ -245,29 +251,29 @@ schedule_transmission(struct neighbor_queue *nq)
 
   LOG_DBG("scheduling transmission in %u ticks, NB=%u, BE=%u\n",
           (unsigned)delay, nq->num_col, backoff_exponent);
-  ctimer_set(&nq->tx_timer, delay, transmit_from_queue, nq);
+  ctimer_set(&nq->tx_timer, delay, tx_from_packet_queue, nq);
 }
 /*---------------------------------------------------------------------------*/
 static void
-free_packet(struct neighbor_queue *nq, struct packet_queue *p, int status)
+free_packet(struct neighbor_queue *nq, struct packet_queue *pq, int status)
 {
-  if(p != NULL) {
-    /* Remove packet from queue and deallocate */
-    list_remove(nq->packet_queue, p);
+  if(pq != NULL) {
+    /* Remove entry from "packet list" and deallocate */
+    list_remove(nq->packet_queue, pq);
 
-    queuebuf_free(p->qbuf);
-    memb_free(&metadata_memb, p->ptr);
-    memb_free(&packet_memb, p);
-    LOG_DBG("free_queued_packet, queue length %d, free packets %d\n",
+    queuebuf_free(pq->qbuf);
+    memb_free(&metadata_memb, pq->metadata);
+    memb_free(&packet_memb, pq);
+    LOG_DBG("free_packet, queue length %d, free packets %d\n",
             list_length(nq->packet_queue), memb_numfree(&packet_memb));
     if(list_head(nq->packet_queue) != NULL) {
       /* There is a next packet. We reset current tx information */
       nq->num_tx = 0;
       nq->num_col = 0;
       /* Schedule next transmissions */
-      schedule_transmission(nq);
+      schedule_tx(nq);
     } else {
-      /* This was the last packet in the queue, we free the neighbor */
+      /* This was the last packet in the "packet list", freeing neighbor list entry */
       ctimer_stop(&nq->tx_timer);
       list_remove(neighbor_list, nq);
       memb_free(&neighbor_memb, nq);
@@ -283,7 +289,7 @@ tx_done(int status, struct packet_queue *pq, struct neighbor_queue *nq)
   void *ptr;
   uint8_t num_tx;
 
-  metadata = (struct qbuf_metadata *)pq->ptr;
+  metadata = (struct qbuf_metadata *)pq->metadata;
   sent_callback = metadata->sent_callback;
   ptr = metadata->ptr;
   num_tx = nq->num_tx;
@@ -295,13 +301,15 @@ tx_done(int status, struct packet_queue *pq, struct neighbor_queue *nq)
             status, nq->num_tx, nq->num_col);
 
   free_packet(nq, pq, status);
+  /* The following statement most likely calls `packet_sent()`
+     in os/net/ipv6/sicslowpan.c, when using 6LoWPAN that is. */
   mac_call_sent_callback(sent_callback, ptr, status, num_tx);
 }
 /*---------------------------------------------------------------------------*/
 static void
-rexmit(struct packet_queue *pq, struct neighbor_queue *nq)
+retx(struct packet_queue *pq, struct neighbor_queue *nq)
 {
-  schedule_transmission(nq);
+  schedule_tx(nq);
   /* This is needed to correctly attribute energy that we spent
      transmitting this packet. */
   queuebuf_update_attr_from_packetbuf(pq->qbuf);
@@ -312,7 +320,7 @@ collision(struct packet_queue *pq, struct neighbor_queue *nq, int num_tx)
 {
   struct qbuf_metadata *metadata;
 
-  metadata = (struct qbuf_metadata *)pq->ptr;
+  metadata = (struct qbuf_metadata *)pq->metadata;
 
   nq->num_col += num_tx;
 
@@ -325,7 +333,7 @@ collision(struct packet_queue *pq, struct neighbor_queue *nq, int num_tx)
   if(nq->num_tx >= metadata->max_tx) {
     tx_done(MAC_TX_COLLISION, pq, nq);
   } else {
-    rexmit(pq, nq);
+    retx(pq, nq);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -334,7 +342,7 @@ noack(struct packet_queue *pq, struct neighbor_queue *nq, int num_tx)
 {
   struct qbuf_metadata *metadata;
 
-  metadata = (struct qbuf_metadata *)pq->ptr;
+  metadata = (struct qbuf_metadata *)pq->metadata;
 
   nq->num_col = 0;
   nq->num_tx += num_tx;
@@ -342,7 +350,7 @@ noack(struct packet_queue *pq, struct neighbor_queue *nq, int num_tx)
   if(nq->num_tx >= metadata->max_tx) {
     tx_done(MAC_TX_NOACK, pq, nq);
   } else {
-    rexmit(pq, nq);
+    retx(pq, nq);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -355,13 +363,16 @@ tx_ok(struct packet_queue *pq, struct neighbor_queue *nq, int num_tx)
 }
 /*---------------------------------------------------------------------------*/
 static void
-packet_sent(struct neighbor_queue *nq, struct packet_queue *pq,
-            int status, int num_tx)
+packet_sent(struct neighbor_queue *nq, struct packet_queue *pq, int status,
+            int num_tx)
 {
+  /* REVIEW assert statements outside of a debug context are
+     rarely a good idea and often indicate a lack of effort on
+     the developer's part */
   assert(nq != NULL);
   assert(pq != NULL);
 
-  if(pq->ptr == NULL) {
+  if(pq->metadata == NULL) {
     LOG_WARN("packet sent: no metadata\n");
     return;
   }
@@ -419,38 +430,41 @@ twofaced_mac_output(mac_callback_t sent_callback, void *ptr)
   /* Look for an existing neighbor list entry */
   nq = neighbor_queue_from_addr(laddr);
   if(nq == NULL) {
-    /* Allocate memory for a new neighbor queue */
+    /* Allocate memory for a new neighbor list entry*/
     nq = memb_alloc(&neighbor_memb);
     if(nq != NULL) {
-      /* Init newly allocated neighbor queue */
+      /* Init newly allocated neighbor list entry */
       linkaddr_copy(&nq->laddr, laddr);
       nq->num_tx = 0;
       nq->num_col = 0;
-      /* Init packet queue of new neighbor queue */
+      /* Init packet queue of new neighbor list entry */
       LIST_STRUCT_INIT(nq, packet_queue);
-      /* Add new entry (= new neighbor queue) to neighbor list */
+      /* Add new entry to neighbor list */
       list_add(neighbor_list, nq);
     }
   }
 
   if(nq != NULL) {
-    /* Add packet to the packet queue of neighbor list entry (= neighbor queue) */
     if(list_length(nq->packet_queue) < TWOFACED_MAC_MAX_PACKET_PER_NEIGHBOR) {
+      /* Allocate memory for a new "packet list" entry */
       pq = memb_alloc(&packet_memb);
       if(pq != NULL) {
-        pq->ptr = memb_alloc(&metadata_memb);
-        if(pq->ptr != NULL) {
+        /* Allocate memory for metadata tied to new "packet list" entry */
+        pq->metadata = memb_alloc(&metadata_memb);
+        if(pq->metadata != NULL) {
+          /* TODO describe what happens here */
           pq->qbuf = queuebuf_new_from_packetbuf();
           if(pq->qbuf != NULL) {
-            struct qbuf_metadata *metadata = (struct qbuf_metadata *)pq->ptr;
-            /* Neighbor and packet successfully allocated */
+            /* Init newly allocated metadata tied to new "packet list" entry */
+            struct qbuf_metadata *metadata = (struct qbuf_metadata *)pq->metadata;
             metadata->max_tx = packetbuf_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS);
             if(metadata->max_tx == 0) {
               /* If not set by the application, use the default value */
               metadata->max_tx = TWOFACED_MAC_MAX_FRAME_RETRIES + 1;
             }
             metadata->sent_callback = sent_callback;
-            metadata->ptr = ptr;
+            metadata->ptr = ptr; /* REVIEW what does this even point to? */
+            /* Add entry to the "packet list" of neighbor list entry */
             list_add(nq->packet_queue, pq);
 
             LOG_INFO("sending to ");
@@ -461,11 +475,11 @@ twofaced_mac_output(mac_callback_t sent_callback, void *ptr)
                       list_length(nq->packet_queue), memb_numfree(&packet_memb));
             /* If pq is the first packet in the neighbor's queue, send asap */
             if(list_head(nq->packet_queue) == pq) {
-              schedule_transmission(nq);
+              schedule_tx(nq);
             }
             return;
           }
-          memb_free(&metadata_memb, pq->ptr);
+          memb_free(&metadata_memb, pq->metadata);
           LOG_WARN("could not allocate queuebuf, dropping packet\n");
         }
         memb_free(&packet_memb, pq);

@@ -231,11 +231,6 @@ send_one_packet(struct neighbor_queue *n, struct packet_queue *q)
                 LOG_DBG("ACK received\n");
                 ret = MAC_TX_OK;
               } else {
-                if(ackbuf[2] != dsn) {
-                  LOG_DBG("NOACK: dsn %d doesn't match expected (%d)\n", ackbuf[2], dsn);
-                } else {
-                  LOG_DBG("NOACK: len %d doesn't match expected (%d)\n", len, CSMA_ACK_LEN);
-                }
                 /* Not an ack or ack not for us: collision */
                 ret = MAC_TX_COLLISION;
               }
