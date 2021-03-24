@@ -49,24 +49,24 @@
 /* Packet metadata */
 struct qbuf_metadata {
   mac_callback_t sent_callback;
-  void *cptr;
-  uint8_t max_transmissions;
+  void *ptr;
+  uint8_t max_tx;
 };
 
-/* Every neighbor has its own packet queue */
+/* Every neighbor list entry has its own packet queue */
 struct neighbor_queue {
   struct neighbor_queue *next;
-  linkaddr_t addr;
-  struct ctimer transmit_timer;
-  uint8_t transmissions;
-  uint8_t collisions;
+  linkaddr_t laddr;
+  struct ctimer tx_timer;
+  uint8_t num_tx;
+  uint8_t num_col;
   LIST_STRUCT(packet_queue);
 };
 
 /* Neighbor packet queue */
 struct packet_queue {
   struct packet_queue *next;
-  struct queuebuf *buf;
+  struct queuebuf *qbuf;
   void *ptr;
 };
 

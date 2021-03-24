@@ -71,20 +71,20 @@ LIST(neighbor_list);
 /*---------------------------------------------------------------------------*/
 /* Internal output functions and prototypes */
 /*---------------------------------------------------------------------------*/
-static void packet_sent(struct neighbor_queue *n, struct packet_queue *q,
-                        int status, int num_transmissions);
+static void packet_sent(struct neighbor_queue *nq, struct packet_queue *pq,
+                        int status, int num_tx);
 /*---------------------------------------------------------------------------*/
 static void transmit_from_queue(void *ptr);
 /*---------------------------------------------------------------------------*/
 static struct neighbor_queue *
-neighbor_queue_from_addr(const linkaddr_t *addr)
+neighbor_queue_from_addr(const linkaddr_t *laddr)
 {
-  struct neighbor_queue *n = list_head(neighbor_list);
-  while(n != NULL) {
-    if(linkaddr_cmp(&n->addr, addr)) {
-      return n;
+  struct neighbor_queue *nq = list_head(neighbor_list);
+  while(nq != NULL) {
+    if(linkaddr_cmp(&nq->laddr, laddr)) {
+      return nq;
     }
-    n = list_item_next(n);
+    nq = list_item_next(nq);
   }
   return NULL;
 }
@@ -109,7 +109,7 @@ create_frame(void)
 }
 /*---------------------------------------------------------------------------*/
 static int
-send_one_packet(struct neighbor_queue *n, struct packet_queue *q)
+send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
 {
   int ret;
   int last_sent_ok = 0;
@@ -204,36 +204,36 @@ send_one_packet(struct neighbor_queue *n, struct packet_queue *q)
     last_sent_ok = 1;
   }
 
-  packet_sent(n, q, ret, 1);
+  packet_sent(nq, pq, ret, 1);
   return last_sent_ok;
 }
 /*---------------------------------------------------------------------------*/
 static void
 transmit_from_queue(void *ptr)
 {
-  struct neighbor_queue *n = ptr;
-  if(n) {
-    struct packet_queue *q = list_head(n->packet_queue);
-    if(q != NULL) {
+  struct neighbor_queue *nq = ptr;
+  if(nq) {
+    struct packet_queue *pq = list_head(nq->packet_queue);
+    if(pq != NULL) {
       LOG_INFO("preparing packet for ");
-      LOG_INFO_LLADDR(&n->addr);
+      LOG_INFO_LLADDR(&nq->laddr);
       LOG_INFO_(", seqno %u, tx %u, queue %d\n",
-                queuebuf_attr(q->buf, PACKETBUF_ATTR_MAC_SEQNO),
-                n->transmissions, list_length(n->packet_queue));
+                queuebuf_attr(pq->qbuf, PACKETBUF_ATTR_MAC_SEQNO),
+                nq->num_tx, list_length(nq->packet_queue));
       /* Send first packet in the neighbor queue */
-      queuebuf_to_packetbuf(q->buf);
-      send_one_packet(n, q);
+      queuebuf_to_packetbuf(pq->qbuf);
+      send_one_packet(nq, pq);
     }
   }
 }
 /*---------------------------------------------------------------------------*/
 static void
-schedule_transmission(struct neighbor_queue *n)
+schedule_transmission(struct neighbor_queue *nq)
 {
   clock_time_t delay;
   int backoff_exponent; /* BE in IEEE 802.15.4 */
 
-  backoff_exponent = MIN(n->collisions + TWOFACED_MAC_MIN_BE,
+  backoff_exponent = MIN(nq->num_col + TWOFACED_MAC_MIN_BE,
                          TWOFACED_MAC_MAX_BE);
 
   /* Compute max delay cfr. IEEE 802.15.4: 2^BE-1 backoff periods  */
@@ -244,149 +244,148 @@ schedule_transmission(struct neighbor_queue *n)
   }
 
   LOG_DBG("scheduling transmission in %u ticks, NB=%u, BE=%u\n",
-          (unsigned)delay, n->collisions, backoff_exponent);
-  ctimer_set(&n->transmit_timer, delay, transmit_from_queue, n);
+          (unsigned)delay, nq->num_col, backoff_exponent);
+  ctimer_set(&nq->tx_timer, delay, transmit_from_queue, nq);
 }
 /*---------------------------------------------------------------------------*/
 static void
-free_packet(struct neighbor_queue *n, struct packet_queue *p, int status)
+free_packet(struct neighbor_queue *nq, struct packet_queue *p, int status)
 {
   if(p != NULL) {
     /* Remove packet from queue and deallocate */
-    list_remove(n->packet_queue, p);
+    list_remove(nq->packet_queue, p);
 
-    queuebuf_free(p->buf);
+    queuebuf_free(p->qbuf);
     memb_free(&metadata_memb, p->ptr);
     memb_free(&packet_memb, p);
     LOG_DBG("free_queued_packet, queue length %d, free packets %d\n",
-            list_length(n->packet_queue), memb_numfree(&packet_memb));
-    if(list_head(n->packet_queue) != NULL) {
+            list_length(nq->packet_queue), memb_numfree(&packet_memb));
+    if(list_head(nq->packet_queue) != NULL) {
       /* There is a next packet. We reset current tx information */
-      n->transmissions = 0;
-      n->collisions = 0;
+      nq->num_tx = 0;
+      nq->num_col = 0;
       /* Schedule next transmissions */
-      schedule_transmission(n);
+      schedule_transmission(nq);
     } else {
       /* This was the last packet in the queue, we free the neighbor */
-      ctimer_stop(&n->transmit_timer);
-      list_remove(neighbor_list, n);
-      memb_free(&neighbor_memb, n);
+      ctimer_stop(&nq->tx_timer);
+      list_remove(neighbor_list, nq);
+      memb_free(&neighbor_memb, nq);
     }
   }
 }
 /*---------------------------------------------------------------------------*/
 static void
-tx_done(int status, struct packet_queue *q, struct neighbor_queue *n)
+tx_done(int status, struct packet_queue *pq, struct neighbor_queue *nq)
 {
   mac_callback_t sent_callback;
   struct qbuf_metadata *metadata;
-  void *cptr;
-  uint8_t ntx;
+  void *ptr;
+  uint8_t num_tx;
 
-  metadata = (struct qbuf_metadata *)q->ptr;
+  metadata = (struct qbuf_metadata *)pq->ptr;
   sent_callback = metadata->sent_callback;
-  cptr = metadata->cptr;
-  ntx = n->transmissions;
+  ptr = metadata->ptr;
+  num_tx = nq->num_tx;
 
   LOG_INFO("packet sent to ");
-  LOG_INFO_LLADDR(&n->addr);
+  LOG_INFO_LLADDR(&nq->laddr);
   LOG_INFO_(", seqno %u, status %u, tx %u, coll %u\n",
             packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO),
-            status, n->transmissions, n->collisions);
+            status, nq->num_tx, nq->num_col);
 
-  free_packet(n, q, status);
-  mac_call_sent_callback(sent_callback, cptr, status, ntx);
+  free_packet(nq, pq, status);
+  mac_call_sent_callback(sent_callback, ptr, status, num_tx);
 }
 /*---------------------------------------------------------------------------*/
 static void
-rexmit(struct packet_queue *q, struct neighbor_queue *n)
+rexmit(struct packet_queue *pq, struct neighbor_queue *nq)
 {
-  schedule_transmission(n);
+  schedule_transmission(nq);
   /* This is needed to correctly attribute energy that we spent
      transmitting this packet. */
-  queuebuf_update_attr_from_packetbuf(q->buf);
+  queuebuf_update_attr_from_packetbuf(pq->qbuf);
 }
 /*---------------------------------------------------------------------------*/
 static void
-collision(struct packet_queue *q, struct neighbor_queue *n,
-          int num_transmissions)
+collision(struct packet_queue *pq, struct neighbor_queue *nq, int num_tx)
 {
   struct qbuf_metadata *metadata;
 
-  metadata = (struct qbuf_metadata *)q->ptr;
+  metadata = (struct qbuf_metadata *)pq->ptr;
 
-  n->collisions += num_transmissions;
+  nq->num_col += num_tx;
 
-  if(n->collisions > TWOFACED_MAC_MAX_BACKOFF) {
-    n->collisions = 0;
+  if(nq->num_col > TWOFACED_MAC_MAX_BACKOFF) {
+    nq->num_col = 0;
     /* Increment to indicate a next retry */
-    n->transmissions++;
+    nq->num_tx++;
   }
 
-  if(n->transmissions >= metadata->max_transmissions) {
-    tx_done(MAC_TX_COLLISION, q, n);
+  if(nq->num_tx >= metadata->max_tx) {
+    tx_done(MAC_TX_COLLISION, pq, nq);
   } else {
-    rexmit(q, n);
+    rexmit(pq, nq);
   }
 }
 /*---------------------------------------------------------------------------*/
 static void
-noack(struct packet_queue *q, struct neighbor_queue *n, int num_transmissions)
+noack(struct packet_queue *pq, struct neighbor_queue *nq, int num_tx)
 {
   struct qbuf_metadata *metadata;
 
-  metadata = (struct qbuf_metadata *)q->ptr;
+  metadata = (struct qbuf_metadata *)pq->ptr;
 
-  n->collisions = 0;
-  n->transmissions += num_transmissions;
+  nq->num_col = 0;
+  nq->num_tx += num_tx;
 
-  if(n->transmissions >= metadata->max_transmissions) {
-    tx_done(MAC_TX_NOACK, q, n);
+  if(nq->num_tx >= metadata->max_tx) {
+    tx_done(MAC_TX_NOACK, pq, nq);
   } else {
-    rexmit(q, n);
+    rexmit(pq, nq);
   }
 }
 /*---------------------------------------------------------------------------*/
 static void
-tx_ok(struct packet_queue *q, struct neighbor_queue *n, int num_transmissions)
+tx_ok(struct packet_queue *pq, struct neighbor_queue *nq, int num_tx)
 {
-  n->collisions = 0;
-  n->transmissions += num_transmissions;
-  tx_done(MAC_TX_OK, q, n);
+  nq->num_col = 0;
+  nq->num_tx += num_tx;
+  tx_done(MAC_TX_OK, pq, nq);
 }
 /*---------------------------------------------------------------------------*/
 static void
-packet_sent(struct neighbor_queue *n, struct packet_queue *q,
-            int status, int num_transmissions)
+packet_sent(struct neighbor_queue *nq, struct packet_queue *pq,
+            int status, int num_tx)
 {
-  assert(n != NULL);
-  assert(q != NULL);
+  assert(nq != NULL);
+  assert(pq != NULL);
 
-  if(q->ptr == NULL) {
+  if(pq->ptr == NULL) {
     LOG_WARN("packet sent: no metadata\n");
     return;
   }
 
   LOG_INFO("tx to ");
-  LOG_INFO_LLADDR(&n->addr);
+  LOG_INFO_LLADDR(&nq->laddr);
   LOG_INFO_(", seqno %u, status %u, tx %u, coll %u\n",
             packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO),
-            status, n->transmissions, n->collisions);
+            status, nq->num_tx, nq->num_col);
 
   switch(status) {
   case MAC_TX_OK:
-    tx_ok(q, n, num_transmissions);
+    tx_ok(pq, nq, num_tx);
     break;
   case MAC_TX_NOACK:
-    noack(q, n, num_transmissions);
+    noack(pq, nq, num_tx);
     break;
   case MAC_TX_COLLISION:
-    collision(q, n, num_transmissions);
+    collision(pq, nq, num_tx);
     break;
   case MAC_TX_DEFERRED:
     break;
   default:
-    tx_done(status, q, n);
+    tx_done(status, pq, nq);
     break;
   }
 }
@@ -396,11 +395,11 @@ packet_sent(struct neighbor_queue *n, struct packet_queue *q,
 void
 twofaced_mac_output(mac_callback_t sent_callback, void *ptr)
 {
-  struct packet_queue *q;
-  struct neighbor_queue *n;
+  struct packet_queue *pq;
+  struct neighbor_queue *nq;
   static uint8_t initialized = 0;
   static uint8_t seqno;
-  const linkaddr_t *addr = packetbuf_addr(PACKETBUF_ADDR_RECEIVER);
+  const linkaddr_t *laddr = packetbuf_addr(PACKETBUF_ADDR_RECEIVER);
 
   if(!initialized) {
     initialized = 1;
@@ -414,67 +413,68 @@ twofaced_mac_output(mac_callback_t sent_callback, void *ptr)
     seqno++;
   }
   packetbuf_set_attr(PACKETBUF_ATTR_MAC_SEQNO, seqno++);
+  /* Non-beacon-enabled mode only, all frames are dataframes */
   packetbuf_set_attr(PACKETBUF_ATTR_FRAME_TYPE, FRAME802154_DATAFRAME);
 
-  /* Look for the neighbor entry */
-  n = neighbor_queue_from_addr(addr);
-  if(n == NULL) {
-    /* Allocate a new neighbor entry */
-    n = memb_alloc(&neighbor_memb);
-    if(n != NULL) {
-      /* Init neighbor entry */
-      linkaddr_copy(&n->addr, addr);
-      n->transmissions = 0;
-      n->collisions = 0;
-      /* Init packet queue for this neighbor */
-      LIST_STRUCT_INIT(n, packet_queue);
-      /* Add neighbor to the neighbor list */
-      list_add(neighbor_list, n);
+  /* Look for an existing neighbor list entry */
+  nq = neighbor_queue_from_addr(laddr);
+  if(nq == NULL) {
+    /* Allocate memory for a new neighbor queue */
+    nq = memb_alloc(&neighbor_memb);
+    if(nq != NULL) {
+      /* Init newly allocated neighbor queue */
+      linkaddr_copy(&nq->laddr, laddr);
+      nq->num_tx = 0;
+      nq->num_col = 0;
+      /* Init packet queue of new neighbor queue */
+      LIST_STRUCT_INIT(nq, packet_queue);
+      /* Add new entry (= new neighbor queue) to neighbor list */
+      list_add(neighbor_list, nq);
     }
   }
 
-  if(n != NULL) {
-    /* Add packet to the neighbor's queue */
-    if(list_length(n->packet_queue) < TWOFACED_MAC_MAX_PACKET_PER_NEIGHBOR) {
-      q = memb_alloc(&packet_memb);
-      if(q != NULL) {
-        q->ptr = memb_alloc(&metadata_memb);
-        if(q->ptr != NULL) {
-          q->buf = queuebuf_new_from_packetbuf();
-          if(q->buf != NULL) {
-            struct qbuf_metadata *metadata = (struct qbuf_metadata *)q->ptr;
+  if(nq != NULL) {
+    /* Add packet to the packet queue of neighbor list entry (= neighbor queue) */
+    if(list_length(nq->packet_queue) < TWOFACED_MAC_MAX_PACKET_PER_NEIGHBOR) {
+      pq = memb_alloc(&packet_memb);
+      if(pq != NULL) {
+        pq->ptr = memb_alloc(&metadata_memb);
+        if(pq->ptr != NULL) {
+          pq->qbuf = queuebuf_new_from_packetbuf();
+          if(pq->qbuf != NULL) {
+            struct qbuf_metadata *metadata = (struct qbuf_metadata *)pq->ptr;
             /* Neighbor and packet successfully allocated */
-            metadata->max_transmissions = packetbuf_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS);
-            if(metadata->max_transmissions == 0) {
+            metadata->max_tx = packetbuf_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS);
+            if(metadata->max_tx == 0) {
               /* If not set by the application, use the default value */
-              metadata->max_transmissions = TWOFACED_MAC_MAX_FRAME_RETRIES + 1;
+              metadata->max_tx = TWOFACED_MAC_MAX_FRAME_RETRIES + 1;
             }
             metadata->sent_callback = sent_callback;
-            metadata->cptr = ptr;
-            list_add(n->packet_queue, q);
+            metadata->ptr = ptr;
+            list_add(nq->packet_queue, pq);
 
             LOG_INFO("sending to ");
-            LOG_INFO_LLADDR(addr);
+            LOG_INFO_LLADDR(laddr);
             LOG_INFO_(", len %u, seqno %u, queue length %d, free packets %d\n",
                       packetbuf_datalen(),
                       packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO),
-                      list_length(n->packet_queue), memb_numfree(&packet_memb));
-            /* If q is the first packet in the neighbor's queue, send asap */
-            if(list_head(n->packet_queue) == q) {
-              schedule_transmission(n);
+                      list_length(nq->packet_queue), memb_numfree(&packet_memb));
+            /* If pq is the first packet in the neighbor's queue, send asap */
+            if(list_head(nq->packet_queue) == pq) {
+              schedule_transmission(nq);
             }
             return;
           }
-          memb_free(&metadata_memb, q->ptr);
+          memb_free(&metadata_memb, pq->ptr);
           LOG_WARN("could not allocate queuebuf, dropping packet\n");
         }
-        memb_free(&packet_memb, q);
+        memb_free(&packet_memb, pq);
         LOG_WARN("could not allocate queuebuf, dropping packet\n");
       }
       /* The packet allocation failed. Remove and free neighbor entry if empty. */
-      if(list_length(n->packet_queue) == 0) {
-        list_remove(neighbor_list, n);
-        memb_free(&neighbor_memb, n);
+      if(list_length(nq->packet_queue) == 0) {
+        list_remove(neighbor_list, nq);
+        memb_free(&neighbor_memb, nq);
       }
     } else {
       LOG_WARN("Neighbor queue full\n");
