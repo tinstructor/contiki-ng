@@ -102,6 +102,13 @@ backoff_period(void)
 }
 /*---------------------------------------------------------------------------*/
 static int
+create_frame(void)
+{
+  packetbuf_set_attr(PACKETBUF_ATTR_FRAME_TYPE, FRAME802154_DATAFRAME);
+  return NETSTACK_FRAMER.create();
+}
+/*---------------------------------------------------------------------------*/
+static int
 send_one_packet(struct neighbor_queue *n, struct packet_queue *q)
 {
   int ret;
@@ -110,7 +117,7 @@ send_one_packet(struct neighbor_queue *n, struct packet_queue *q)
   packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
   packetbuf_set_attr(PACKETBUF_ATTR_MAC_ACK, 1);
 
-  if(twofaced_mac_output_create_frame() < 0) {
+  if(create_frame() < 0) {
     /* Failed to allocate space for headers */
     LOG_ERR("failed to create packet, seqno: %d\n",
             packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO));
@@ -485,17 +492,4 @@ twofaced_mac_output_init(void)
   memb_init(&packet_memb);
   memb_init(&metadata_memb);
   memb_init(&neighbor_memb);
-}
-/*---------------------------------------------------------------------------*/
-int
-twofaced_mac_output_create_frame(void)
-{
-  packetbuf_set_attr(PACKETBUF_ATTR_FRAME_TYPE, FRAME802154_DATAFRAME);
-  return NETSTACK_FRAMER.create();
-}
-/*---------------------------------------------------------------------------*/
-int
-twofaced_mac_output_parse_frame(void)
-{
-  return NETSTACK_FRAMER.parse();
 }

@@ -50,9 +50,5 @@
 void twofaced_mac_output(mac_callback_t sent_callback, void *ptr);
 /*---------------------------------------------------------------------------*/
 void twofaced_mac_output_init(void);
-/*---------------------------------------------------------------------------*/
-int twofaced_mac_output_create_frame(void);
-/*---------------------------------------------------------------------------*/
-int twofaced_mac_output_parse_frame(void);
 
 #endif /* TWOFACED_MAC_OUTPUT_H_ */

@@ -120,7 +120,7 @@ input(void)
   if(packetbuf_datalen() == TWOFACED_MAC_ACK_LEN) {
     /* Ignore ack packets */
     LOG_DBG("ignored ack\n");
-  } else if(twofaced_mac_output_parse_frame() < 0) {
+  } else if(NETSTACK_FRAMER.parse() < 0) {
     LOG_ERR("failed to parse %u\n", packetbuf_datalen());
   } else if(!linkaddr_cmp(packetbuf_addr(PACKETBUF_ADDR_RECEIVER),
                           &linkaddr_node_addr) && !packetbuf_holds_broadcast()) {
