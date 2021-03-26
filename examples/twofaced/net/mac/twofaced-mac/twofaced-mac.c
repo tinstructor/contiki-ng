@@ -102,7 +102,11 @@ init(void)
     return;
   }
 
-  /* TODO make sure the underlying radio(s) support hardware ACKs */
+  /* TODO make sure the underlying radio(s) support hardware ACKs
+     and enable them if necessary */
+
+  /* TODO make sure the underlying radios are not operating in poll
+     mode and disable said mode if necessary */
 
   twofaced_mac_output_init();
   on();

@@ -99,6 +99,7 @@ init(void)
       sizeof(available_interfaces[0]); i++) {
 
     radio_value_t reported_max_payload_len = 0;
+    radio_value_t radio_rx_mode;
 
     if(!available_interfaces[i]->init()) {
       if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
@@ -123,6 +124,29 @@ init(void)
         LOG_INFO("Updated max_payload length from %d to %d\n",
                  max_payload_len, reported_max_payload_len);
         max_payload_len = (uint16_t)reported_max_payload_len;
+      }
+
+      if(available_interfaces[i]->get_value(RADIO_PARAM_RX_MODE,
+                                            &radio_rx_mode) != RADIO_RESULT_OK) {
+        if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+          LOG_DBG("Failed to retrieve rx mode underlying radio driver\n");
+        } else {
+          LOG_DBG("Failed to retrieve rx mode of underlying radio driver (%s)\n",
+                  available_interfaces[i]->driver_descriptor);
+        }
+        return 0;
+      } else {
+        /* Disable poll mode */
+        radio_rx_mode &= ~RADIO_RX_MODE_POLL_MODE;
+        if(available_interfaces[i]->set_value(RADIO_PARAM_RX_MODE, radio_rx_mode) != RADIO_RESULT_OK) {
+          if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+            LOG_DBG("Failed to disable poll mode of underlying radio driver\n");
+          } else {
+            LOG_DBG("Failed to disable poll mode of underlying radio driver (%s)\n",
+                    available_interfaces[i]->driver_descriptor);
+          }
+          return 0;
+        }
       }
     }
   }
@@ -263,6 +287,13 @@ set_value(radio_param_t param, radio_value_t value)
   case RADIO_PARAM_SEL_IF:
   case RADIO_PARAM_64BIT_ADDR:
     return RADIO_RESULT_NOT_SUPPORTED;
+  case RADIO_PARAM_RX_MODE:
+    if((value & RADIO_RX_MODE_POLL_MODE) != 0) {
+      LOG_DBG("Setting the underlying radio in poll mode is not allowed!\n");
+      return RADIO_RESULT_NOT_SUPPORTED;
+    } else {
+      return selected_interface->set_value(param, value);
+    }
   case RADIO_PARAM_PAN_ID:
   case RADIO_PARAM_16BIT_ADDR:
     for(uint8_t i = 0; i < sizeof(available_interfaces) /
