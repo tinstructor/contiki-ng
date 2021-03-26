@@ -44,6 +44,7 @@
 #include "net/ipv6/tcpip.h"
 #include "net/packetbuf.h"
 #include "net/mac/mac-sequence.h"
+#include "sys/mutex.h"
 
 /* Log configuration */
 #include "sys/log.h"
@@ -61,7 +62,8 @@
 /*---------------------------------------------------------------------------*/
 /* Variables */
 /*---------------------------------------------------------------------------*/
-/* NOTE add variables here as required */
+/* A lock that prevents calling the input function when inappropriate */
+static volatile mutex_t input_lock = MUTEX_STATUS_UNLOCKED;
 /*---------------------------------------------------------------------------*/
 /* The twofaced mac driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -73,6 +75,8 @@ const struct mac_driver twofaced_mac_driver = {
   on,
   off,
   max_payload,
+  lock_input,
+  unlock_input,
 };
 /*---------------------------------------------------------------------------*/
 /* Internal driver functions and prototypes */
@@ -186,4 +190,16 @@ max_payload(void)
   }
 
   return MIN(radio_max_payload_len, PACKETBUF_SIZE) - framer_hdr_len;
+}
+/*---------------------------------------------------------------------------*/
+static int
+lock_input(void)
+{
+  return mutex_try_lock(&input_lock);
+}
+/*---------------------------------------------------------------------------*/
+static void
+unlock_input(void)
+{
+  mutex_unlock(&input_lock);
 }

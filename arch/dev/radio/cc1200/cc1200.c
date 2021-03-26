@@ -639,6 +639,11 @@ pollhandler(void)
      * and ACK was send (if configured)
      */
 
+#if MAC_CONF_WITH_TWOFACED
+    if(NETSTACK_MAC.lock_input()) {
+      INFO("MAC input lock acquired by cc1200\n");
+#endif /* MAC_CONF_WITH_TWOFACED */
+
     packetbuf_clear();
     len = read(packetbuf_dataptr(), PACKETBUF_SIZE);
 
@@ -646,6 +651,15 @@ pollhandler(void)
       packetbuf_set_datalen(len);
       NETSTACK_MAC.input();
     }
+
+#if MAC_CONF_WITH_TWOFACED
+      NETSTACK_MAC.unlock_input();
+      INFO("MAC input lock released by cc1200\n");
+    } else {
+      INFO("Failed trying MAC input lock, polling process again\n");
+      process_poll(&cc1200_process);
+    }
+#endif /* MAC_CONF_WITH_TWOFACED */
 
   }
 

@@ -79,6 +79,12 @@ struct mac_driver {
 
   /** Read out estimated max payload size based on payload in packetbuf */
   int (* max_payload)(void);
+
+  /** Lock the MAC input function */
+  int (* lock_input)(void);
+
+  /** Unlock the MAC input function */
+  void (* unlock_input)(void);
 };
 
 /* Generic MAC return values. */

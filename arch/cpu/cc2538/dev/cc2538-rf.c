@@ -1118,6 +1118,10 @@ PROCESS_THREAD(cc2538_rf_process, ev, data)
     PROCESS_YIELD_UNTIL((!poll_mode || (poll_mode && (rf_flags & RF_MUST_RESET))) && (ev == PROCESS_EVENT_POLL));
 
     if(!poll_mode) {
+#if MAC_CONF_WITH_TWOFACED
+      if(NETSTACK_MAC.lock_input()) {
+        LOG_DBG("MAC input lock acquired by cc2538\n");
+#endif /* MAC_CONF_WITH_TWOFACED */
       packetbuf_clear();
       len = read(packetbuf_dataptr(), PACKETBUF_SIZE);
 
@@ -1126,6 +1130,14 @@ PROCESS_THREAD(cc2538_rf_process, ev, data)
 
         NETSTACK_MAC.input();
       }
+#if MAC_CONF_WITH_TWOFACED
+        NETSTACK_MAC.unlock_input();
+        LOG_DBG("MAC input lock released by cc2538\n");
+      } else {
+        LOG_DBG("Failed trying MAC input lock, polling process again\n");
+        process_poll(&cc2538_rf_process);
+      }
+#endif /* MAC_CONF_WITH_TWOFACED */
     }
 
     /* If we were polled due to an RF error, reset the transceiver */
