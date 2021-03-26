@@ -84,8 +84,26 @@ LIST(neighbor_list);
 static void packet_sent(struct neighbor_queue *nq, struct packet_queue *pq,
                         int status, int num_tx);
 /*---------------------------------------------------------------------------*/
+/**
+ * @brief Callback function for the tx scheduling ctimer.
+ *
+ * This function is called when the ctimer in `schedule_tx()` expires.
+ * It copies the contents of the queue buffer stored in the first entry
+ * of the "packet list" stored in the supplied neighbor_list entry to
+ * the packet buffer before calling `send_one_packet()`.
+ *
+ * @param ptr an entry in the neighbor_list
+ */
 static void tx_from_packet_queue(void *ptr);
 /*---------------------------------------------------------------------------*/
+/**
+ * @brief Retrieve an entry from the neighbor_list.
+ *
+ * @param laddr the link-layer addr of the neighbor represented by a
+ *              neighbor list entry
+ * @return struct neighbor_queue* an existing entry in the neighbor_list,
+ *                                or NULL otherwise
+ */
 static struct neighbor_queue *
 neighbor_queue_from_addr(const linkaddr_t *laddr)
 {
@@ -111,6 +129,11 @@ backoff_period(void)
 #endif /* CONTIKI_TARGET_COOJA */
 }
 /*---------------------------------------------------------------------------*/
+/**
+ * @brief Create an IEEE 802.15.4 dataframe in the packet buffer.
+ *
+ * @return int -1 if failed, length of frame header otherwise
+ */
 static int
 create_frame(void)
 {
@@ -118,6 +141,17 @@ create_frame(void)
   return NETSTACK_FRAMER.create();
 }
 /*---------------------------------------------------------------------------*/
+/**
+ * @brief Sends a single packet to a given neighbor.
+ *
+ * Prior to calling this function, the packet must be loaded
+ * into the packet buffer, presumably by copying it from the
+ * queue buffer of the supplied "packet list" entry.
+ *
+ * @param nq an entry in the neighbor_list
+ * @param pq an entry in the "packet list" of the neighbor list entry
+ * @return int a MAC_TX_ return value defined in mac.h
+ */
 static int
 send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
 {
@@ -233,6 +267,13 @@ tx_from_packet_queue(void *ptr)
   }
 }
 /*---------------------------------------------------------------------------*/
+/**
+ * @brief Schedule a packet transmission.
+ *
+ * @param nq an entry in the neighbor_list representing the neighbor
+ *           to which a packet must be transmitted some time in the
+ *           near future
+ */
 static void
 schedule_tx(struct neighbor_queue *nq)
 {
@@ -301,8 +342,6 @@ tx_done(int status, struct packet_queue *pq, struct neighbor_queue *nq)
             status, nq->num_tx, nq->num_col);
 
   free_packet(nq, pq, status);
-  /* The following statement most likely calls `packet_sent()`
-     in os/net/ipv6/sicslowpan.c, when using 6LoWPAN that is. */
   mac_call_sent_callback(sent_callback, ptr, status, num_tx);
 }
 /*---------------------------------------------------------------------------*/
@@ -419,43 +458,55 @@ twofaced_mac_output(mac_callback_t sent_callback, void *ptr)
   }
 
   if(seqno == 0) {
-    /* PACKETBUF_ATTR_MAC_SEQNO cannot be zero, due to a pecuilarity
-       in framer-802154.c. */
+    /* PACKETBUF_ATTR_MAC_SEQNO can't be zero due to a peculiarity
+       in `os/net/mac/framer/framer-802154.c` */
     seqno++;
   }
   packetbuf_set_attr(PACKETBUF_ATTR_MAC_SEQNO, seqno++);
-  /* Non-beacon-enabled mode only, all frames are dataframes */
+  /* Non-beacon-enabled mode only, i.e., all frames are dataframes */
   packetbuf_set_attr(PACKETBUF_ATTR_FRAME_TYPE, FRAME802154_DATAFRAME);
 
-  /* Look for an existing neighbor list entry */
+  /* Look for an existing neighbor list entry via the neighbor's
+     link-layer address (i.e., its MAC addr) */
   nq = neighbor_queue_from_addr(laddr);
   if(nq == NULL) {
-    /* Allocate memory for a new neighbor list entry*/
+    /* There was no pre-existing entry found. Allocate memory
+       block for a new neighbor list entry */
     nq = memb_alloc(&neighbor_memb);
     if(nq != NULL) {
-      /* Init newly allocated neighbor list entry */
+      /* Initialize newly allocated neighbor list entry */
       linkaddr_copy(&nq->laddr, laddr);
       nq->num_tx = 0;
       nq->num_col = 0;
-      /* Init packet queue of new neighbor list entry */
+      /* Initialize "packet list" (i.e., the parameter called
+         packet_queue with elements of type struct packetqueue)
+         of new neighbor list entry */
       LIST_STRUCT_INIT(nq, packet_queue);
-      /* Add new entry to neighbor list */
+      /* Add newly allocated and initialized entry
+         to neighbor list */
       list_add(neighbor_list, nq);
     }
   }
 
   if(nq != NULL) {
+    /* There either was a pre-existing entry in the neighbor list
+       or we just successfully created a new entry. If the "packet
+       list" of this neighbor list entry contains less than a fixed
+       number of entries, we add a new entry */
     if(list_length(nq->packet_queue) < TWOFACED_MAC_MAX_PACKET_PER_NEIGHBOR) {
-      /* Allocate memory for a new "packet list" entry */
+      /* Allocate memory block for a new "packet list" entry */
       pq = memb_alloc(&packet_memb);
       if(pq != NULL) {
-        /* Allocate memory for metadata tied to new "packet list" entry */
+        /* Allocate memory block for metadata tied to new
+           "packet list" entry */
         pq->metadata = memb_alloc(&metadata_memb);
         if(pq->metadata != NULL) {
-          /* TODO describe what happens here */
+          /* Copy the contents of the packet buffer to the
+             queue buffer of the new "packet list" entry */
           pq->qbuf = queuebuf_new_from_packetbuf();
           if(pq->qbuf != NULL) {
-            /* Init newly allocated metadata tied to new "packet list" entry */
+            /* Initialize newly allocated metadata tied
+               to new "packet list" entry */
             struct qbuf_metadata *metadata = (struct qbuf_metadata *)pq->metadata;
             metadata->max_tx = packetbuf_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS);
             if(metadata->max_tx == 0) {
@@ -473,7 +524,9 @@ twofaced_mac_output(mac_callback_t sent_callback, void *ptr)
                       packetbuf_datalen(),
                       packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO),
                       list_length(nq->packet_queue), memb_numfree(&packet_memb));
-            /* If pq is the first packet in the neighbor's queue, send asap */
+            /* If pq is the first packet in the neighbor's queue, schedule ASAP.
+               Otherwise, scheduling is performed automatically after successful
+               transmission of the previous packet in the queue */
             if(list_head(nq->packet_queue) == pq) {
               schedule_tx(nq);
             }
@@ -483,9 +536,10 @@ twofaced_mac_output(mac_callback_t sent_callback, void *ptr)
           LOG_WARN("could not allocate queuebuf, dropping packet\n");
         }
         memb_free(&packet_memb, pq);
-        LOG_WARN("could not allocate queuebuf, dropping packet\n");
+        LOG_WARN("could not allocate metadata, dropping packet\n");
       }
-      /* The packet allocation failed. Remove and free neighbor entry if empty. */
+      /* The packet allocation failed. Remove and free neighbor
+         list entry if "packet list" empty */
       if(list_length(nq->packet_queue) == 0) {
         list_remove(neighbor_list, nq);
         memb_free(&neighbor_memb, nq);
