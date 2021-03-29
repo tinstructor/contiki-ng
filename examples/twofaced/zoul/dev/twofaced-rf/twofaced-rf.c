@@ -91,6 +91,9 @@ const struct radio_driver twofaced_rf_driver = {
   set_object,
   lock_interface,
   unlock_interface,
+  prepare_all,
+  transmit_all,
+  send_all,
   channel_clear_all,
   receiving_packet_all,
   pending_packet_all,
@@ -427,6 +430,25 @@ static void
 unlock_interface(void)
 {
   mutex_unlock(&rf_lock);
+}
+/*---------------------------------------------------------------------------*/
+static int
+prepare_all(const void *payload, unsigned short payload_len)
+{
+  /* returns 1 if unsuccesful */
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
+static int
+transmit_all(unsigned short transmit_len)
+{
+  return RADIO_TX_ERR;
+}
+/*---------------------------------------------------------------------------*/
+static int
+send_all(const void *payload, unsigned short payload_len)
+{
+  return RADIO_TX_ERR;
 }
 /*---------------------------------------------------------------------------*/
 static int

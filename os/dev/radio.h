@@ -835,6 +835,21 @@ struct radio_driver {
    */
   void (* unlock_interface)(void);
 
+  int (* prepare_all)(const void *payload, unsigned short payload_len);
+  int (* transmit_all)(unsigned short transmit_len);
+
+  /**
+   * Prepare & transmit a packet on all available interfaces.
+   *
+   * \param payload A pointer to the location of the packet
+   * \param payload_len The length of the packet to be sent
+   * \return This function will return one of the radio_tx_e enumerators
+   *
+   * This function shall behave exactly as a call to `prepare_all()`, immediately
+   * followed by a call to `transmit_all()`.
+   */
+  int (* send_all)(const void *payload, unsigned short payload_len);
+
   int (* channel_clear_all)(void);
   int (* receiving_packet_all)(void);
   int (* pending_packet_all)(void);
