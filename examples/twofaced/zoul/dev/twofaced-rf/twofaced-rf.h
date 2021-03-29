@@ -84,5 +84,11 @@ static radio_result_t set_object(radio_param_t param, const void *src, size_t si
 static int lock_interface(void);
 /*---------------------------------------------------------------------------*/
 static void unlock_interface(void);
+/*---------------------------------------------------------------------------*/
+static int channel_clear_all(void);
+/*---------------------------------------------------------------------------*/
+static int receiving_packet_all(void);
+/*---------------------------------------------------------------------------*/
+static int pending_packet_all(void);
 
 #endif /* TWOFACED_RF_H_ */

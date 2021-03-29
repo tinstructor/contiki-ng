@@ -91,6 +91,9 @@ const struct radio_driver twofaced_rf_driver = {
   set_object,
   lock_interface,
   unlock_interface,
+  channel_clear_all,
+  receiving_packet_all,
+  pending_packet_all,
   "twofaced_rf_driver"
 };
 /*---------------------------------------------------------------------------*/
@@ -424,4 +427,37 @@ static void
 unlock_interface(void)
 {
   mutex_unlock(&rf_lock);
+}
+/*---------------------------------------------------------------------------*/
+static int
+channel_clear_all(void)
+{
+  uint8_t is_clear = 1;
+  for(uint8_t i = 0; i < sizeof(available_interfaces) /
+      sizeof(available_interfaces[0]); i++) {
+    is_clear = is_clear && available_interfaces[i]->channel_clear();
+  }
+  return is_clear;
+}
+/*---------------------------------------------------------------------------*/
+static int
+receiving_packet_all(void)
+{
+  uint8_t is_receiving = 0;
+  for(uint8_t i = 0; i < sizeof(available_interfaces) /
+      sizeof(available_interfaces[0]); i++) {
+    is_receiving = is_receiving || available_interfaces[i]->receiving_packet();
+  }
+  return is_receiving;
+}
+/*---------------------------------------------------------------------------*/
+static int
+pending_packet_all(void)
+{
+  uint8_t is_pending = 0;
+  for(uint8_t i = 0; i < sizeof(available_interfaces) /
+      sizeof(available_interfaces[0]); i++) {
+    is_pending = is_pending || available_interfaces[i]->pending_packet();
+  }
+  return is_pending;
 }

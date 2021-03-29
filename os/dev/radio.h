@@ -834,6 +834,10 @@ struct radio_driver {
    * Unlock the current interface.
    */
   void (* unlock_interface)(void);
+
+  int (* channel_clear_all)(void);
+  int (* receiving_packet_all)(void);
+  int (* pending_packet_all)(void);
   
   /**
    * A string describing the radio driver.
