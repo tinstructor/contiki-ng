@@ -166,9 +166,9 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
     LOG_DBG("RF lock acquired before preparing packet\n");
 
     /* REVIEW would it not make more sense to leave the responsibility of
-      loading a packet into the packet buffer (i.e., by copying an entry
-      from the queue buffer of the supplied "packet list" entry into the
-      packet buffer) to this function? */
+       loading a packet into the packet buffer (i.e., by copying an entry
+       from the queue buffer of the supplied "packet list" entry into the
+       packet buffer) to this function? */
 
     packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
     packetbuf_set_attr(PACKETBUF_ATTR_MAC_ACK, 1);
@@ -191,11 +191,11 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
       is_broadcast = packetbuf_holds_broadcast();
 
       if(NETSTACK_RADIO.receiving_packet() ||
-        (!is_broadcast && NETSTACK_RADIO.pending_packet())) {
+         (!is_broadcast && NETSTACK_RADIO.pending_packet())) {
 
         /* Currently receiving a packet over air or the radio has
-          already received a packet that needs to be read before
-          sending with auto ack. */
+           already received a packet that needs to be read before
+           sending with auto ack. */
         ret = MAC_TX_COLLISION;
 
         LOG_DBG("Unlocking RF lock before tx attempt\n");
@@ -212,20 +212,20 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
 
             /* Wait for max TWOFACED_MAC_ACK_WAIT_TIME */
             /* REVIEW should we not check for NETSTACK_RADIO.receiving_packet()
-              instead? In the very worst case we could even check whether the
-              channel is clear with NETSTACK_RADIO.channel_clear() */
+               instead? In the very worst case we could even check whether the
+               channel is clear with NETSTACK_RADIO.channel_clear() */
             RTIMER_BUSYWAIT_UNTIL(NETSTACK_RADIO.pending_packet(),
                                   TWOFACED_MAC_ACK_WAIT_TIME);
 
             ret = MAC_TX_NOACK;
             if(NETSTACK_RADIO.receiving_packet() ||
-              NETSTACK_RADIO.pending_packet() ||
-              NETSTACK_RADIO.channel_clear() == 0) {
+               NETSTACK_RADIO.pending_packet() ||
+               NETSTACK_RADIO.channel_clear() == 0) {
               int len;
               uint8_t ackbuf[TWOFACED_MAC_ACK_LEN];
 
               /* Wait an additional TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME
-                to complete reception */
+                 to complete reception */
               RTIMER_BUSYWAIT_UNTIL(NETSTACK_RADIO.pending_packet(),
                                     TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME);
 
