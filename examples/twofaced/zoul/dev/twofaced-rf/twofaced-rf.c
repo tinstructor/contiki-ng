@@ -56,6 +56,8 @@
 extern const struct radio_driver cc2538_rf_driver;
 extern const struct radio_driver cc1200_driver;
 static const struct radio_driver *const available_interfaces[] = TWOFACED_RF_AVAILABLE_IFS;
+/* The supported twofaced-rf flag bitmasks */
+#define TWOFACED_RF_UPDATE_IF 0x01
 /*---------------------------------------------------------------------------*/
 /* Variables */
 /*---------------------------------------------------------------------------*/
@@ -65,6 +67,10 @@ static const struct radio_driver *selected_interface;
 static uint16_t max_payload_len;
 /* A lock that prevents changing interfaces when innapropriate */
 static volatile mutex_t rf_lock = MUTEX_STATUS_UNLOCKED;
+/* The twofaced-rf driver's state */
+static uint8_t twofaced_rf_flags = 0x00;
+/* The descriptor of the next interface to be selected */
+static char next_if_desc[32]; /* TODO make sure the size is always ok */
 /*---------------------------------------------------------------------------*/
 /* The twofaced radio driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -88,15 +94,119 @@ const struct radio_driver twofaced_rf_driver = {
   "twofaced_rf_driver"
 };
 /*---------------------------------------------------------------------------*/
-/* Internal driver functions and prototypes */
+/* Prototypes for internal driver functions */
 /*---------------------------------------------------------------------------*/
-/* NOTE add internal radio driver functions and prototypes here as required */
+/**
+ * @brief Set the currently selected interface.
+ *
+ * @param descriptor pointer to a radio driver descriptor string
+ * @param size length of the supplied radio driver descriptor string + 1
+ * @return radio_result_t
+ */
+static radio_result_t set_interface(const char *descriptor, size_t size);
+/*---------------------------------------------------------------------------*/
+/* Processes and related functionality */
+/*---------------------------------------------------------------------------*/
+static void pollhandler(void);
+/*---------------------------------------------------------------------------*/
+PROCESS(twofaced_rf_process, "twofaced radio driver");
+/*---------------------------------------------------------------------------*/
+PROCESS_THREAD(twofaced_rf_process, ev, data)
+{
+  PROCESS_POLLHANDLER(pollhandler());
+
+  PROCESS_BEGIN();
+
+  PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_EXIT);
+
+  PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
+static void
+pollhandler(void)
+{
+  if(twofaced_rf_flags & TWOFACED_RF_UPDATE_IF) {
+    set_interface(next_if_desc, strlen(next_if_desc) + 1);
+  }
+}
+/*---------------------------------------------------------------------------*/
+/* Internal driver functions */
+/*---------------------------------------------------------------------------*/
+static radio_result_t
+set_interface(const char *descriptor, size_t size)
+{
+  /* REVIEW for now, this preprocessor check is good enough to verify that
+     the above MAC layer even knows about the multi-rf capabilities of this PHY
+     layer abstraction. Otherwise it doesn't make sense to allow switching
+     radio interface because a MAC layer that has no knowledge about these
+     capabilities presumably doesn't bother to acquire an rf lock before
+     preparing a packet and unlocking the rf lock after receiving an ACK
+     (under normal circumstances). In the future, a more robust mechanism
+     is required here. */
+#if MAC_CONF_WITH_TWOFACED
+  if(lock_interface()) {
+    LOG_DBG("RF lock acquired by set_interface()\n");
+
+    LOG_DBG("Unsetting interface update flag\n");
+    twofaced_rf_flags &= ~TWOFACED_RF_UPDATE_IF;
+
+    if(size < strlen("") + 1) {
+      unlock_interface();
+      LOG_DBG("Unlocking RF lock held by set_interface(), no descriptor\n");
+      return RADIO_RESULT_INVALID_VALUE;
+    }
+
+    if(!strcmp(descriptor, selected_interface->driver_descriptor)) {
+      unlock_interface();
+      LOG_DBG("Unlocking RF lock held by set_interface(), interface already selected\n");
+      return RADIO_RESULT_OK;
+    }
+
+    for(uint8_t i = 0; i < sizeof(available_interfaces) /
+        sizeof(available_interfaces[0]); i++) {
+      if(!strcmp(descriptor, available_interfaces[i]->driver_descriptor)) {
+        NETSTACK_MAC.off();
+        selected_interface = available_interfaces[i];
+        NETSTACK_MAC.on();
+        /*
+         * TODO we should check if setting the channel of the new iface
+         * is successful before continuing and if not, doing something
+         * about it.
+         */
+        selected_interface->set_value(RADIO_PARAM_CHANNEL, TWOFACED_RF_DEFAULT_CHANNEL);
+        LOG_DBG("Set channel to %i after switching to new interface\n", TWOFACED_RF_DEFAULT_CHANNEL);
+        unlock_interface();
+        LOG_DBG("Unlocking RF lock held by set_interface(), interface set\n");
+        return RADIO_RESULT_OK;
+      }
+    }
+    unlock_interface();
+    LOG_DBG("Unlocking RF lock held by set_interface(), unknown descriptor\n");
+    return RADIO_RESULT_INVALID_VALUE;
+  } else {
+    LOG_DBG("Could not switch interface, interfaces are locked\n");
+    LOG_DBG("Deferring interface switch\n");
+    strcpy(next_if_desc, descriptor);
+    LOG_DBG("Setting interface update flag\n");
+    twofaced_rf_flags |= TWOFACED_RF_UPDATE_IF;
+    process_poll(&twofaced_rf_process);
+  }
+  /* NOTE we return RADIO_RESULT_OK because deferring an interface
+     switch doesn't constitute an error */
+  return RADIO_RESULT_OK;
+#else /* MAC_CONF_WITH_TWOFACED */
+  return RADIO_RESULT_ERROR;
+#endif /* MAC_CONF_WITH_TWOFACED */
+}
 /*---------------------------------------------------------------------------*/
 /* Radio driver functions */
 /*---------------------------------------------------------------------------*/
 static int
 init(void)
 {
+  /* TODO make sure the init function wasn't alread called
+     previously! */
+
   for(uint8_t i = 0; i < sizeof(available_interfaces) /
       sizeof(available_interfaces[0]); i++) {
 
@@ -154,6 +264,7 @@ init(void)
   }
 
   selected_interface = available_interfaces[0];
+  process_start(&twofaced_rf_process, NULL);
 
   return 1;
 }
@@ -291,56 +402,7 @@ set_object(radio_param_t param, const void *src, size_t size)
   case RADIO_PARAM_CHANNEL:
     return RADIO_RESULT_NOT_SUPPORTED;
   case RADIO_PARAM_SEL_IF:
-    /* REVIEW for now, this preprocessor check is good enough to verify that
-       the above MAC layer even knows about the multi-rf capabilities of this PHY
-       layer abstraction. Otherwise it doesn't make sense to allow switching
-       radio interface because a MAC layer that has no knowledge about these
-       capabilities presumably doesn't bother to acquire an rf lock before
-       preparing a packet and unlocking the rf lock after receiving an ACK
-       (under normal circumstances). In the future, a more robust mechanism
-       is required here. */
-#if MAC_CONF_WITH_TWOFACED
-    if(lock_interface()) {
-      LOG_DBG("RF lock acquired by set_object()\n");
-
-      if(size < strlen("") + 1) {
-        unlock_interface();
-        LOG_DBG("Unlocking RF lock held by set_object(), no descriptor\n");
-        return RADIO_RESULT_INVALID_VALUE;
-      }
-
-      if(!strcmp((char *)src, selected_interface->driver_descriptor)) {
-        unlock_interface();
-        LOG_DBG("Unlocking RF lock held by set_object(), interface already selected\n");
-        return RADIO_RESULT_OK;
-      }
-
-      for(uint8_t i = 0; i < sizeof(available_interfaces) /
-          sizeof(available_interfaces[0]); i++) {
-        if(!strcmp((char *)src, available_interfaces[i]->driver_descriptor)) {
-          NETSTACK_MAC.off();
-          selected_interface = available_interfaces[i];
-          NETSTACK_MAC.on();
-          /*
-           * TODO we should check if setting the channel of the new iface
-           * is successful before continuing and if not, doing something
-           * about it.
-           */
-          selected_interface->set_value(RADIO_PARAM_CHANNEL, TWOFACED_RF_DEFAULT_CHANNEL);
-          LOG_DBG("Set channel to %i after switching to new interface\n", TWOFACED_RF_DEFAULT_CHANNEL);
-          unlock_interface();
-          LOG_DBG("Unlocking RF lock held by set_object(), interface set\n");
-          return RADIO_RESULT_OK;
-        }
-      }
-      unlock_interface();
-      LOG_DBG("Unlocking RF lock held by set_object(), unknown descriptor\n");
-      return RADIO_RESULT_INVALID_VALUE;
-    } else {
-      LOG_DBG("Could not switch interface, interfaces are locked\n");
-    }
-#endif /* MAC_CONF_WITH_TWOFACED */
-    return RADIO_RESULT_ERROR;
+    return set_interface((char *)src, size);
   case RADIO_PARAM_64BIT_ADDR:
     for(uint8_t i = 0; i < sizeof(available_interfaces) /
         sizeof(available_interfaces[0]); i++) {
