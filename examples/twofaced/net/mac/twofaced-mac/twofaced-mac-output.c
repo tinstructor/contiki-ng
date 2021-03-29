@@ -158,87 +158,114 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
   int ret;
   int last_sent_ok = 0;
 
-  packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
-  packetbuf_set_attr(PACKETBUF_ATTR_MAC_ACK, 1);
+  /* NOTE when initializing this MAC layer, we must have made sure that the
+     underlying radio driver is multi-rf capable and its interface locking /
+     unlocking function pointers aren't NULL. Hence we don't need to repeat
+     those checks here. */
+  if(NETSTACK_RADIO.lock_interface()) {
+    LOG_DBG("RF lock acquired before preparing packet\n");
 
-  if(create_frame() < 0) {
-    /* Failed to allocate space for headers */
-    LOG_ERR("failed to create packet, seqno: %d\n",
-            packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO));
-    ret = MAC_TX_ERR_FATAL;
-  } else {
-    int is_broadcast;
-    uint8_t dsn;
-    dsn = ((uint8_t *)packetbuf_hdrptr())[2] & 0xff;
+    /* REVIEW would it not make more sense to leave the responsibility of
+      loading a packet into the packet buffer (i.e., by copying an entry
+      from the queue buffer of the supplied "packet list" entry into the
+      packet buffer) to this function? */
 
-    NETSTACK_RADIO.prepare(packetbuf_hdrptr(), packetbuf_totlen());
+    packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
+    packetbuf_set_attr(PACKETBUF_ATTR_MAC_ACK, 1);
 
-    is_broadcast = packetbuf_holds_broadcast();
+    if(create_frame() < 0) {
+      /* Failed to allocate space for headers */
+      LOG_ERR("failed to create packet, seqno: %d\n",
+              packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO));
+      ret = MAC_TX_ERR_FATAL;
 
-    if(NETSTACK_RADIO.receiving_packet() ||
-       (!is_broadcast && NETSTACK_RADIO.pending_packet())) {
-
-      /* Currently receiving a packet over air or the radio has
-         already received a packet that needs to be read before
-         sending with auto ack. */
-      ret = MAC_TX_COLLISION;
+      LOG_DBG("Unlocking RF lock before tx attempt\n");
+      NETSTACK_RADIO.unlock_interface();
     } else {
-      radio_result_t foo = NETSTACK_RADIO.transmit(packetbuf_totlen());
-      RTIMER_BUSYWAIT(RTIMER_SECOND / 200);
-      switch(foo) {
-      case RADIO_TX_OK:
-        if(is_broadcast) {
-          ret = MAC_TX_OK;
-        } else {
-          /* Check for ack */
+      int is_broadcast;
+      uint8_t dsn;
+      dsn = ((uint8_t *)packetbuf_hdrptr())[2] & 0xff;
 
-          /* Wait for max TWOFACED_MAC_ACK_WAIT_TIME */
-          RTIMER_BUSYWAIT_UNTIL(NETSTACK_RADIO.pending_packet(),
-                                TWOFACED_MAC_ACK_WAIT_TIME);
+      NETSTACK_RADIO.prepare(packetbuf_hdrptr(), packetbuf_totlen());
 
-          ret = MAC_TX_NOACK;
-          if(NETSTACK_RADIO.receiving_packet() ||
-             NETSTACK_RADIO.pending_packet() ||
-             NETSTACK_RADIO.channel_clear() == 0) {
-            int len;
-            uint8_t ackbuf[TWOFACED_MAC_ACK_LEN];
+      is_broadcast = packetbuf_holds_broadcast();
 
-            /* Wait an additional TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME
-               to complete reception */
+      if(NETSTACK_RADIO.receiving_packet() ||
+        (!is_broadcast && NETSTACK_RADIO.pending_packet())) {
+
+        /* Currently receiving a packet over air or the radio has
+          already received a packet that needs to be read before
+          sending with auto ack. */
+        ret = MAC_TX_COLLISION;
+
+        LOG_DBG("Unlocking RF lock before tx attempt\n");
+        NETSTACK_RADIO.unlock_interface();
+      } else {
+        radio_result_t foo = NETSTACK_RADIO.transmit(packetbuf_totlen());
+        RTIMER_BUSYWAIT(RTIMER_SECOND / 200);
+        switch(foo) {
+        case RADIO_TX_OK:
+          if(is_broadcast) {
+            ret = MAC_TX_OK;
+          } else {
+            /* Check for ack */
+
+            /* Wait for max TWOFACED_MAC_ACK_WAIT_TIME */
+            /* REVIEW should we not check for NETSTACK_RADIO.receiving_packet()
+              instead? In the very worst case we could even check whether the
+              channel is clear with NETSTACK_RADIO.channel_clear() */
             RTIMER_BUSYWAIT_UNTIL(NETSTACK_RADIO.pending_packet(),
-                                  TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME);
+                                  TWOFACED_MAC_ACK_WAIT_TIME);
 
-            if(NETSTACK_RADIO.pending_packet()) {
-              len = NETSTACK_RADIO.read(ackbuf, TWOFACED_MAC_ACK_LEN);
-              if(len == TWOFACED_MAC_ACK_LEN && ackbuf[2] == dsn) {
-                /* Ack received */
-                LOG_DBG("ACK received\n");
-                ret = MAC_TX_OK;
+            ret = MAC_TX_NOACK;
+            if(NETSTACK_RADIO.receiving_packet() ||
+              NETSTACK_RADIO.pending_packet() ||
+              NETSTACK_RADIO.channel_clear() == 0) {
+              int len;
+              uint8_t ackbuf[TWOFACED_MAC_ACK_LEN];
+
+              /* Wait an additional TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME
+                to complete reception */
+              RTIMER_BUSYWAIT_UNTIL(NETSTACK_RADIO.pending_packet(),
+                                    TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME);
+
+              if(NETSTACK_RADIO.pending_packet()) {
+                len = NETSTACK_RADIO.read(ackbuf, TWOFACED_MAC_ACK_LEN);
+                if(len == TWOFACED_MAC_ACK_LEN && ackbuf[2] == dsn) {
+                  /* Ack received */
+                  LOG_DBG("ACK received\n");
+                  ret = MAC_TX_OK;
+                } else {
+                  /* Not an ack or ack not for us: collision */
+                  ret = MAC_TX_COLLISION;
+                }
               } else {
-                /* Not an ack or ack not for us: collision */
-                ret = MAC_TX_COLLISION;
+                LOG_DBG("NOACK: TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME = %d exceeded\n",
+                        TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME);
               }
             } else {
-              LOG_DBG("NOACK: TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME = %d exceeded\n",
-                      TWOFACED_MAC_AFTER_ACK_DETECTED_WAIT_TIME);
+              LOG_DBG("NOACK: TWOFACED_MAC_ACK_WAIT_TIME = %d exceeded\n",
+                      TWOFACED_MAC_ACK_WAIT_TIME);
             }
-          } else {
-            LOG_DBG("NOACK: TWOFACED_MAC_ACK_WAIT_TIME = %d exceeded\n",
-                    TWOFACED_MAC_ACK_WAIT_TIME);
           }
+          break;
+        case RADIO_TX_COLLISION:
+          ret = MAC_TX_COLLISION;
+          break;
+        default:
+          ret = MAC_TX_ERR;
+          break;
         }
-        break;
-      case RADIO_TX_COLLISION:
-        ret = MAC_TX_COLLISION;
-        break;
-      default:
-        ret = MAC_TX_ERR;
-        break;
+        LOG_DBG("Unlocking RF lock after tx attempt\n");
+        NETSTACK_RADIO.unlock_interface();
       }
     }
-  }
-  if(ret == MAC_TX_OK) {
-    last_sent_ok = 1;
+    if(ret == MAC_TX_OK) {
+      last_sent_ok = 1;
+    }
+  } else {
+    LOG_DBG("Could not acquire RF lock: deferring transmission\n");
+    ret = MAC_TX_DEFERRED;
   }
 
   packet_sent(nq, pq, ret, 1);
@@ -433,6 +460,7 @@ packet_sent(struct neighbor_queue *nq, struct packet_queue *pq, int status,
     collision(pq, nq, num_tx);
     break;
   case MAC_TX_DEFERRED:
+    retx(pq, nq);
     break;
   default:
     tx_done(status, pq, nq);

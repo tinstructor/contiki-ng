@@ -1095,6 +1095,8 @@ const struct radio_driver cc2538_rf_driver = {
   set_value,
   get_object,
   set_object,
+  NULL,
+  NULL,
   "cc2538_rf_driver"
 };
 /*---------------------------------------------------------------------------*/

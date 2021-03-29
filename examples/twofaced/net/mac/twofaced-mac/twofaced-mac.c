@@ -100,6 +100,9 @@ init(void)
     return;
   }
 
+  /* TODO even though we just checked the multi-rf capabilities of the radio driver,
+     make sure that the interface lock / unlock function pointers aren't NULL */
+
   /* Check that the radio can correctly report its max supported payload */
   if(NETSTACK_RADIO.get_value(RADIO_CONST_MAX_PAYLOAD_LEN, &radio_max_payload_len) != RADIO_RESULT_OK) {
     LOG_ERR("! radio does not support getting RADIO_CONST_MAX_PAYLOAD_LEN. Abort init.\n");

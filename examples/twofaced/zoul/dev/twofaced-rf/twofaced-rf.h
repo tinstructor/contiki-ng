@@ -80,5 +80,9 @@ static radio_result_t set_value(radio_param_t param, radio_value_t value);
 static radio_result_t get_object(radio_param_t param, void *dest, size_t size);
 /*---------------------------------------------------------------------------*/
 static radio_result_t set_object(radio_param_t param, const void *src, size_t size);
+/*---------------------------------------------------------------------------*/
+static int lock_interface(void);
+/*---------------------------------------------------------------------------*/
+static void unlock_interface(void);
 
 #endif /* TWOFACED_RF_H_ */

@@ -486,6 +486,8 @@ const struct radio_driver cc1200_driver = {
   set_value,
   get_object,
   set_object,
+  NULL,
+  NULL,
   "cc1200_driver"
 };
 /*---------------------------------------------------------------------------*/

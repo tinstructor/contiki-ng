@@ -823,6 +823,19 @@ struct radio_driver {
                                 size_t size);
 
   /**
+   * Lock the current interface.
+   * 
+   * \retval true Locking succeeded
+   * \retval false Locking failed (the interface is already locked)
+   */
+  int (* lock_interface)(void);
+
+  /**
+   * Unlock the current interface.
+   */
+  void (* unlock_interface)(void);
+  
+  /**
    * A string describing the radio driver.
    */
   const char *driver_descriptor;

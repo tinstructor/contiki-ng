@@ -39,18 +39,6 @@
 #ifndef TWOFACED_RF_TYPES_H_
 #define TWOFACED_RF_TYPES_H_
 
-#include "sys/mutex.h"
-
-typedef enum {
-  TWOFACED_RF_PREPARE,
-  TWOFACED_RF_TRANSMIT,
-  TWOFACED_RF_SET_OBJECT,
-  TWOFACED_RF_NO_OWNER,
-} twofaced_rf_lock_owner_t;
-
-typedef struct twofaced_rf_lock {
-  mutex_t lock;
-  twofaced_rf_lock_owner_t owner;
-} twofaced_rf_lock_t;
+/* TODO define generic types here */
 
 #endif /* TWOFACED_RF_TYPES_H_ */

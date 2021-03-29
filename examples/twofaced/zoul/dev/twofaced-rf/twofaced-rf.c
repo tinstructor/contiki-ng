@@ -64,7 +64,7 @@ static const struct radio_driver *selected_interface;
 /* Lowest reported max payload length of all drivers. Initialized in init() */
 static uint16_t max_payload_len;
 /* A lock that prevents changing interfaces when innapropriate */
-static volatile twofaced_rf_lock_t rf_lock = { .owner = TWOFACED_RF_NO_OWNER };
+static volatile mutex_t rf_lock = MUTEX_STATUS_UNLOCKED;
 /*---------------------------------------------------------------------------*/
 /* The twofaced radio driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -83,6 +83,8 @@ const struct radio_driver twofaced_rf_driver = {
   set_value,
   get_object,
   set_object,
+  lock_interface,
+  unlock_interface,
   "twofaced_rf_driver"
 };
 /*---------------------------------------------------------------------------*/
@@ -129,7 +131,7 @@ init(void)
       if(available_interfaces[i]->get_value(RADIO_PARAM_RX_MODE,
                                             &radio_rx_mode) != RADIO_RESULT_OK) {
         if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
-          LOG_DBG("Failed to retrieve rx mode underlying radio driver\n");
+          LOG_DBG("Failed to retrieve rx mode of underlying radio driver\n");
         } else {
           LOG_DBG("Failed to retrieve rx mode of underlying radio driver (%s)\n",
                   available_interfaces[i]->driver_descriptor);
@@ -159,55 +161,13 @@ init(void)
 static int
 prepare(const void *payload, unsigned short payload_len)
 {
-  if(mutex_try_lock(&rf_lock.lock)) {
-    rf_lock.owner = TWOFACED_RF_PREPARE;
-    LOG_DBG("RF lock acquired by prepare()\n");
-    if(selected_interface->prepare(payload, payload_len) == 1) {
-      rf_lock.owner = TWOFACED_RF_NO_OWNER;
-      mutex_unlock(&rf_lock.lock);
-      LOG_DBG("Unlocking RF lock held by prepare(), copy was unsuccessful\n");
-    } else {
-      return 0;
-    }
-  } else {
-    LOG_DBG("Could not prepare packet, interfaces are locked\n");
-  }
-
-  return 1;
+  return selected_interface->prepare(payload, payload_len);
 }
 /*---------------------------------------------------------------------------*/
 static int
 transmit(unsigned short transmit_len)
 {
-  uint8_t ret = RADIO_TX_ERR;
-
-  if(mutex_try_lock(&rf_lock.lock)) {
-    /* REVIEW is this case really necessary? */
-    rf_lock.owner = TWOFACED_RF_TRANSMIT;
-    LOG_DBG("RF lock acquired by transmit()\n");
-    ret = selected_interface->transmit(transmit_len);
-    rf_lock.owner = TWOFACED_RF_NO_OWNER;
-    mutex_unlock(&rf_lock.lock);
-    LOG_DBG("Unlocking RF lock held by transmit()\n");
-  } else if(rf_lock.owner == TWOFACED_RF_PREPARE) {
-    /*
-     * NOTE this branch may very rarely erroneously evaluate as true. Say
-     * someone acquired the lock, set its owner to TWOFACED_RF_PREPARE and
-     * didn't change its owner to TWOFACED_RF_NO_OWNER before unlocking.
-     * Then, if and only if, someone else were to lock the lock but forgets
-     * to change the owner from TWOFACED_RF_PREPARE (which should have been
-     * TWOFACED_RF_NO_OWNER in the first place) to itself, this branch could
-     * be entered. THIS MUST NOT HAPPEN!!!
-     */
-    ret = selected_interface->transmit(transmit_len);
-    rf_lock.owner = TWOFACED_RF_NO_OWNER;
-    mutex_unlock(&rf_lock.lock);
-    LOG_DBG("Unlocking RF lock held by prepare() after tx attempt\n");
-  } else {
-    LOG_DBG("Could not transmit packet, interfaces are locked\n");
-  }
-
-  return ret;
+  return selected_interface->transmit(transmit_len);
 }
 /*---------------------------------------------------------------------------*/
 static int
@@ -331,20 +291,26 @@ set_object(radio_param_t param, const void *src, size_t size)
   case RADIO_PARAM_CHANNEL:
     return RADIO_RESULT_NOT_SUPPORTED;
   case RADIO_PARAM_SEL_IF:
-    if(mutex_try_lock(&rf_lock.lock)) {
-      rf_lock.owner = TWOFACED_RF_SET_OBJECT;
+    /* REVIEW for now, this preprocessor check is good enough to verify that
+       the above MAC layer even knows about the multi-rf capabilities of this PHY
+       layer abstraction. Otherwise it doesn't make sense to allow switching
+       radio interface because a MAC layer that has no knowledge about these
+       capabilities presumably doesn't bother to acquire an rf lock before
+       preparing a packet and unlocking the rf lock after receiving an ACK
+       (under normal circumstances). In the future, a more robust mechanism
+       is required here. */
+#if MAC_CONF_WITH_TWOFACED
+    if(lock_interface()) {
       LOG_DBG("RF lock acquired by set_object()\n");
 
       if(size < strlen("") + 1) {
-        rf_lock.owner = TWOFACED_RF_NO_OWNER;
-        mutex_unlock(&rf_lock.lock);
+        unlock_interface();
         LOG_DBG("Unlocking RF lock held by set_object(), no descriptor\n");
         return RADIO_RESULT_INVALID_VALUE;
       }
 
       if(!strcmp((char *)src, selected_interface->driver_descriptor)) {
-        rf_lock.owner = TWOFACED_RF_NO_OWNER;
-        mutex_unlock(&rf_lock.lock);
+        unlock_interface();
         LOG_DBG("Unlocking RF lock held by set_object(), interface already selected\n");
         return RADIO_RESULT_OK;
       }
@@ -362,19 +328,18 @@ set_object(radio_param_t param, const void *src, size_t size)
            */
           selected_interface->set_value(RADIO_PARAM_CHANNEL, TWOFACED_RF_DEFAULT_CHANNEL);
           LOG_DBG("Set channel to %i after switching to new interface\n", TWOFACED_RF_DEFAULT_CHANNEL);
-          rf_lock.owner = TWOFACED_RF_NO_OWNER;
-          mutex_unlock(&rf_lock.lock);
+          unlock_interface();
           LOG_DBG("Unlocking RF lock held by set_object(), interface set\n");
           return RADIO_RESULT_OK;
         }
       }
-      rf_lock.owner = TWOFACED_RF_NO_OWNER;
-      mutex_unlock(&rf_lock.lock);
+      unlock_interface();
       LOG_DBG("Unlocking RF lock held by set_object(), unknown descriptor\n");
       return RADIO_RESULT_INVALID_VALUE;
     } else {
       LOG_DBG("Could not switch interface, interfaces are locked\n");
     }
+#endif /* MAC_CONF_WITH_TWOFACED */
     return RADIO_RESULT_ERROR;
   case RADIO_PARAM_64BIT_ADDR:
     for(uint8_t i = 0; i < sizeof(available_interfaces) /
@@ -385,4 +350,16 @@ set_object(radio_param_t param, const void *src, size_t size)
   default:
     return selected_interface->set_object(param, src, size);
   }
+}
+/*---------------------------------------------------------------------------*/
+static int
+lock_interface(void)
+{
+  return mutex_try_lock(&rf_lock);
+}
+/*---------------------------------------------------------------------------*/
+static void
+unlock_interface(void)
+{
+  mutex_unlock(&rf_lock);
 }
