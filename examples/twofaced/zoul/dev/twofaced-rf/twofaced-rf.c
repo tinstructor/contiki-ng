@@ -458,22 +458,32 @@ unlock_interface(void)
 static int
 prepare_all(const void *payload, unsigned short payload_len)
 {
-  /* TODO */
+  uint8_t is_prepared = 0;
+  for(uint8_t i = 0; i < sizeof(available_interfaces) /
+      sizeof(available_interfaces[0]); i++) {
+    is_prepared = is_prepared || available_interfaces[i]->prepare(payload, payload_len);
+  }
   /* returns 1 if unsuccesful */
-  return 1;
+  return is_prepared;
 }
 /*---------------------------------------------------------------------------*/
 static int
 transmit_all(unsigned short transmit_len)
 {
-  /* TODO */
+  /* NOTE this function must be given extremely careful consideration because
+     the MAC layer will likely base a large part of its actions on the return
+     value. As such, we can't simply return RADIO_TX_ERR if the tx function
+     of a single underlying radio driver didn't return RADIO_TX_OK */
   return RADIO_TX_ERR;
 }
 /*---------------------------------------------------------------------------*/
 static int
 send_all(const void *payload, unsigned short payload_len)
 {
-  /* TODO */
+  if(!prepare_all(payload, payload_len)) {
+    return transmit_all(payload_len);
+  }
+
   return RADIO_TX_ERR;
 }
 /*---------------------------------------------------------------------------*/
