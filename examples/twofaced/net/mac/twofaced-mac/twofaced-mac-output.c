@@ -190,8 +190,11 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
 
       is_broadcast = packetbuf_holds_broadcast();
 
-      if(NETSTACK_RADIO.receiving_packet() ||
-         (!is_broadcast && NETSTACK_RADIO.pending_packet())) {
+      /* NOTE we've already made sure that the radio driver is multi-rf
+         capable and its multi-rf related function pointers aren't NULL.
+         Hence, we don't need to repeat that check here. */
+      if(NETSTACK_RADIO.receiving_packet_all() ||
+         (!is_broadcast && NETSTACK_RADIO.pending_packet_all())) {
 
         /* Currently receiving a packet over air or the radio has
            already received a packet that needs to be read before

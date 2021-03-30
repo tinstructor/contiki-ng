@@ -174,13 +174,6 @@ set_interface(const char *descriptor, size_t size)
         NETSTACK_MAC.off();
         selected_interface = available_interfaces[i];
         NETSTACK_MAC.on();
-        /*
-         * TODO we should check if setting the channel of the new iface
-         * is successful before continuing and if not, doing something
-         * about it.
-         */
-        selected_interface->set_value(RADIO_PARAM_CHANNEL, TWOFACED_RF_DEFAULT_CHANNEL);
-        LOG_DBG("Set channel to %i after switching to new interface\n", TWOFACED_RF_DEFAULT_CHANNEL);
         unlock_interface();
         LOG_DBG("Unlocking RF lock held by set_interface(), interface set\n");
         return RADIO_RESULT_OK;
@@ -212,6 +205,8 @@ init(void)
 {
   /* TODO make sure the init function wasn't alread called
      previously! */
+
+  /* TODO make sure there is at least one available interface */
 
   for(uint8_t i = 0; i < sizeof(available_interfaces) /
       sizeof(available_interfaces[0]); i++) {
@@ -266,6 +261,16 @@ init(void)
           return 0;
         }
       }
+    }
+  }
+
+  /* NOTE the default channel of the first available interface is set in `platform.c` */
+  if((sizeof(available_interfaces) / sizeof(available_interfaces[0])) > 1) {
+    for(uint8_t i = 1; i < sizeof(available_interfaces) /
+        sizeof(available_interfaces[0]); i++) {
+      /* TODO we should check if setting the channel of the interface
+         is successful before continuing and if not, do something. */
+      available_interfaces[i]->set_value(RADIO_PARAM_CHANNEL, IEEE802154_DEFAULT_CHANNEL);
     }
   }
 
@@ -324,13 +329,31 @@ pending_packet(void)
 static int
 on(void)
 {
+#if MAC_CONF_WITH_TWOFACED
+  uint8_t is_on = 1;
+  for(uint8_t i = 0; i < sizeof(available_interfaces) /
+      sizeof(available_interfaces[0]); i++) {
+    is_on = is_on && available_interfaces[i]->on();
+  }
+  return is_on;
+#else /* MAC_CONF_WITH_TWOFACED */
   return selected_interface->on();
+#endif /* MAC_CONF_WITH_TWOFACED */
 }
 /*---------------------------------------------------------------------------*/
 static int
 off(void)
 {
+#if MAC_CONF_WITH_TWOFACED
+  uint8_t is_off = 1;
+  for(uint8_t i = 0; i < sizeof(available_interfaces) /
+      sizeof(available_interfaces[0]); i++) {
+    is_off = is_off && available_interfaces[i]->off();
+  }
+  return is_off;
+#else /* MAC_CONF_WITH_TWOFACED */
   return selected_interface->off();
+#endif /* MAC_CONF_WITH_TWOFACED */
 }
 /*---------------------------------------------------------------------------*/
 static radio_result_t
@@ -435,6 +458,7 @@ unlock_interface(void)
 static int
 prepare_all(const void *payload, unsigned short payload_len)
 {
+  /* TODO */
   /* returns 1 if unsuccesful */
   return 1;
 }
@@ -442,12 +466,14 @@ prepare_all(const void *payload, unsigned short payload_len)
 static int
 transmit_all(unsigned short transmit_len)
 {
+  /* TODO */
   return RADIO_TX_ERR;
 }
 /*---------------------------------------------------------------------------*/
 static int
 send_all(const void *payload, unsigned short payload_len)
 {
+  /* TODO */
   return RADIO_TX_ERR;
 }
 /*---------------------------------------------------------------------------*/

@@ -823,7 +823,7 @@ struct radio_driver {
                                 size_t size);
 
   /**
-   * Lock the current interface.
+   * Lock the currently selected interface.
    * 
    * \retval true Locking succeeded
    * \retval false Locking failed (the interface is already locked)
@@ -831,11 +831,33 @@ struct radio_driver {
   int (* lock_interface)(void);
 
   /**
-   * Unlock the current interface.
+   * Unlock the currently selected interface.
    */
   void (* unlock_interface)(void);
 
+  /**
+   * Prepare all underlying radios with a packet to be sent.
+   *
+   * \param payload A pointer to the location of the packet
+   * \param payload_len The length of the packet to be sent
+   * \retval 0 Packet copied successfully
+   * \retval 1 The packet could not be copied
+   *
+   * This function works in similar fashion to `prepare()`, i.e., it is 
+   * expected to copy `payload_len` bytes from the location pointed to by 
+   * `payload` to locations internal to each underlying radio driver.
+   */
   int (* prepare_all)(const void *payload, unsigned short payload_len);
+
+  /**
+   * Send the packet that has previously been prepared over all 
+   * underlying radios.
+   *
+   * \param transmit_len The number of bytes to transmit
+   * \return This function will return one of the radio_tx_e enumerators
+   *
+   * This function works in similar fashion to `transmit()`.
+   */
   int (* transmit_all)(unsigned short transmit_len);
 
   /**
@@ -845,13 +867,41 @@ struct radio_driver {
    * \param payload_len The length of the packet to be sent
    * \return This function will return one of the radio_tx_e enumerators
    *
-   * This function shall behave exactly as a call to `prepare_all()`, immediately
-   * followed by a call to `transmit_all()`.
+   * This function shall behave exactly as a call to `prepare_all()`, 
+   * immediately followed by a call to `transmit_all()`.
    */
   int (* send_all)(const void *payload, unsigned short payload_len);
 
+  /**
+   * Perform a Clear-Channel Assessment (CCA) on all underlying interfaces
+   * to find out if there is a packet in the air or not.
+   *
+   * \retval 0 The channel is busy
+   * \retval 1 The channel is clear
+   *
+   * This function works in similar fashion to `channel_clear()`.
+   */
   int (* channel_clear_all)(void);
+
+  /**
+   * Check if any underlying radio driver is currently receiving a packet.
+   *
+   * \retval 1 Reception of a packet is in progress
+   * \retval 0 No reception in progress
+   *
+   * This function works in similar fashion to `receiving_packet()`.
+   */
   int (* receiving_packet_all)(void);
+
+  /**
+   * Check if a packet has been received and is available in the buffer of
+   * any underlying radio driver.
+   *
+   * \retval 1 One (or more) packet(s) is (are) available
+   * \retval 0 No packets available
+   *
+   * This function works in similar fashion to `pending_packet()`.
+   */
   int (* pending_packet_all)(void);
   
   /**

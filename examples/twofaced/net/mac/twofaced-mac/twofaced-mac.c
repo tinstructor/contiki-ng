@@ -101,7 +101,8 @@ init(void)
   }
 
   /* TODO even though we just checked the multi-rf capabilities of the radio driver,
-     make sure that the interface lock / unlock function pointers aren't NULL */
+     make sure that the interface lock / unlock function pointers aren't NULL. Perform
+     the same check for all other multi-rf related radio driver functions! */
 
   /* Check that the radio can correctly report its max supported payload */
   if(NETSTACK_RADIO.get_value(RADIO_CONST_MAX_PAYLOAD_LEN, &radio_max_payload_len) != RADIO_RESULT_OK) {
@@ -116,6 +117,8 @@ init(void)
      mode and disable said mode if necessary */
 
   twofaced_mac_output_init();
+  /* Turns on all underlying radios when used in conjunction
+     with a twofaced_rf_driver (platform-specific) */
   on();
 }
 /*---------------------------------------------------------------------------*/
