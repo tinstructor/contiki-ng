@@ -39,6 +39,11 @@
 #ifndef TWOFACED_RF_TYPES_H_
 #define TWOFACED_RF_TYPES_H_
 
-/* TODO define generic types here */
+#include "dev/radio.h"
+
+typedef struct twofaced_rf_interface {
+  const struct radio_driver *interface;
+  const uint8_t interface_id;
+} twofaced_rf_interface_t;
 
 #endif /* TWOFACED_RF_TYPES_H_ */

@@ -195,19 +195,20 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
 
       if(metadata->all_ifs == 0) {
         /* TODO select outgoing interface here based on metadata->if_id */
+        radio_value_t iid;
+        NETSTACK_RADIO.get_value(RADIO_CONST_INTERFACE_ID, &iid);
+        if((iid != metadata->if_id) && (metadata->if_id != 0)) {
+          LOG_DBG("Selecting interface with ID = %d (previously %d)\n", metadata->if_id, iid);
+        } else {
+          LOG_DBG("Interface with ID = %d already selected\n", iid);
+        }
         NETSTACK_RADIO.prepare(packetbuf_hdrptr(), packetbuf_totlen());
       } else {
-        /* We've already made sure that the radio driver is multi-rf
-           capable and its multi-rf related function pointers aren't
-           NULL. Hence, we don't need to repeat that check here. */
         NETSTACK_RADIO.prepare_all(packetbuf_hdrptr(), packetbuf_totlen());
       }
 
       is_broadcast = packetbuf_holds_broadcast();
 
-      /* We've already made sure that the radio driver is multi-rf
-         capable and its multi-rf related function pointers aren't
-         NULL. Hence, we don't need to repeat that check here. */
       if(NETSTACK_RADIO.receiving_packet_all() ||
          (!is_broadcast && NETSTACK_RADIO.pending_packet_all())) {
 
@@ -219,8 +220,6 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
         LOG_DBG("Unlocking RF lock before tx attempt\n");
         NETSTACK_RADIO.unlock_interface();
       } else {
-        /* Check metadata->all_ifs flag here and call NETSTACK_RADIO.transmit()
-           when it's not set and NETSTACK_RADIO.transmit_all() when it is set */
         radio_result_t foo = RADIO_TX_ERR;
         if(metadata->all_ifs == 0) {
           foo = NETSTACK_RADIO.transmit(packetbuf_totlen());
