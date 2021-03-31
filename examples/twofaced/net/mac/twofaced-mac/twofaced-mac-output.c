@@ -157,6 +157,13 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
 {
   int ret;
   int last_sent_ok = 0;
+  struct qbuf_metadata *metadata;
+
+  /* We require the metadata of the packet to be sent because it contains
+     a flag that indicates whether or not the packet must be transmitted
+     across a single (i.e., the selected) interface (when the flag is 0)
+     or all available interfaces (when the flag is 1) */
+  metadata = (struct qbuf_metadata *)pq->metadata;
 
   /* NOTE when initializing this MAC layer, we must have made sure that the
      underlying radio driver is multi-rf capable and its interface locking /
@@ -186,13 +193,21 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
       uint8_t dsn;
       dsn = ((uint8_t *)packetbuf_hdrptr())[2] & 0xff;
 
-      NETSTACK_RADIO.prepare(packetbuf_hdrptr(), packetbuf_totlen());
+      if(metadata->all_ifs == 0) {
+        /* TODO select outgoing interface here based on metadata->if_id */
+        NETSTACK_RADIO.prepare(packetbuf_hdrptr(), packetbuf_totlen());
+      } else {
+        /* We've already made sure that the radio driver is multi-rf
+           capable and its multi-rf related function pointers aren't
+           NULL. Hence, we don't need to repeat that check here. */
+        NETSTACK_RADIO.prepare_all(packetbuf_hdrptr(), packetbuf_totlen());
+      }
 
       is_broadcast = packetbuf_holds_broadcast();
 
-      /* NOTE we've already made sure that the radio driver is multi-rf
-         capable and its multi-rf related function pointers aren't NULL.
-         Hence, we don't need to repeat that check here. */
+      /* We've already made sure that the radio driver is multi-rf
+         capable and its multi-rf related function pointers aren't
+         NULL. Hence, we don't need to repeat that check here. */
       if(NETSTACK_RADIO.receiving_packet_all() ||
          (!is_broadcast && NETSTACK_RADIO.pending_packet_all())) {
 
@@ -204,7 +219,14 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
         LOG_DBG("Unlocking RF lock before tx attempt\n");
         NETSTACK_RADIO.unlock_interface();
       } else {
-        radio_result_t foo = NETSTACK_RADIO.transmit(packetbuf_totlen());
+        /* Check metadata->all_ifs flag here and call NETSTACK_RADIO.transmit()
+           when it's not set and NETSTACK_RADIO.transmit_all() when it is set */
+        radio_result_t foo = RADIO_TX_ERR;
+        if(metadata->all_ifs == 0) {
+          foo = NETSTACK_RADIO.transmit(packetbuf_totlen());
+        } else {
+          foo = NETSTACK_RADIO.transmit_all(packetbuf_totlen());
+        }
         RTIMER_BUSYWAIT(RTIMER_SECOND / 200);
         switch(foo) {
         case RADIO_TX_OK:
@@ -544,6 +566,8 @@ twofaced_mac_output(mac_callback_t sent_callback, void *ptr)
               /* If not set by the application, use the default value */
               metadata->max_tx = TWOFACED_MAC_MAX_FRAME_RETRIES + 1;
             }
+            metadata->all_ifs = packetbuf_attr(PACKETBUF_ATTR_ALL_INTERFACES);
+            metadata->if_id = packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID);
             metadata->sent_callback = sent_callback;
             metadata->ptr = ptr; /* REVIEW what does this even point to? */
             /* Add entry to the "packet list" of neighbor list entry */

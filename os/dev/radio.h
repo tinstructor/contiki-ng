@@ -406,6 +406,11 @@ enum radio_param_e {
    * `RADIO_MULTI_RF_EN`, which indicates the opposite.
    */
   RADIO_CONST_MULTI_RF,
+
+  /**
+   * The interface identifier of the radio.
+   */
+  RADIO_CONST_INTERFACE_ID,
 };
 
 /**

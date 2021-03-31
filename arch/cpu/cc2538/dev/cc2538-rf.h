@@ -78,6 +78,12 @@
 #else
 #define CC2538_RF_AUTOACK 1
 #endif /* CC2538_RF_CONF_AUTOACK */
+
+#ifdef CC2538_CONF_INTERFACE_ID
+#define CC2538_INTERFACE_ID CC2538_CONF_INTERFACE_ID
+#else
+#define CC2538_INTERFACE_ID 0
+#endif /* CC2538_CONF_INTERFACE_ID */
 /*---------------------------------------------------------------------------
  * Command Strobe Processor
  *---------------------------------------------------------------------------*/

@@ -278,6 +278,11 @@ dis_output(uip_ipaddr_t *addr)
   LOG_INFO_6ADDR(addr);
   LOG_INFO_("\n");
 
+  if(uip_is_addr_mcast(addr)) {
+    LOG_DBG("Setting the UIPBUF_ATTR_FLAGS_ALL_INTERFACES flag\n");
+    uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES);
+  }
+
   uip_icmp6_send(addr, ICMP6_RPL, RPL_CODE_DIS, 2);
 }
 /*---------------------------------------------------------------------------*/
@@ -617,6 +622,8 @@ dio_output(rpl_instance_t *instance, uip_ipaddr_t *uc_addr)
     LOG_INFO("Sending a multicast-DIO with rank %u\n",
            (unsigned)instance->current_dag->rank);
     uip_create_linklocal_rplnodes_mcast(&addr);
+    LOG_DBG("Setting the UIPBUF_ATTR_FLAGS_ALL_INTERFACES flag\n");
+    uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES);
     uip_icmp6_send(&addr, ICMP6_RPL, RPL_CODE_DIO, pos);
   } else {
     LOG_INFO("Sending unicast-DIO with rank %u to ",

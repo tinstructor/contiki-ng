@@ -151,6 +151,15 @@
 #endif
 /*---------------------------------------------------------------------------*/
 /*
+ * The radio's interface identifier. 
+ */
+#ifdef CC1200_CONF_INTERFACE_ID
+#define CC1200_INTERFACE_ID     CC1200_CONF_INTERFACE_ID
+#else
+#define CC1200_INTERFACE_ID     0
+#endif
+/*---------------------------------------------------------------------------*/
+/*
  * Wether to use auto calibration or not.
  *
  * If set to 0, calibration is performed manually when turning the radio

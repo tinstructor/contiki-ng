@@ -46,6 +46,8 @@
 #define TWOFACED_RF_AVAILABLE_IFS TWOFACED_RF_CONF_AVAILABLE_IFS
 #else /* TWOFACED_RF_CONF_AVAILABLE_IFS */
 #define TWOFACED_RF_AVAILABLE_IFS { &cc2538_rf_driver, &cc1200_driver }
+#define CC2538_CONF_INTERFACE_ID 0
+#define CC1200_CONF_INTERFACE_ID 1
 #endif /* TWOFACED_RF_CONF_AVAILABLE_IFS */
 
 /* TODO add documentation for function prototypes */

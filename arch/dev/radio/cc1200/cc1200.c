@@ -657,6 +657,7 @@ pollhandler(void)
 
     if(len > 0) {
       packetbuf_set_datalen(len);
+      packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, CC1200_INTERFACE_ID);
       NETSTACK_MAC.input();
     }
 
@@ -1360,6 +1361,10 @@ get_value(radio_param_t param, radio_value_t *value)
   case RADIO_CONST_MAX_PAYLOAD_LEN:
     *value = (radio_value_t)CC1200_MAX_PAYLOAD_LEN;
     return RADIO_RESULT_OK;
+
+  case RADIO_CONST_INTERFACE_ID:
+    *value = (radio_value_t)CC1200_INTERFACE_ID;
+     return RADIO_RESULT_OK;
 
   default:
 

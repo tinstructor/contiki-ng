@@ -40,6 +40,7 @@
 #include "dev/radio/twofaced-rf/twofaced-rf-types.h"
 #include "dev/radio/twofaced-rf/twofaced-rf-conf.h"
 #include "net/netstack.h"
+#include "net/packetbuf.h"
 #include "sys/mutex.h"
 
 #include <string.h>
@@ -305,6 +306,7 @@ send(const void *payload, unsigned short payload_len)
 static int
 read(void *buf, unsigned short buf_len)
 {
+  // packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, );
   return selected_interface->read(buf, buf_len);
 }
 /*---------------------------------------------------------------------------*/
@@ -470,11 +472,15 @@ prepare_all(const void *payload, unsigned short payload_len)
 static int
 transmit_all(unsigned short transmit_len)
 {
-  /* NOTE this function must be given extremely careful consideration because
+  /* REVIEW this function must be given extremely careful consideration because
      the MAC layer will likely base a large part of its actions on the return
      value. As such, we can't simply return RADIO_TX_ERR if the tx function
      of a single underlying radio driver didn't return RADIO_TX_OK */
-  return RADIO_TX_ERR;
+  for(uint8_t i = 0; i < sizeof(available_interfaces) /
+      sizeof(available_interfaces[0]); i++) {
+    available_interfaces[i]->transmit(transmit_len);
+  }
+  return RADIO_TX_OK;
 }
 /*---------------------------------------------------------------------------*/
 static int

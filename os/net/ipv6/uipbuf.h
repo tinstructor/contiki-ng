@@ -186,6 +186,8 @@ void uipbuf_init(void);
 #define UIPBUF_ATTR_FLAGS_6LOWPAN_NO_NHC_COMPRESSION      0x01
 /* Avoid using prefix compression on the packet (6LoWPAN) */
 #define UIPBUF_ATTR_FLAGS_6LOWPAN_NO_PREFIX_COMPRESSION   0x02
+/* The packet must be sent accross all available interfaces */
+#define UIPBUF_ATTR_FLAGS_ALL_INTERFACES                  0x04
 
 /* MAC will set the default for this packet */
 #define UIPBUF_ATTR_LLSEC_LEVEL_MAC_DEFAULT               0xffff

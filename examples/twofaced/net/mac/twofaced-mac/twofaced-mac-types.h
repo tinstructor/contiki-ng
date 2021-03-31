@@ -51,6 +51,8 @@ struct qbuf_metadata {
   mac_callback_t sent_callback;
   void *ptr;
   uint8_t max_tx;
+  uint8_t all_ifs;
+  uint8_t if_id
 };
 
 /* An entry in a neighbor queue */

@@ -1642,6 +1642,14 @@ output(const linkaddr_t *localdest)
   }
 
   LOG_INFO("output: sending IPv6 packet with len %d\n", uip_len);
+  
+  /* copy the multi-interface tx flag from its corresponding uipbuf flag */
+  packetbuf_set_attr(PACKETBUF_ATTR_ALL_INTERFACES,
+                     uipbuf_is_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES));
+
+  /* copy the id of the interface to send the packet on from uipbuf attributes */
+  packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID,
+                     uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID));
 
   /* copy over the retransmission count from uipbuf attributes */
   packetbuf_set_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS,
@@ -2105,6 +2113,10 @@ input(void)
       packetbuf_attr(PACKETBUF_ATTR_KEY_INDEX));
 #endif /* LLSEC802154_USES_EXPLICIT_KEYS */
 #endif /*  LLSEC802154_USES_AUX_HEADER */
+
+    /* copy the id of the interface on which the packet was received */
+    uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID,
+                    packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID));
 
     tcpip_input();
 #if SICSLOWPAN_CONF_FRAG
