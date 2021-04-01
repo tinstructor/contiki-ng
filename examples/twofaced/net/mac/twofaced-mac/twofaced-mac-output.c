@@ -158,12 +158,34 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
   int ret;
   int last_sent_ok = 0;
   struct qbuf_metadata *metadata;
+  radio_value_t iid;
 
   /* We require the metadata of the packet to be sent because it contains
      a flag that indicates whether or not the packet must be transmitted
      across a single (i.e., the selected) interface (when the flag is 0)
      or all available interfaces (when the flag is 1) */
   metadata = (struct qbuf_metadata *)pq->metadata;
+
+  if(metadata->all_ifs == 0) {
+    if(NETSTACK_RADIO.get_value(RADIO_CONST_INTERFACE_ID, &iid) == RADIO_RESULT_OK) {
+      if(iid != metadata->if_id) {
+        if(NETSTACK_RADIO.set_value(RADIO_PARAM_SEL_IF_ID, metadata->if_id) == RADIO_RESULT_OK) {
+          LOG_DBG("Selected interface with ID = %d (previously %d)\n", metadata->if_id, iid);
+        } else {
+          LOG_DBG("Failed selecting interface with ID = %d, keeping current (ID = %d)\n",
+                  metadata->if_id, iid);
+        }
+      } else {
+        LOG_DBG("Interface with ID = %d already selected\n", iid);
+      }
+    } else {
+      if(NETSTACK_RADIO.set_value(RADIO_PARAM_SEL_IF_ID, metadata->if_id) == RADIO_RESULT_OK) {
+        LOG_DBG("Selected interface with ID = %d\n", metadata->if_id);
+      } else {
+        LOG_DBG("Failed selecting interface with ID = %d, keeping current\n", metadata->if_id);
+      }
+    }
+  }
 
   /* NOTE when initializing this MAC layer, we must have made sure that the
      underlying radio driver is multi-rf capable and its interface locking /
@@ -194,14 +216,6 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
       dsn = ((uint8_t *)packetbuf_hdrptr())[2] & 0xff;
 
       if(metadata->all_ifs == 0) {
-        /* TODO select outgoing interface here based on metadata->if_id */
-        radio_value_t iid;
-        NETSTACK_RADIO.get_value(RADIO_CONST_INTERFACE_ID, &iid);
-        if((iid != metadata->if_id) && (metadata->if_id != 0)) {
-          LOG_DBG("Selecting interface with ID = %d (previously %d)\n", metadata->if_id, iid);
-        } else {
-          LOG_DBG("Interface with ID = %d already selected\n", iid);
-        }
         NETSTACK_RADIO.prepare(packetbuf_hdrptr(), packetbuf_totlen());
       } else {
         NETSTACK_RADIO.prepare_all(packetbuf_hdrptr(), packetbuf_totlen());
@@ -222,8 +236,14 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
       } else {
         radio_result_t foo = RADIO_TX_ERR;
         if(metadata->all_ifs == 0) {
+          /* The reason why we retrieve the idd directly from NETSTACK_RADIO here
+             is because it's the safest bet and the interfaces are locked anyway */
+          if(NETSTACK_RADIO.get_value(RADIO_CONST_INTERFACE_ID, &iid) == RADIO_RESULT_OK) {
+            LOG_DBG("Attempting tx on interface with ID = %d\n", iid);
+          }
           foo = NETSTACK_RADIO.transmit(packetbuf_totlen());
         } else {
+          LOG_DBG("Attempting tx on all available interfaces\n");
           foo = NETSTACK_RADIO.transmit_all(packetbuf_totlen());
         }
         RTIMER_BUSYWAIT(RTIMER_SECOND / 200);
@@ -231,6 +251,10 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
         case RADIO_TX_OK:
           if(is_broadcast) {
             ret = MAC_TX_OK;
+            /* } else if(metadata->all_ifs != 0) { */
+            /* TODO when the packet is not a MAC broadcast and it still had to be transmitted
+               accross all interfaces (as indicated by metadata->all_ifs != 0), then we must
+               try and receive an ack on all interfaces! */
           } else {
             /* Check for ack */
 
@@ -257,7 +281,8 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
                 len = NETSTACK_RADIO.read(ackbuf, TWOFACED_MAC_ACK_LEN);
                 if(len == TWOFACED_MAC_ACK_LEN && ackbuf[2] == dsn) {
                   /* Ack received */
-                  LOG_DBG("ACK received\n");
+                  LOG_DBG("ACK received on interface with ID = %d\n",
+                          packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID));
                   ret = MAC_TX_OK;
                 } else {
                   /* Not an ack or ack not for us: collision */

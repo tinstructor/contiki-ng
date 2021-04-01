@@ -306,7 +306,7 @@ send(const void *payload, unsigned short payload_len)
 static int
 read(void *buf, unsigned short buf_len)
 {
-  // packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, );
+  /* packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, ); */
   return selected_interface->read(buf, buf_len);
 }
 /*---------------------------------------------------------------------------*/
@@ -386,7 +386,7 @@ static radio_result_t
 set_value(radio_param_t param, radio_value_t value)
 {
   switch(param) {
-  case RADIO_PARAM_SEL_IF:
+  case RADIO_PARAM_SEL_IF_DESC:
   case RADIO_PARAM_64BIT_ADDR:
     return RADIO_RESULT_NOT_SUPPORTED;
   case RADIO_PARAM_RX_MODE:
@@ -403,6 +403,20 @@ set_value(radio_param_t param, radio_value_t value)
       available_interfaces[i]->set_value(param, value);
     }
     return RADIO_RESULT_OK;
+  case RADIO_PARAM_SEL_IF_ID:
+    if(value != 0) {
+      for(uint8_t i = 0; i < sizeof(available_interfaces) /
+          sizeof(available_interfaces[0]); i++) {
+        radio_value_t iid;
+        if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID, &iid) == RADIO_RESULT_OK) {
+          if(iid == value) {
+            selected_interface = available_interfaces[i];
+            return RADIO_RESULT_OK;
+          }
+        }
+      }
+    }
+    return RADIO_RESULT_INVALID_VALUE;
   case RADIO_PARAM_CHANNEL:
   default:
     return selected_interface->set_value(param, value);
@@ -413,7 +427,7 @@ static radio_result_t
 get_object(radio_param_t param, void *dest, size_t size)
 {
   switch(param) {
-  case RADIO_PARAM_SEL_IF:
+  case RADIO_PARAM_SEL_IF_DESC:
     if(size < strlen(selected_interface->driver_descriptor) + 1) {
       return RADIO_RESULT_ERROR;
     }
@@ -431,8 +445,9 @@ set_object(radio_param_t param, const void *src, size_t size)
   case RADIO_PARAM_PAN_ID:
   case RADIO_PARAM_16BIT_ADDR:
   case RADIO_PARAM_CHANNEL:
+  case RADIO_PARAM_SEL_IF_ID:
     return RADIO_RESULT_NOT_SUPPORTED;
-  case RADIO_PARAM_SEL_IF:
+  case RADIO_PARAM_SEL_IF_DESC:
     return set_interface((char *)src, size);
   case RADIO_PARAM_64BIT_ADDR:
     for(uint8_t i = 0; i < sizeof(available_interfaces) /

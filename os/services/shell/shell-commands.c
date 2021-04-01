@@ -946,10 +946,10 @@ PT_THREAD(cmd_set_radio(struct pt *pt, shell_output_func output, char *args))
     SHELL_OUTPUT(output, "Provide the descriptor of the radio driver to select\n");
     PT_EXIT(pt);
   } else {
-    foo = NETSTACK_RADIO.set_object(RADIO_PARAM_SEL_IF, args, strlen(args) + 1);
+    foo = NETSTACK_RADIO.set_object(RADIO_PARAM_SEL_IF_DESC, args, strlen(args) + 1);
     if(foo == RADIO_RESULT_OK) {
       char sel_if_desc[32];
-      if(NETSTACK_RADIO.get_object(RADIO_PARAM_SEL_IF, sel_if_desc, sizeof(sel_if_desc) /
+      if(NETSTACK_RADIO.get_object(RADIO_PARAM_SEL_IF_DESC, sel_if_desc, sizeof(sel_if_desc) /
                                    sizeof(sel_if_desc[0])) == RADIO_RESULT_OK) {
         SHELL_OUTPUT(output, "Radio driver changed to: %s\n", sel_if_desc);
       } else {
@@ -974,7 +974,7 @@ PT_THREAD(cmd_get_radio(struct pt *pt, shell_output_func output, char *args))
   PT_BEGIN(pt);
 
   char sel_if_desc[32];
-  if(NETSTACK_RADIO.get_object(RADIO_PARAM_SEL_IF, sel_if_desc, sizeof(sel_if_desc) /
+  if(NETSTACK_RADIO.get_object(RADIO_PARAM_SEL_IF_DESC, sel_if_desc, sizeof(sel_if_desc) /
                                sizeof(sel_if_desc[0])) == RADIO_RESULT_OK) {
     SHELL_OUTPUT(output, "Current radio driver / subdriver: %s (%s)\n",
                  NETSTACK_RADIO.driver_descriptor, sel_if_desc);

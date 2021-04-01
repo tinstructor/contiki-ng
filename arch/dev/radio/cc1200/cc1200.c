@@ -657,7 +657,6 @@ pollhandler(void)
 
     if(len > 0) {
       packetbuf_set_datalen(len);
-      packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, CC1200_INTERFACE_ID);
       NETSTACK_MAC.input();
     }
 
@@ -975,6 +974,7 @@ read(void *buf, unsigned short buf_len)
       /* Mask out CRC bit */
       packetbuf_set_attr(PACKETBUF_ATTR_LINK_QUALITY,
                          crc_lqi & ~(1 << 7));
+      packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, CC1200_INTERFACE_ID);
     }
 
   }

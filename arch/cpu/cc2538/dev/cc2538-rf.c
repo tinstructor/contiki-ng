@@ -812,6 +812,7 @@ read(void *buf, unsigned short bufsize)
   if(crc_corr & CRC_BIT_MASK) {
     packetbuf_set_attr(PACKETBUF_ATTR_RSSI, rssi);
     packetbuf_set_attr(PACKETBUF_ATTR_LINK_QUALITY, crc_corr & LQI_BIT_MASK);
+    packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, CC2538_INTERFACE_ID);
   } else {
     LOG_ERR("Bad CRC\n");
     CC2538_RF_CSP_ISFLUSHRX();
@@ -1138,7 +1139,6 @@ PROCESS_THREAD(cc2538_rf_process, ev, data)
 
       if(len > 0) {
         packetbuf_set_datalen(len);
-        packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, CC2538_INTERFACE_ID);
         NETSTACK_MAC.input();
       }
 #if MAC_CONF_WITH_TWOFACED

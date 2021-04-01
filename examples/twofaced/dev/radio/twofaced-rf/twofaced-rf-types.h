@@ -41,9 +41,6 @@
 
 #include "dev/radio.h"
 
-typedef struct twofaced_rf_interface {
-  const struct radio_driver *interface;
-  const uint8_t interface_id;
-} twofaced_rf_interface_t;
+/* TODO add generic type definitions here */
 
 #endif /* TWOFACED_RF_TYPES_H_ */

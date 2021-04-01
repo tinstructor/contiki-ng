@@ -318,7 +318,9 @@ enum radio_param_e {
    * interface of a given type and as such the terms "interface" and "radio
    * driver" are considered to have identical meaning.
    */
-  RADIO_PARAM_SEL_IF,
+  RADIO_PARAM_SEL_IF_DESC,
+
+  RADIO_PARAM_SEL_IF_ID,
 
   /* Constants (read only) */
 

@@ -488,6 +488,8 @@ handle_probing_timer(void *ptr)
       );
 
     /* Send probe, e.g. unicast DIO or DIS */
+    LOG_DBG("Setting the UIPBUF_ATTR_FLAGS_ALL_INTERFACES flag\n");
+    uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES);
     RPL_PROBING_SEND_FUNC(instance, target_ipaddr);
   }
 

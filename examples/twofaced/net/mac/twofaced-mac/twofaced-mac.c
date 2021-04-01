@@ -131,6 +131,8 @@ send(mac_callback_t sent_callback, void *ptr)
 static void
 input(void)
 {
+  LOG_DBG("Packet received on interface with ID = %d\n",
+          packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID));
   if(packetbuf_datalen() == TWOFACED_MAC_ACK_LEN) {
     /* Ignore ack packets */
     LOG_DBG("ignored ack\n");
@@ -158,7 +160,8 @@ input(void)
     if(!duplicate) {
       LOG_INFO("received packet from ");
       LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_SENDER));
-      LOG_INFO_(", seqno %u, len %u\n", packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO), packetbuf_datalen());
+      LOG_INFO_(", seqno %u, len %u\n", packetbuf_attr(PACKETBUF_ATTR_MAC_SEQNO),
+                packetbuf_datalen());
       NETSTACK_NETWORK.input();
     }
   }
