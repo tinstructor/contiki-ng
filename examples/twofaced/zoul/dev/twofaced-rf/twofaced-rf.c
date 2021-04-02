@@ -111,9 +111,9 @@ static radio_result_t set_if_via_desc(const char *descriptor, size_t size);
 /*---------------------------------------------------------------------------*/
 /**
  * @brief Set the currently selected interface.
- * 
+ *
  * @param if_id identifier of the interface to select
- * @return radio_result_t 
+ * @return radio_result_t
  */
 static radio_result_t set_if_via_id(uint8_t if_id);
 /*---------------------------------------------------------------------------*/
@@ -204,8 +204,9 @@ set_if_via_desc(const char *descriptor, size_t size)
 #endif /* MAC_CONF_WITH_TWOFACED */
 }
 /*---------------------------------------------------------------------------*/
-static radio_result_t 
-set_if_via_id(uint8_t if_id) {
+static radio_result_t
+set_if_via_id(uint8_t if_id)
+{
   /* REVIEW for now, this preprocessor check is good enough to verify that
      the above MAC layer even knows about the multi-rf capabilities of this PHY
      layer abstraction. Otherwise it doesn't make sense to allow switching
@@ -218,7 +219,7 @@ set_if_via_id(uint8_t if_id) {
   for(uint8_t i = 0; i < sizeof(available_interfaces) /
       sizeof(available_interfaces[0]); i++) {
     radio_value_t temp_if_id;
-    if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID, 
+    if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID,
                                           &temp_if_id) == RADIO_RESULT_OK) {
       if(if_id == temp_if_id) {
         selected_interface = available_interfaces[i];
@@ -339,7 +340,6 @@ send(const void *payload, unsigned short payload_len)
 static int
 read(void *buf, unsigned short buf_len)
 {
-  /* packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, ); */
   return selected_interface->read(buf, buf_len);
 }
 /*---------------------------------------------------------------------------*/
@@ -461,7 +461,7 @@ get_object(radio_param_t param, void *dest, size_t size)
       radio_value_t if_id;
       for(uint8_t i = 0; i < sizeof(available_interfaces) /
           sizeof(available_interfaces[0]); i++) {
-        if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID, 
+        if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID,
                                               &if_id) == RADIO_RESULT_OK) {
           /* TODO only add if_id if it's not already in list */
           if_id_collection->if_id_list[list_index] = (uint8_t)if_id;
