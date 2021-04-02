@@ -158,7 +158,7 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
   int ret;
   int last_sent_ok = 0;
   struct qbuf_metadata *metadata;
-  radio_value_t iid;
+  radio_value_t if_id;
 
   /* We require the metadata of the packet to be sent because it contains
      a flag that indicates whether or not the packet must be transmitted
@@ -166,17 +166,17 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
      or all available interfaces (when the flag is 1) */
   metadata = (struct qbuf_metadata *)pq->metadata;
 
-  if(metadata->all_ifs == 0) {
-    if(NETSTACK_RADIO.get_value(RADIO_CONST_INTERFACE_ID, &iid) == RADIO_RESULT_OK) {
-      if(iid != metadata->if_id) {
+  if(metadata->if_id != 0) {
+    if(NETSTACK_RADIO.get_value(RADIO_CONST_INTERFACE_ID, &if_id) == RADIO_RESULT_OK) {
+      if(if_id != metadata->if_id) {
         if(NETSTACK_RADIO.set_value(RADIO_PARAM_SEL_IF_ID, metadata->if_id) == RADIO_RESULT_OK) {
-          LOG_DBG("Selected interface with ID = %d (previously %d)\n", metadata->if_id, iid);
+          LOG_DBG("Selected interface with ID = %d (previously %d)\n", metadata->if_id, if_id);
         } else {
           LOG_DBG("Failed selecting interface with ID = %d, keeping current (ID = %d)\n",
-                  metadata->if_id, iid);
+                  metadata->if_id, if_id);
         }
       } else {
-        LOG_DBG("Interface with ID = %d already selected\n", iid);
+        LOG_DBG("Interface with ID = %d already selected\n", if_id);
       }
     } else {
       if(NETSTACK_RADIO.set_value(RADIO_PARAM_SEL_IF_ID, metadata->if_id) == RADIO_RESULT_OK) {
@@ -185,6 +185,8 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
         LOG_DBG("Failed selecting interface with ID = %d, keeping current\n", metadata->if_id);
       }
     }
+  } else {
+    LOG_DBG("Selecting interface with ID = 0 is not allowed here\n");
   }
 
   /* NOTE when initializing this MAC layer, we must have made sure that the
@@ -215,11 +217,7 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
       uint8_t dsn;
       dsn = ((uint8_t *)packetbuf_hdrptr())[2] & 0xff;
 
-      if(metadata->all_ifs == 0) {
-        NETSTACK_RADIO.prepare(packetbuf_hdrptr(), packetbuf_totlen());
-      } else {
-        NETSTACK_RADIO.prepare_all(packetbuf_hdrptr(), packetbuf_totlen());
-      }
+      NETSTACK_RADIO.prepare(packetbuf_hdrptr(), packetbuf_totlen());
 
       is_broadcast = packetbuf_holds_broadcast();
 
@@ -234,27 +232,18 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
         LOG_DBG("Unlocking RF lock before tx attempt\n");
         NETSTACK_RADIO.unlock_interface();
       } else {
-        radio_result_t foo = RADIO_TX_ERR;
-        if(metadata->all_ifs == 0) {
-          /* The reason why we retrieve the idd directly from NETSTACK_RADIO here
-             is because it's the safest bet and the interfaces are locked anyway */
-          if(NETSTACK_RADIO.get_value(RADIO_CONST_INTERFACE_ID, &iid) == RADIO_RESULT_OK) {
-            LOG_DBG("Attempting tx on interface with ID = %d\n", iid);
-          }
-          foo = NETSTACK_RADIO.transmit(packetbuf_totlen());
-        } else {
-          LOG_DBG("Attempting tx on all available interfaces\n");
-          foo = NETSTACK_RADIO.transmit_all(packetbuf_totlen());
+        radio_result_t tx_res = RADIO_TX_ERR;
+        /* The reason why we retrieve the idd directly from NETSTACK_RADIO here
+           is because it's the safest bet and the interfaces are locked anyway */
+        if(NETSTACK_RADIO.get_value(RADIO_CONST_INTERFACE_ID, &if_id) == RADIO_RESULT_OK) {
+          LOG_DBG("Attempting tx on interface with ID = %d\n", if_id);
         }
+        tx_res = NETSTACK_RADIO.transmit(packetbuf_totlen());
         RTIMER_BUSYWAIT(RTIMER_SECOND / 200);
-        switch(foo) {
+        switch(tx_res) {
         case RADIO_TX_OK:
           if(is_broadcast) {
             ret = MAC_TX_OK;
-            /* } else if(metadata->all_ifs != 0) { */
-            /* TODO when the packet is not a MAC broadcast and it still had to be transmitted
-               accross all interfaces (as indicated by metadata->all_ifs != 0), then we must
-               try and receive an ack on all interfaces! */
           } else {
             /* Check for ack */
 
@@ -590,7 +579,6 @@ twofaced_mac_output(mac_callback_t sent_callback, void *ptr)
               /* If not set by the application, use the default value */
               metadata->max_tx = TWOFACED_MAC_MAX_FRAME_RETRIES + 1;
             }
-            metadata->all_ifs = packetbuf_attr(PACKETBUF_ATTR_ALL_INTERFACES);
             metadata->if_id = packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID);
             metadata->sent_callback = sent_callback;
             metadata->ptr = ptr; /* REVIEW what does this even point to? */

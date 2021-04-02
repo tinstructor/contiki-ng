@@ -87,12 +87,6 @@ static int lock_interface(void);
 /*---------------------------------------------------------------------------*/
 static void unlock_interface(void);
 /*---------------------------------------------------------------------------*/
-static int prepare_all(const void *payload, unsigned short payload_len);
-/*---------------------------------------------------------------------------*/
-static int transmit_all(unsigned short transmit_len);
-/*---------------------------------------------------------------------------*/
-static int send_all(const void *payload, unsigned short payload_len);
-/*---------------------------------------------------------------------------*/
 static int channel_clear_all(void);
 /*---------------------------------------------------------------------------*/
 static int receiving_packet_all(void);

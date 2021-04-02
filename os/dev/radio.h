@@ -58,6 +58,7 @@
 #define RADIO_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 /**
  * Each radio has a set of parameters that designate the current
@@ -320,6 +321,15 @@ enum radio_param_e {
    */
   RADIO_PARAM_SEL_IF_DESC,
 
+  /**
+   * To switch to another selected interface, based on its identifier
+   * 
+   * Manipulating this parameter is only relevant to radio drivers that return
+   * `RADIO_MULTI_RF_EN` when performing `get_value()` for RADIO_CONST_MULTI_RF,
+   * meaning they support multiple underlying interfaces / drivers.
+   * 
+   * This parameter may only be accessed through `set_value()`.
+   */
   RADIO_PARAM_SEL_IF_ID,
 
   /* Constants (read only) */
@@ -413,6 +423,17 @@ enum radio_param_e {
    * The interface identifier of the radio.
    */
   RADIO_CONST_INTERFACE_ID,
+
+  /**
+   * A collection of identifiers of all available interfaces.
+   * 
+   * This collection is only relevant to radio drivers that return
+   * `RADIO_MULTI_RF_EN` when performing `get_value()` for RADIO_CONST_MULTI_RF,
+   * meaning they support multiple underlying interfaces / drivers.
+   * 
+   * Retrieving the collection is only possible through `get_object()`.
+   */
+  RADIO_CONST_INTERFACE_ID_COLLECTION,
 };
 
 /**
@@ -460,6 +481,15 @@ enum radio_multi_rf_e {
   RADIO_MULTI_RF_DIS = 0, /**< Multi-rf is disabled */
   RADIO_MULTI_RF_EN = 1,  /**< Multi-rf is enabled */
 };
+
+/**
+ * A list of interface identifiers annotated with the number of identifiers
+ * in said list.
+ */
+typedef struct {
+  uint8_t if_id_list[UINT8_MAX];
+  uint8_t size;
+} if_id_collection_t;
 
 /*---------------------------------------------------------------------------*/
 /**
@@ -841,43 +871,6 @@ struct radio_driver {
    * Unlock the currently selected interface.
    */
   void (* unlock_interface)(void);
-
-  /**
-   * Prepare all underlying radios with a packet to be sent.
-   *
-   * \param payload A pointer to the location of the packet
-   * \param payload_len The length of the packet to be sent
-   * \retval 0 Packet copied successfully
-   * \retval 1 The packet could not be copied
-   *
-   * This function works in similar fashion to `prepare()`, i.e., it is 
-   * expected to copy `payload_len` bytes from the location pointed to by 
-   * `payload` to locations internal to each underlying radio driver.
-   */
-  int (* prepare_all)(const void *payload, unsigned short payload_len);
-
-  /**
-   * Send the packet that has previously been prepared over all 
-   * underlying radios.
-   *
-   * \param transmit_len The number of bytes to transmit
-   * \return This function will return one of the radio_tx_e enumerators
-   *
-   * This function works in similar fashion to `transmit()`.
-   */
-  int (* transmit_all)(unsigned short transmit_len);
-
-  /**
-   * Prepare & transmit a packet on all available interfaces.
-   *
-   * \param payload A pointer to the location of the packet
-   * \param payload_len The length of the packet to be sent
-   * \return This function will return one of the radio_tx_e enumerators
-   *
-   * This function shall behave exactly as a call to `prepare_all()`, 
-   * immediately followed by a call to `transmit_all()`.
-   */
-  int (* send_all)(const void *payload, unsigned short payload_len);
 
   /**
    * Perform a Clear-Channel Assessment (CCA) on all underlying interfaces

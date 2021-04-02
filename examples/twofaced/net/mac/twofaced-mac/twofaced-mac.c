@@ -43,6 +43,7 @@
 #include "net/ipv6/uip.h"
 #include "net/ipv6/tcpip.h"
 #include "net/packetbuf.h"
+#include "net/queuebuf.h"
 #include "net/mac/mac-sequence.h"
 #include "sys/mutex.h"
 
@@ -125,7 +126,37 @@ init(void)
 static void
 send(mac_callback_t sent_callback, void *ptr)
 {
-  twofaced_mac_output(sent_callback, ptr);
+  radio_value_t if_id = 0;
+  NETSTACK_RADIO.get_value(RADIO_CONST_INTERFACE_ID, &if_id);
+  if(packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID) == 0) {
+    packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, if_id);
+  }
+  if(packetbuf_attr(PACKETBUF_ATTR_ALL_INTERFACES)) {
+    LOG_DBG("Attempting tx on all interfaces with valid ID\n");
+    if_id_collection_t if_id_collection;
+    if(NETSTACK_RADIO.get_object(RADIO_CONST_INTERFACE_ID_COLLECTION, &if_id_collection,
+                                 sizeof(if_id_collection)) == RADIO_RESULT_OK) {
+      LOG_DBG("Found %d interfaces with valid ID\n", if_id_collection.size);
+      if(if_id_collection.size > 1) {
+        struct queuebuf *qbuf = queuebuf_new_from_packetbuf();
+        for(uint8_t i = 0; i < if_id_collection.size; i++) {
+          queuebuf_to_packetbuf(qbuf);
+          packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, if_id_collection.if_id_list[i]);
+          twofaced_mac_output(sent_callback, ptr);
+        }
+        queuebuf_free(qbuf);
+        if(NETSTACK_RADIO.set_value(RADIO_PARAM_SEL_IF_ID, if_id) != RADIO_RESULT_OK) {
+          LOG_DBG("Failed re-selecting interface with ID = %d after tx attempt on all interfaces\n");
+        }
+      } else {
+        twofaced_mac_output(sent_callback, ptr);
+      }
+    } else {
+      twofaced_mac_output(sent_callback, ptr);
+    }
+  } else {
+    twofaced_mac_output(sent_callback, ptr);
+  }
 }
 /*---------------------------------------------------------------------------*/
 static void

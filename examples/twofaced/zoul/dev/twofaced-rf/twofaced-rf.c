@@ -92,9 +92,6 @@ const struct radio_driver twofaced_rf_driver = {
   set_object,
   lock_interface,
   unlock_interface,
-  prepare_all,
-  transmit_all,
-  send_all,
   channel_clear_all,
   receiving_packet_all,
   pending_packet_all,
@@ -110,7 +107,15 @@ const struct radio_driver twofaced_rf_driver = {
  * @param size length of the supplied radio driver descriptor string + 1
  * @return radio_result_t
  */
-static radio_result_t set_interface(const char *descriptor, size_t size);
+static radio_result_t set_if_via_desc(const char *descriptor, size_t size);
+/*---------------------------------------------------------------------------*/
+/**
+ * @brief Set the currently selected interface.
+ * 
+ * @param if_id identifier of the interface to select
+ * @return radio_result_t 
+ */
+static radio_result_t set_if_via_id(uint8_t if_id);
 /*---------------------------------------------------------------------------*/
 /* Processes and related functionality */
 /*---------------------------------------------------------------------------*/
@@ -133,14 +138,14 @@ static void
 pollhandler(void)
 {
   if(twofaced_rf_flags & TWOFACED_RF_UPDATE_IF) {
-    set_interface(next_if_desc, strlen(next_if_desc) + 1);
+    set_if_via_desc(next_if_desc, strlen(next_if_desc) + 1);
   }
 }
 /*---------------------------------------------------------------------------*/
 /* Internal driver functions */
 /*---------------------------------------------------------------------------*/
 static radio_result_t
-set_interface(const char *descriptor, size_t size)
+set_if_via_desc(const char *descriptor, size_t size)
 {
   /* REVIEW for now, this preprocessor check is good enough to verify that
      the above MAC layer even knows about the multi-rf capabilities of this PHY
@@ -152,20 +157,20 @@ set_interface(const char *descriptor, size_t size)
      is required here. */
 #if MAC_CONF_WITH_TWOFACED
   if(lock_interface()) {
-    LOG_DBG("RF lock acquired by set_interface()\n");
+    LOG_DBG("RF lock acquired by set_if_via_desc()\n");
 
     LOG_DBG("Unsetting interface update flag\n");
     twofaced_rf_flags &= ~TWOFACED_RF_UPDATE_IF;
 
     if(size < strlen("") + 1) {
       unlock_interface();
-      LOG_DBG("Unlocking RF lock held by set_interface(), no descriptor\n");
+      LOG_DBG("Unlocking RF lock held by set_if_via_desc(), no descriptor\n");
       return RADIO_RESULT_INVALID_VALUE;
     }
 
     if(!strcmp(descriptor, selected_interface->driver_descriptor)) {
       unlock_interface();
-      LOG_DBG("Unlocking RF lock held by set_interface(), interface already selected\n");
+      LOG_DBG("Unlocking RF lock held by set_if_via_desc(), interface already selected\n");
       return RADIO_RESULT_OK;
     }
 
@@ -176,12 +181,12 @@ set_interface(const char *descriptor, size_t size)
         selected_interface = available_interfaces[i];
         NETSTACK_MAC.on();
         unlock_interface();
-        LOG_DBG("Unlocking RF lock held by set_interface(), interface set\n");
+        LOG_DBG("Unlocking RF lock held by set_if_via_desc(), interface set\n");
         return RADIO_RESULT_OK;
       }
     }
     unlock_interface();
-    LOG_DBG("Unlocking RF lock held by set_interface(), unknown descriptor\n");
+    LOG_DBG("Unlocking RF lock held by set_if_via_desc(), unknown descriptor\n");
     return RADIO_RESULT_INVALID_VALUE;
   } else {
     LOG_DBG("Could not switch interface, interfaces are locked\n");
@@ -194,6 +199,34 @@ set_interface(const char *descriptor, size_t size)
   /* NOTE we return RADIO_RESULT_OK because deferring an interface
      switch doesn't constitute an error */
   return RADIO_RESULT_OK;
+#else /* MAC_CONF_WITH_TWOFACED */
+  return RADIO_RESULT_ERROR;
+#endif /* MAC_CONF_WITH_TWOFACED */
+}
+/*---------------------------------------------------------------------------*/
+static radio_result_t 
+set_if_via_id(uint8_t if_id) {
+  /* REVIEW for now, this preprocessor check is good enough to verify that
+     the above MAC layer even knows about the multi-rf capabilities of this PHY
+     layer abstraction. Otherwise it doesn't make sense to allow switching
+     radio interface because a MAC layer that has no knowledge about these
+     capabilities presumably doesn't bother to acquire an rf lock before
+     preparing a packet and unlocking the rf lock after receiving an ACK
+     (under normal circumstances). In the future, a more robust mechanism
+     is required here. */
+#if MAC_CONF_WITH_TWOFACED
+  for(uint8_t i = 0; i < sizeof(available_interfaces) /
+      sizeof(available_interfaces[0]); i++) {
+    radio_value_t temp_if_id;
+    if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID, 
+                                          &temp_if_id) == RADIO_RESULT_OK) {
+      if(if_id == temp_if_id) {
+        selected_interface = available_interfaces[i];
+        return RADIO_RESULT_OK;
+      }
+    }
+  }
+  return RADIO_RESULT_INVALID_VALUE;
 #else /* MAC_CONF_WITH_TWOFACED */
   return RADIO_RESULT_ERROR;
 #endif /* MAC_CONF_WITH_TWOFACED */
@@ -404,19 +437,7 @@ set_value(radio_param_t param, radio_value_t value)
     }
     return RADIO_RESULT_OK;
   case RADIO_PARAM_SEL_IF_ID:
-    if(value != 0) {
-      for(uint8_t i = 0; i < sizeof(available_interfaces) /
-          sizeof(available_interfaces[0]); i++) {
-        radio_value_t iid;
-        if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID, &iid) == RADIO_RESULT_OK) {
-          if(iid == value) {
-            selected_interface = available_interfaces[i];
-            return RADIO_RESULT_OK;
-          }
-        }
-      }
-    }
-    return RADIO_RESULT_INVALID_VALUE;
+    return set_if_via_id((uint8_t)value);
   case RADIO_PARAM_CHANNEL:
   default:
     return selected_interface->set_value(param, value);
@@ -433,6 +454,27 @@ get_object(radio_param_t param, void *dest, size_t size)
     }
     strcpy((char *)dest, selected_interface->driver_descriptor);
     return RADIO_RESULT_OK;
+  case RADIO_CONST_INTERFACE_ID_COLLECTION:
+    if(size == sizeof(if_id_collection_t)) {
+      if_id_collection_t *if_id_collection = (if_id_collection_t *)dest;
+      uint8_t list_index = 0;
+      radio_value_t if_id;
+      for(uint8_t i = 0; i < sizeof(available_interfaces) /
+          sizeof(available_interfaces[0]); i++) {
+        if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID, 
+                                              &if_id) == RADIO_RESULT_OK) {
+          /* TODO only add if_id if it's not already in list */
+          if_id_collection->if_id_list[list_index] = (uint8_t)if_id;
+          list_index++;
+        }
+      }
+      if(list_index > 0) {
+        if_id_collection->size = list_index;
+        return RADIO_RESULT_OK;
+      }
+      return RADIO_RESULT_NOT_SUPPORTED;
+    }
+    return RADIO_RESULT_ERROR;
   default:
     return selected_interface->get_object(param, dest, size);
   }
@@ -448,7 +490,7 @@ set_object(radio_param_t param, const void *src, size_t size)
   case RADIO_PARAM_SEL_IF_ID:
     return RADIO_RESULT_NOT_SUPPORTED;
   case RADIO_PARAM_SEL_IF_DESC:
-    return set_interface((char *)src, size);
+    return set_if_via_desc((char *)src, size);
   case RADIO_PARAM_64BIT_ADDR:
     for(uint8_t i = 0; i < sizeof(available_interfaces) /
         sizeof(available_interfaces[0]); i++) {
@@ -470,42 +512,6 @@ static void
 unlock_interface(void)
 {
   mutex_unlock(&rf_lock);
-}
-/*---------------------------------------------------------------------------*/
-static int
-prepare_all(const void *payload, unsigned short payload_len)
-{
-  uint8_t is_prepared = 0;
-  for(uint8_t i = 0; i < sizeof(available_interfaces) /
-      sizeof(available_interfaces[0]); i++) {
-    is_prepared = is_prepared || available_interfaces[i]->prepare(payload, payload_len);
-  }
-  /* returns 1 if unsuccesful */
-  return is_prepared;
-}
-/*---------------------------------------------------------------------------*/
-static int
-transmit_all(unsigned short transmit_len)
-{
-  /* REVIEW this function must be given extremely careful consideration because
-     the MAC layer will likely base a large part of its actions on the return
-     value. As such, we can't simply return RADIO_TX_ERR if the tx function
-     of a single underlying radio driver didn't return RADIO_TX_OK */
-  for(uint8_t i = 0; i < sizeof(available_interfaces) /
-      sizeof(available_interfaces[0]); i++) {
-    available_interfaces[i]->transmit(transmit_len);
-  }
-  return RADIO_TX_OK;
-}
-/*---------------------------------------------------------------------------*/
-static int
-send_all(const void *payload, unsigned short payload_len)
-{
-  if(!prepare_all(payload, payload_len)) {
-    return transmit_all(payload_len);
-  }
-
-  return RADIO_TX_ERR;
 }
 /*---------------------------------------------------------------------------*/
 static int
