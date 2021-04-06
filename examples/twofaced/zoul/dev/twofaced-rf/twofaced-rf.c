@@ -196,7 +196,7 @@ set_if_via_desc(const char *descriptor, size_t size)
     twofaced_rf_flags |= TWOFACED_RF_UPDATE_IF;
     process_poll(&twofaced_rf_process);
   }
-  /* NOTE we return RADIO_RESULT_OK because deferring an interface
+  /* We return RADIO_RESULT_OK because deferring an interface
      switch doesn't constitute an error */
   return RADIO_RESULT_OK;
 #else /* MAC_CONF_WITH_TWOFACED */
@@ -253,6 +253,7 @@ init(void)
     radio_value_t reported_max_payload_len = 0;
     radio_value_t radio_rx_mode;
     radio_value_t def_chan;
+    radio_value_t if_id;
 
     /* Initialize underlying radio driver */
     if(!available_interfaces[i]->init()) {
@@ -321,7 +322,16 @@ init(void)
       return 0;
     }
 
-    /* TODO check if the underlying radio driver correctly reports its interface id */
+    /* Check if the underlying radio driver correctly reports its interface id */
+    if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID, &if_id) != RADIO_RESULT_OK) {
+      if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+        LOG_DBG("Failed to retrieve interface id of underlying radio driver\n");
+      } else {
+        LOG_DBG("Failed to retrieve interface id of underlying radio driver (%s)\n",
+                available_interfaces[i]->driver_descriptor);
+      }
+      return 0;
+    }
   }
 
   selected_interface = available_interfaces[0];
