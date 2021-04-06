@@ -284,13 +284,15 @@ init(void)
         }
         return 0;
       } else {
+        /* Enable hardware ACKs */
+        radio_rx_mode |= RADIO_RX_MODE_AUTOACK;
         /* Disable poll mode */
         radio_rx_mode &= ~RADIO_RX_MODE_POLL_MODE;
         if(available_interfaces[i]->set_value(RADIO_PARAM_RX_MODE, radio_rx_mode) != RADIO_RESULT_OK) {
           if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
-            LOG_DBG("Failed to disable poll mode of underlying radio driver\n");
+            LOG_DBG("Failed to enable hardware ACKs / disable poll mode of underlying radio driver\n");
           } else {
-            LOG_DBG("Failed to disable poll mode of underlying radio driver (%s)\n",
+            LOG_DBG("Failed to enable hardware ACKs / disable poll mode of underlying radio driver (%s)\n",
                     available_interfaces[i]->driver_descriptor);
           }
           return 0;
