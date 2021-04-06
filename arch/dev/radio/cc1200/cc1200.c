@@ -1317,6 +1317,11 @@ get_value(radio_param_t param, radio_value_t *value)
     *value = (radio_value_t)CC1200_RF_CFG.max_channel;
     return RADIO_RESULT_OK;
 
+  case RADIO_CONST_DEFAULT_CHANNEL:
+
+    *value = CC1200_DEFAULT_CHANNEL;
+    return RADIO_RESULT_OK;
+
   case RADIO_CONST_TXPOWER_MIN:
 
     *value = (radio_value_t)CC1200_CONST_TX_POWER_MIN;

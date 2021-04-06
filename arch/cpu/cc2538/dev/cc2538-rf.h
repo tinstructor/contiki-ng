@@ -84,6 +84,12 @@
 #else
 #define CC2538_INTERFACE_ID 0
 #endif /* CC2538_CONF_INTERFACE_ID */
+
+#ifdef CC2538_CONF_DEFAULT_CHANNEL
+#define CC2538_DEFAULT_CHANNEL CC2538_CONF_DEFAULT_CHANNEL
+#else
+#define CC2538_DEFAULT_CHANNEL IEEE802154_DEFAULT_CHANNEL
+#endif /* CC2538_CONF_INTERFACE_ID */
 /*---------------------------------------------------------------------------
  * Command Strobe Processor
  *---------------------------------------------------------------------------*/

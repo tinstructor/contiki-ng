@@ -112,7 +112,7 @@ static int8_t rssi;
 static uint8_t crc_corr;
 /*---------------------------------------------------------------------------*/
 static uint8_t rf_flags;
-static uint8_t rf_channel = IEEE802154_DEFAULT_CHANNEL;
+static uint8_t rf_channel = CC2538_DEFAULT_CHANNEL;
 
 static int on(void);
 static int off(void);
@@ -920,6 +920,9 @@ get_value(radio_param_t param, radio_value_t *value)
     return RADIO_RESULT_OK;
   case RADIO_CONST_CHANNEL_MAX:
     *value = CC2538_RF_CHANNEL_MAX;
+    return RADIO_RESULT_OK;
+  case RADIO_CONST_DEFAULT_CHANNEL:
+    *value = CC2538_DEFAULT_CHANNEL;
     return RADIO_RESULT_OK;
   case RADIO_CONST_TXPOWER_MIN:
     *value = OUTPUT_POWER_MIN;

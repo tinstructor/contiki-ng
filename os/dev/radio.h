@@ -345,6 +345,11 @@ enum radio_param_e {
   RADIO_CONST_CHANNEL_MAX,
 
   /**
+   * The default radio channel number 
+   */
+  RADIO_CONST_DEFAULT_CHANNEL,
+
+  /**
    * The minimum transmission power in dBm
    */
   RADIO_CONST_TXPOWER_MIN,

@@ -241,14 +241,20 @@ init(void)
   /* TODO make sure the init function wasn't alread called
      previously! */
 
-  /* TODO make sure there is at least one available interface */
+  uint8_t num_if = sizeof(available_interfaces) / sizeof(available_interfaces[0]);
 
-  for(uint8_t i = 0; i < sizeof(available_interfaces) /
-      sizeof(available_interfaces[0]); i++) {
+  if(num_if < 1) {
+    LOG_DBG("Not enough interfaces available, aborting init.\n");
+    return 0;
+  }
+
+  for(uint8_t i = 0; i < num_if; i++) {
 
     radio_value_t reported_max_payload_len = 0;
     radio_value_t radio_rx_mode;
+    radio_value_t def_chan;
 
+    /* Initialize underlying radio driver */
     if(!available_interfaces[i]->init()) {
       if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
         LOG_DBG("Failed to init() underlying radio driver\n");
@@ -256,59 +262,66 @@ init(void)
         LOG_DBG("Failed to init() underlying radio driver (%s)\n",
                 available_interfaces[i]->driver_descriptor);
       }
-      return 0; /* REVIEW does one failed driver init() warrant abort? */
-    } else {
-      if(available_interfaces[i]->get_value(RADIO_CONST_MAX_PAYLOAD_LEN,
-                                            &reported_max_payload_len) != RADIO_RESULT_OK) {
-        if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
-          LOG_DBG("Failed to retrieve max payload len of underlying radio driver\n");
-        } else {
-          LOG_DBG("Failed to retrieve max payload len of underlying radio driver (%s)\n",
-                  available_interfaces[i]->driver_descriptor);
-        }
-        LOG_DBG("Setting max_payload_len to 0\n");
-        max_payload_len = 0;
-      } else if(reported_max_payload_len < max_payload_len || i == 0) {
-        LOG_INFO("Updated max_payload length from %d to %d\n",
-                 max_payload_len, reported_max_payload_len);
-        max_payload_len = (uint16_t)reported_max_payload_len;
-      }
+      return 0;
+    }
 
-      if(available_interfaces[i]->get_value(RADIO_PARAM_RX_MODE,
-                                            &radio_rx_mode) != RADIO_RESULT_OK) {
+    /* Check if underlying radio driver correctly reports max payload len */
+    if(available_interfaces[i]->get_value(RADIO_CONST_MAX_PAYLOAD_LEN,
+                                          &reported_max_payload_len) != RADIO_RESULT_OK) {
+      if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+        LOG_DBG("Failed to retrieve max payload len of underlying radio driver\n");
+      } else {
+        LOG_DBG("Failed to retrieve max payload len of underlying radio driver (%s)\n",
+                available_interfaces[i]->driver_descriptor);
+      }
+      LOG_DBG("Setting max_payload_len to 0\n");
+      max_payload_len = 0;
+    } else if(reported_max_payload_len < max_payload_len || i == 0) {
+      /* If max payload len reported correctly, check if smaller than
+         current max_payload_len and set accordingly */
+      LOG_INFO("Updated max_payload length from %d to %d\n",
+               max_payload_len, reported_max_payload_len);
+      max_payload_len = (uint16_t)reported_max_payload_len;
+    }
+
+    /* Check if underlying radio driver allows retrieving the rx_mode */
+    if(available_interfaces[i]->get_value(RADIO_PARAM_RX_MODE,
+                                          &radio_rx_mode) != RADIO_RESULT_OK) {
+      if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+        LOG_DBG("Failed to retrieve rx mode of underlying radio driver\n");
+      } else {
+        LOG_DBG("Failed to retrieve rx mode of underlying radio driver (%s)\n",
+                available_interfaces[i]->driver_descriptor);
+      }
+      return 0;
+    } else {
+      /* Enable hardware ACKs */
+      radio_rx_mode |= RADIO_RX_MODE_AUTOACK;
+      /* Disable poll mode */
+      radio_rx_mode &= ~RADIO_RX_MODE_POLL_MODE;
+      if(available_interfaces[i]->set_value(RADIO_PARAM_RX_MODE, radio_rx_mode) != RADIO_RESULT_OK) {
         if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
-          LOG_DBG("Failed to retrieve rx mode of underlying radio driver\n");
+          LOG_DBG("Failed to enable hardware ACKs / disable poll mode of underlying radio driver\n");
         } else {
-          LOG_DBG("Failed to retrieve rx mode of underlying radio driver (%s)\n",
+          LOG_DBG("Failed to enable hardware ACKs / disable poll mode of underlying radio driver (%s)\n",
                   available_interfaces[i]->driver_descriptor);
         }
         return 0;
-      } else {
-        /* Enable hardware ACKs */
-        radio_rx_mode |= RADIO_RX_MODE_AUTOACK;
-        /* Disable poll mode */
-        radio_rx_mode &= ~RADIO_RX_MODE_POLL_MODE;
-        if(available_interfaces[i]->set_value(RADIO_PARAM_RX_MODE, radio_rx_mode) != RADIO_RESULT_OK) {
-          if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
-            LOG_DBG("Failed to enable hardware ACKs / disable poll mode of underlying radio driver\n");
-          } else {
-            LOG_DBG("Failed to enable hardware ACKs / disable poll mode of underlying radio driver (%s)\n",
-                    available_interfaces[i]->driver_descriptor);
-          }
-          return 0;
-        }
       }
     }
-  }
 
-  /* NOTE the default channel of the first available interface is set in `platform.c` */
-  if((sizeof(available_interfaces) / sizeof(available_interfaces[0])) > 1) {
-    for(uint8_t i = 1; i < sizeof(available_interfaces) /
-        sizeof(available_interfaces[0]); i++) {
-      /* TODO we should check if setting the channel of the interface
-         is successful before continuing and if not, do something. */
-      available_interfaces[i]->set_value(RADIO_PARAM_CHANNEL, IEEE802154_DEFAULT_CHANNEL);
+    /* Check if the underlying radio driver correctly reports its default channel*/
+    if(available_interfaces[i]->get_value(RADIO_CONST_DEFAULT_CHANNEL, &def_chan) != RADIO_RESULT_OK) {
+      if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+        LOG_DBG("Failed to retrieve default channel of underlying radio driver\n");
+      } else {
+        LOG_DBG("Failed to retrieve default channel of underlying radio driver (%s)\n",
+                available_interfaces[i]->driver_descriptor);
+      }
+      return 0;
     }
+
+    /* TODO check if the underlying radio driver correctly reports its interface id */
   }
 
   selected_interface = available_interfaces[0];
