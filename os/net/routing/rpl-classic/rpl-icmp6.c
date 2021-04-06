@@ -242,6 +242,9 @@ dis_input(void)
           LOG_ERR_("\n");
         } else {
           LOG_DBG("Unicast DIS, reply to sender\n");
+          /* The following statement is redundant but it shows our intentions */
+          uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, 
+                          uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID));
           dio_output(instance, &UIP_IP_BUF->srcipaddr);
         }
         /* } */
@@ -814,7 +817,9 @@ dao_input_storing(void)
     /* independent if we remove or not - ACK the request */
     if(flags & RPL_DAO_K_FLAG) {
       /* indicate that we accepted the no-path DAO */
+      uint16_t if_id = uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID);
       uipbuf_clear();
+      uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, if_id);
       dao_ack_output(instance, &dao_sender_addr, sequence,
                      RPL_DAO_ACK_UNCONDITIONAL_ACCEPT);
     }
@@ -831,6 +836,9 @@ dao_input_storing(void)
     LOG_ERR_LLADDR(packetbuf_addr(PACKETBUF_ADDR_SENDER));
     LOG_ERR_("\n");
     if(flags & RPL_DAO_K_FLAG) {
+      /* The following statement is redundant but it shows our intentions */
+      uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, 
+                      uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID));
       /* signal the failure to add the node */
       dao_ack_output(instance, &dao_sender_addr, sequence,
                      is_root ? RPL_DAO_ACK_UNABLE_TO_ADD_ROUTE_AT_ROOT :
@@ -844,6 +852,9 @@ dao_input_storing(void)
     RPL_STAT(rpl_stats.mem_overflows++);
     LOG_ERR("Could not add a route after receiving a DAO\n");
     if(flags & RPL_DAO_K_FLAG) {
+      /* The following statement is redundant but it shows our intentions */
+      uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, 
+                      uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID));
       /* signal the failure to add the node */
       dao_ack_output(instance, &dao_sender_addr, sequence,
                      is_root ? RPL_DAO_ACK_UNABLE_TO_ADD_ROUTE_AT_ROOT :
@@ -904,7 +915,9 @@ fwd_dao:
     }
     if(should_ack) {
       LOG_DBG("Sending DAO ACK\n");
+      uint16_t if_id = uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID);
       uipbuf_clear();
+      uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, if_id);
       dao_ack_output(instance, &dao_sender_addr, sequence,
                      RPL_DAO_ACK_UNCONDITIONAL_ACCEPT);
     }
@@ -1018,7 +1031,9 @@ dao_input_nonstoring(void)
 
   if(flags & RPL_DAO_K_FLAG) {
     LOG_DBG("Sending DAO ACK\n");
+    uint16_t if_id = uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID);
     uipbuf_clear();
+    uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, if_id);
     dao_ack_output(instance, &dao_sender_addr, sequence,
                    RPL_DAO_ACK_UNCONDITIONAL_ACCEPT);
   }

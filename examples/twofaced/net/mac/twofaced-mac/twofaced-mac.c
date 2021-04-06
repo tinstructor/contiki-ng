@@ -68,7 +68,7 @@ static volatile mutex_t input_lock = MUTEX_STATUS_UNLOCKED;
 /* The mac callback to call in intercept_callback() */
 static mac_callback_t twofaced_mac_sent_callback;
 /* The ID of the selected interface prior to all-interfaces tx attempt */
-static radio_value_t selected_if_id = 0;
+static volatile radio_value_t selected_if_id = 0;
 /*---------------------------------------------------------------------------*/
 /* The twofaced mac driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -90,6 +90,8 @@ const struct mac_driver twofaced_mac_driver = {
 static void
 intercept_callback(void *ptr, int status, int num_tx)
 {
+  /* TODO perform checks and only select new interface if
+     not already selected */
   NETSTACK_RADIO.set_value(RADIO_PARAM_SEL_IF_ID, selected_if_id);
   mac_call_sent_callback(twofaced_mac_sent_callback, ptr, status, num_tx);
 }
