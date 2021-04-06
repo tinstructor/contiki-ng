@@ -65,6 +65,10 @@
 /*---------------------------------------------------------------------------*/
 /* A lock that prevents calling the input function when inappropriate */
 static volatile mutex_t input_lock = MUTEX_STATUS_UNLOCKED;
+/* The mac callback to call in intercept_callback() */
+static mac_callback_t twofaced_mac_sent_callback;
+/* The ID of the selected interface prior to all-interfaces tx attempt */
+static radio_value_t selected_if_id = 0;
 /*---------------------------------------------------------------------------*/
 /* The twofaced mac driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -83,6 +87,12 @@ const struct mac_driver twofaced_mac_driver = {
 /* Internal driver functions and prototypes */
 /*---------------------------------------------------------------------------*/
 /* NOTE add internal mac driver functions and prototypes here as required */
+static void
+intercept_callback(void *ptr, int status, int num_tx)
+{
+  NETSTACK_RADIO.set_value(RADIO_PARAM_SEL_IF_ID, selected_if_id);
+  mac_call_sent_callback(twofaced_mac_sent_callback, ptr, status, num_tx);
+}
 /*---------------------------------------------------------------------------*/
 /* Mac driver functions */
 /*---------------------------------------------------------------------------*/
@@ -137,21 +147,33 @@ send(mac_callback_t sent_callback, void *ptr)
     if(NETSTACK_RADIO.get_object(RADIO_CONST_INTERFACE_ID_COLLECTION, &if_id_collection,
                                  sizeof(if_id_collection)) == RADIO_RESULT_OK) {
       LOG_DBG("Found %d interfaces with valid ID\n", if_id_collection.size);
-      if(if_id_collection.size > 1) {
+      if(if_id_collection.size > 0) {
         struct queuebuf *qbuf = queuebuf_new_from_packetbuf();
         for(uint8_t i = 0; i < if_id_collection.size; i++) {
           queuebuf_to_packetbuf(qbuf);
           packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, if_id_collection.if_id_list[i]);
-          twofaced_mac_output(sent_callback, ptr);
+          if(i == if_id_collection.size - 1) {
+            /* Intercept the callback after the last packet from the all-interfaces
+               tx attempt in order to reset the interface to the one that was selected
+               prior to the all-interfaces tx attempt */
+            /* REVIEW this approach is not ideal because if the selected interface changes
+               in between actual transmissions of an all-interfaces tx attempt, then it will
+               be reset to the selected interface prior to the all-interfaces tx attempt instead
+               of the newly selected interface */
+            twofaced_mac_sent_callback = sent_callback;
+            selected_if_id = if_id;
+            twofaced_mac_output(&intercept_callback, ptr);
+          } else {
+            twofaced_mac_output(sent_callback, ptr);
+          }
         }
         queuebuf_free(qbuf);
-        if(NETSTACK_RADIO.set_value(RADIO_PARAM_SEL_IF_ID, if_id) != RADIO_RESULT_OK) {
-          LOG_DBG("Failed re-selecting interface with ID = %d after tx attempt on all interfaces\n");
-        }
       } else {
+        LOG_DBG("Found no interfaces with valid ID, attempting tx on default interface\n");
         twofaced_mac_output(sent_callback, ptr);
       }
     } else {
+      LOG_DBG("Found no interfaces with valid ID, attempting tx on default interface\n");
       twofaced_mac_output(sent_callback, ptr);
     }
   } else {
