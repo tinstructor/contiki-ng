@@ -58,7 +58,8 @@ extern const struct radio_driver cc2538_rf_driver;
 extern const struct radio_driver cc1200_driver;
 static const struct radio_driver *const available_interfaces[] = TWOFACED_RF_AVAILABLE_IFS;
 /* The supported twofaced-rf flag bitmasks */
-#define TWOFACED_RF_UPDATE_IF 0x01
+#define TWOFACED_RF_UPDATE_IF_VIA_DESC  0x01
+#define TWOFACED_RF_UPDATE_IF_VIA_ID    0x02
 /*---------------------------------------------------------------------------*/
 /* Variables */
 /*---------------------------------------------------------------------------*/
@@ -72,6 +73,8 @@ static volatile mutex_t rf_lock = MUTEX_STATUS_UNLOCKED;
 static uint8_t twofaced_rf_flags = 0x00;
 /* The descriptor of the next interface to be selected */
 static char next_if_desc[32]; /* TODO make sure the size is always ok */
+/* The id of the next interface to be selected */
+static uint8_t next_if_id;
 /*---------------------------------------------------------------------------*/
 /* The twofaced radio driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -137,8 +140,12 @@ PROCESS_THREAD(twofaced_rf_process, ev, data)
 static void
 pollhandler(void)
 {
-  if(twofaced_rf_flags & TWOFACED_RF_UPDATE_IF) {
+  if(twofaced_rf_flags & TWOFACED_RF_UPDATE_IF_VIA_DESC) {
     set_if_via_desc(next_if_desc, strlen(next_if_desc) + 1);
+  }
+
+  if(twofaced_rf_flags & TWOFACED_RF_UPDATE_IF_VIA_ID) {
+    set_if_via_id(next_if_id);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -160,7 +167,7 @@ set_if_via_desc(const char *descriptor, size_t size)
     LOG_DBG("RF lock acquired by set_if_via_desc()\n");
 
     LOG_DBG("Unsetting interface update flag\n");
-    twofaced_rf_flags &= ~TWOFACED_RF_UPDATE_IF;
+    twofaced_rf_flags &= ~TWOFACED_RF_UPDATE_IF_VIA_DESC;
 
     if(size < strlen("") + 1) {
       unlock_interface();
@@ -193,7 +200,7 @@ set_if_via_desc(const char *descriptor, size_t size)
     LOG_DBG("Deferring interface switch\n");
     strcpy(next_if_desc, descriptor);
     LOG_DBG("Setting interface update flag\n");
-    twofaced_rf_flags |= TWOFACED_RF_UPDATE_IF;
+    twofaced_rf_flags |= TWOFACED_RF_UPDATE_IF_VIA_DESC;
     process_poll(&twofaced_rf_process);
   }
   /* We return RADIO_RESULT_OK because deferring an interface
@@ -216,18 +223,43 @@ set_if_via_id(uint8_t if_id)
      (under normal circumstances). In the future, a more robust mechanism
      is required here. */
 #if MAC_CONF_WITH_TWOFACED
-  for(uint8_t i = 0; i < sizeof(available_interfaces) /
-      sizeof(available_interfaces[0]); i++) {
-    radio_value_t temp_if_id;
-    if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID,
-                                          &temp_if_id) == RADIO_RESULT_OK) {
-      if(if_id == temp_if_id) {
-        selected_interface = available_interfaces[i];
-        return RADIO_RESULT_OK;
+  if(lock_interface()) {
+    LOG_DBG("RF lock acquired by set_if_via_id()\n");
+
+    LOG_DBG("Unsetting interface update flag\n");
+    twofaced_rf_flags &= ~TWOFACED_RF_UPDATE_IF_VIA_ID;
+
+    /* TODO check if if already selected and unlock + return OK if true */
+
+    for(uint8_t i = 0; i < sizeof(available_interfaces) /
+        sizeof(available_interfaces[0]); i++) {
+      radio_value_t temp_if_id;
+      if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID,
+                                            &temp_if_id) == RADIO_RESULT_OK) {
+        if(if_id == temp_if_id) {
+          NETSTACK_MAC.off();
+          selected_interface = available_interfaces[i];
+          NETSTACK_MAC.on();
+          unlock_interface();
+          LOG_DBG("Unlocking RF lock held by set_if_via_id(), interface set\n");
+          return RADIO_RESULT_OK;
+        }
       }
     }
+    unlock_interface();
+    LOG_DBG("Unlocking RF lock held by set_if_via_id(), unknown id\n");
+    return RADIO_RESULT_INVALID_VALUE;
+  } else {
+    LOG_DBG("Could not switch interface, interfaces are locked\n");
+    LOG_DBG("Deferring interface switch\n");
+    next_if_id = if_id;
+    LOG_DBG("Setting interface update flag\n");
+    twofaced_rf_flags |= TWOFACED_RF_UPDATE_IF_VIA_ID;
+    process_poll(&twofaced_rf_process);
   }
-  return RADIO_RESULT_INVALID_VALUE;
+  /* We return RADIO_RESULT_OK because deferring an interface
+     switch doesn't constitute an error */
+  return RADIO_RESULT_OK;
 #else /* MAC_CONF_WITH_TWOFACED */
   return RADIO_RESULT_ERROR;
 #endif /* MAC_CONF_WITH_TWOFACED */
