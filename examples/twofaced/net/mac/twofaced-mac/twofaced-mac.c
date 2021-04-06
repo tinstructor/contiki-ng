@@ -113,9 +113,20 @@ init(void)
     return;
   }
 
-  /* TODO even though we just checked the multi-rf capabilities of the radio driver,
-     make sure that the interface lock / unlock function pointers aren't NULL. Perform
-     the same check for all other multi-rf related radio driver functions! */
+  if(NETSTACK_RADIO.lock_interface == NULL || NETSTACK_RADIO.unlock_interface == NULL) {
+    LOG_ERR("! radio does not support locking / unlocking interfaces. Abort init.\n");
+    return;
+  }
+
+  if(NETSTACK_RADIO.pending_packet_all == NULL || NETSTACK_RADIO.receiving_packet_all == NULL) {
+    LOG_ERR("! radio does not support pending / receiving check on all interfaces. Abort init.\n");
+    return;
+  }
+
+  if(NETSTACK_RADIO.channel_clear_all == NULL) {
+    LOG_ERR("! radio does not support channel clear check on all interfaces. Abort init.\n");
+    return;
+  }
 
   /* Check that the radio can correctly report its max supported payload */
   if(NETSTACK_RADIO.get_value(RADIO_CONST_MAX_PAYLOAD_LEN, &radio_max_payload_len) != RADIO_RESULT_OK) {

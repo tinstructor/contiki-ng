@@ -196,11 +196,6 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
   if(NETSTACK_RADIO.lock_interface()) {
     LOG_DBG("RF lock acquired before preparing packet\n");
 
-    /* REVIEW would it not make more sense to leave the responsibility of
-       loading a packet into the packet buffer (i.e., by copying an entry
-       from the queue buffer of the supplied "packet list" entry into the
-       packet buffer) to this function? */
-
     packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
     packetbuf_set_attr(PACKETBUF_ATTR_MAC_ACK, 1);
 
