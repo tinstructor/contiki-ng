@@ -60,6 +60,7 @@ static const struct radio_driver *const available_interfaces[] = TWOFACED_RF_AVA
 /* The supported twofaced-rf flag bitmasks */
 #define TWOFACED_RF_UPDATE_IF_VIA_DESC  0x01
 #define TWOFACED_RF_UPDATE_IF_VIA_ID    0x02
+#define TWOFACED_RF_INITIALIZED         0x04
 /*---------------------------------------------------------------------------*/
 /* Variables */
 /*---------------------------------------------------------------------------*/
@@ -282,122 +283,126 @@ set_if_via_id(uint8_t if_id)
 static int
 init(void)
 {
-  /* TODO make sure the init function wasn't alread called
-     previously! */
+  if(!(twofaced_rf_flags & TWOFACED_RF_INITIALIZED)) {
+    LOG_DBG("Initializing %s ...\n", twofaced_rf_driver.driver_descriptor);
 
-  uint8_t num_if = sizeof(available_interfaces) / sizeof(available_interfaces[0]);
+    uint8_t num_if = sizeof(available_interfaces) / sizeof(available_interfaces[0]);
 
-  if(num_if < 1) {
-    LOG_DBG("Not enough interfaces available, aborting init.\n");
-    return 0;
-  }
-
-  for(uint8_t i = 0; i < num_if; i++) {
-
-    radio_value_t reported_max_payload_len = 0;
-    radio_value_t radio_rx_mode;
-    radio_value_t def_chan;
-    radio_value_t if_id;
-
-    /* Initialize underlying radio driver */
-    if(!available_interfaces[i]->init()) {
-      if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
-        LOG_DBG("Failed to init() underlying radio driver\n");
-      } else {
-        LOG_DBG("Failed to init() underlying radio driver (%s)\n",
-                available_interfaces[i]->driver_descriptor);
-      }
+    if(num_if < 1) {
+      LOG_DBG("Not enough interfaces available, aborting init.\n");
       return 0;
     }
 
-    /* Check if underlying radio driver correctly reports max payload len */
-    if(available_interfaces[i]->get_value(RADIO_CONST_MAX_PAYLOAD_LEN,
-                                          &reported_max_payload_len) != RADIO_RESULT_OK) {
-      if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
-        LOG_DBG("Failed to retrieve max payload len of underlying radio driver\n");
-      } else {
-        LOG_DBG("Failed to retrieve max payload len of underlying radio driver (%s)\n",
-                available_interfaces[i]->driver_descriptor);
-      }
-      LOG_DBG("Setting max_payload_len to 0\n");
-      max_payload_len = 0;
-    } else if(reported_max_payload_len < max_payload_len || i == 0) {
-      /* If max payload len reported correctly, check if smaller than
-         current max_payload_len and set accordingly */
-      LOG_INFO("Updated max_payload length from %d to %d\n",
-               max_payload_len, reported_max_payload_len);
-      max_payload_len = (uint16_t)reported_max_payload_len;
-    }
+    for(uint8_t i = 0; i < num_if; i++) {
 
-    /* Check if underlying radio driver allows retrieving the rx_mode */
-    if(available_interfaces[i]->get_value(RADIO_PARAM_RX_MODE,
-                                          &radio_rx_mode) != RADIO_RESULT_OK) {
-      if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
-        LOG_DBG("Failed to retrieve rx mode of underlying radio driver\n");
-      } else {
-        LOG_DBG("Failed to retrieve rx mode of underlying radio driver (%s)\n",
-                available_interfaces[i]->driver_descriptor);
-      }
-      return 0;
-    } else {
-      /* Enable hardware ACKs */
-      radio_rx_mode |= RADIO_RX_MODE_AUTOACK;
-      /* Disable poll mode */
-      radio_rx_mode &= ~RADIO_RX_MODE_POLL_MODE;
-      if(available_interfaces[i]->set_value(RADIO_PARAM_RX_MODE, radio_rx_mode) != RADIO_RESULT_OK) {
+      radio_value_t reported_max_payload_len = 0;
+      radio_value_t radio_rx_mode;
+      radio_value_t def_chan;
+      radio_value_t if_id;
+
+      /* Initialize underlying radio driver */
+      if(!available_interfaces[i]->init()) {
         if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
-          LOG_DBG("Failed to enable hardware ACKs / disable poll mode of underlying radio driver\n");
+          LOG_DBG("Failed to init() underlying radio driver\n");
         } else {
-          LOG_DBG("Failed to enable hardware ACKs / disable poll mode of underlying radio driver (%s)\n",
+          LOG_DBG("Failed to init() underlying radio driver (%s)\n",
                   available_interfaces[i]->driver_descriptor);
         }
         return 0;
       }
-    }
 
-    /* Check if the underlying radio driver correctly reports its default channel*/
-    if(available_interfaces[i]->get_value(RADIO_CONST_DEFAULT_CHANNEL, &def_chan) != RADIO_RESULT_OK) {
-      if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
-        LOG_DBG("Failed to retrieve default channel of underlying radio driver\n");
-      } else {
-        LOG_DBG("Failed to retrieve default channel of underlying radio driver (%s)\n",
-                available_interfaces[i]->driver_descriptor);
+      /* Check if underlying radio driver correctly reports max payload len */
+      if(available_interfaces[i]->get_value(RADIO_CONST_MAX_PAYLOAD_LEN,
+                                            &reported_max_payload_len) != RADIO_RESULT_OK) {
+        if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+          LOG_DBG("Failed to retrieve max payload len of underlying radio driver\n");
+        } else {
+          LOG_DBG("Failed to retrieve max payload len of underlying radio driver (%s)\n",
+                  available_interfaces[i]->driver_descriptor);
+        }
+        LOG_DBG("Setting max_payload_len to 0\n");
+        max_payload_len = 0;
+      } else if(reported_max_payload_len < max_payload_len || i == 0) {
+        /* If max payload len reported correctly, check if smaller than
+           current max_payload_len and set accordingly */
+        LOG_INFO("Updated max_payload length from %d to %d\n",
+                 max_payload_len, reported_max_payload_len);
+        max_payload_len = (uint16_t)reported_max_payload_len;
       }
-      return 0;
-    }
 
-    /* Check if the underlying radio driver correctly reports its interface id */
-    if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID, &if_id) != RADIO_RESULT_OK) {
-      if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
-        LOG_DBG("Failed to retrieve interface id of underlying radio driver\n");
+      /* Check if underlying radio driver allows retrieving the rx_mode */
+      if(available_interfaces[i]->get_value(RADIO_PARAM_RX_MODE,
+                                            &radio_rx_mode) != RADIO_RESULT_OK) {
+        if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+          LOG_DBG("Failed to retrieve rx mode of underlying radio driver\n");
+        } else {
+          LOG_DBG("Failed to retrieve rx mode of underlying radio driver (%s)\n",
+                  available_interfaces[i]->driver_descriptor);
+        }
+        return 0;
       } else {
-        LOG_DBG("Failed to retrieve interface id of underlying radio driver (%s)\n",
-                available_interfaces[i]->driver_descriptor);
-      }
-      return 0;
-    } else if(if_id_collection.size < (sizeof(if_id_collection.if_id_list) / sizeof(if_id_collection.if_id_list[0]))) {
-      uint8_t is_unique = true;
-      for(uint8_t j = 0; j < if_id_collection.size; j++) {
-        if(if_id_collection.if_id_list[j] == if_id) {
-          is_unique = false;
-          break;
+        /* Enable hardware ACKs */
+        radio_rx_mode |= RADIO_RX_MODE_AUTOACK;
+        /* Disable poll mode */
+        radio_rx_mode &= ~RADIO_RX_MODE_POLL_MODE;
+        if(available_interfaces[i]->set_value(RADIO_PARAM_RX_MODE, radio_rx_mode) != RADIO_RESULT_OK) {
+          if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+            LOG_DBG("Failed to enable hardware ACKs / disable poll mode of underlying radio driver\n");
+          } else {
+            LOG_DBG("Failed to enable hardware ACKs / disable poll mode of underlying radio driver (%s)\n",
+                    available_interfaces[i]->driver_descriptor);
+          }
+          return 0;
         }
       }
-      if(is_unique) {
-        LOG_DBG("Adding interface with ID = %d to collection\n", (uint8_t)if_id);
-        if_id_collection.if_id_list[if_id_collection.size] = (uint8_t)if_id;
-        if_id_collection.size++;
-      } else {
-        LOG_DBG("Interface with ID = %d already in collection, not added\n", (uint8_t)if_id);
-      }
-    } else {
-      LOG_DBG("Too damn many interfaces with a valid ID!\n");
-      return 0;
-    }
-  }
 
-  selected_interface = available_interfaces[0];
-  process_start(&twofaced_rf_process, NULL);
+      /* Check if the underlying radio driver correctly reports its default channel*/
+      if(available_interfaces[i]->get_value(RADIO_CONST_DEFAULT_CHANNEL, &def_chan) != RADIO_RESULT_OK) {
+        if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+          LOG_DBG("Failed to retrieve default channel of underlying radio driver\n");
+        } else {
+          LOG_DBG("Failed to retrieve default channel of underlying radio driver (%s)\n",
+                  available_interfaces[i]->driver_descriptor);
+        }
+        return 0;
+      }
+
+      /* Check if the underlying radio driver correctly reports its interface id */
+      if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID, &if_id) != RADIO_RESULT_OK) {
+        if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+          LOG_DBG("Failed to retrieve interface id of underlying radio driver\n");
+        } else {
+          LOG_DBG("Failed to retrieve interface id of underlying radio driver (%s)\n",
+                  available_interfaces[i]->driver_descriptor);
+        }
+        return 0;
+      } else if(if_id_collection.size < (sizeof(if_id_collection.if_id_list) / sizeof(if_id_collection.if_id_list[0]))) {
+        uint8_t is_unique = true;
+        for(uint8_t j = 0; j < if_id_collection.size; j++) {
+          if(if_id_collection.if_id_list[j] == if_id) {
+            is_unique = false;
+            break;
+          }
+        }
+        if(is_unique) {
+          LOG_DBG("Adding interface with ID = %d to collection\n", (uint8_t)if_id);
+          if_id_collection.if_id_list[if_id_collection.size] = (uint8_t)if_id;
+          if_id_collection.size++;
+        } else {
+          LOG_DBG("Interface with ID = %d already in collection, not added\n", (uint8_t)if_id);
+        }
+      } else {
+        LOG_DBG("Too damn many interfaces with a valid ID!\n");
+        return 0;
+      }
+    }
+
+    selected_interface = available_interfaces[0];
+    twofaced_rf_flags |= TWOFACED_RF_INITIALIZED;
+    process_start(&twofaced_rf_process, NULL);
+  } else {
+    LOG_DBG("%s already initialized\n", twofaced_rf_driver.driver_descriptor);
+  }
 
   return 1;
 }
