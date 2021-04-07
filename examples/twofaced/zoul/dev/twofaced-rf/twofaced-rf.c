@@ -72,9 +72,12 @@ static volatile mutex_t rf_lock = MUTEX_STATUS_UNLOCKED;
 /* The twofaced-rf driver's state */
 static uint8_t twofaced_rf_flags = 0x00;
 /* The descriptor of the next interface to be selected */
-static char next_if_desc[32]; /* TODO make sure the size is always ok */
+static char next_if_desc[32];
 /* The id of the next interface to be selected */
 static uint8_t next_if_id;
+/* A collection of all interface ids, technically a variable but only
+   to be modified once, i.e., in init() */
+static if_id_collection_t if_id_collection = {.size = 0};
 /*---------------------------------------------------------------------------*/
 /* The twofaced radio driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
@@ -372,6 +375,13 @@ init(void)
                 available_interfaces[i]->driver_descriptor);
       }
       return 0;
+    } else if(if_id_collection.size < (sizeof(if_id_collection.if_id_list) / sizeof(if_id_collection.if_id_list[0]))) {
+      /* TODO only add if_id if it's not already in list */
+      if_id_collection.if_id_list[if_id_collection.size] = (uint8_t)if_id;
+      if_id_collection.size++;
+    } else {
+      LOG_DBG("Too damn many interfaces with a valid ID!\n");
+      return 0;
     }
   }
 
@@ -522,20 +532,8 @@ get_object(radio_param_t param, void *dest, size_t size)
     return RADIO_RESULT_OK;
   case RADIO_CONST_INTERFACE_ID_COLLECTION:
     if(size == sizeof(if_id_collection_t)) {
-      if_id_collection_t *if_id_collection = (if_id_collection_t *)dest;
-      uint8_t list_index = 0;
-      radio_value_t if_id;
-      for(uint8_t i = 0; i < sizeof(available_interfaces) /
-          sizeof(available_interfaces[0]); i++) {
-        if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID,
-                                              &if_id) == RADIO_RESULT_OK) {
-          /* TODO only add if_id if it's not already in list */
-          if_id_collection->if_id_list[list_index] = (uint8_t)if_id;
-          list_index++;
-        }
-      }
-      if(list_index > 0) {
-        if_id_collection->size = list_index;
+      if(if_id_collection.size > 0) {
+        *(if_id_collection_t *)dest = if_id_collection;
         return RADIO_RESULT_OK;
       }
       return RADIO_RESULT_NOT_SUPPORTED;
