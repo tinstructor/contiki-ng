@@ -376,9 +376,20 @@ init(void)
       }
       return 0;
     } else if(if_id_collection.size < (sizeof(if_id_collection.if_id_list) / sizeof(if_id_collection.if_id_list[0]))) {
-      /* TODO only add if_id if it's not already in list */
-      if_id_collection.if_id_list[if_id_collection.size] = (uint8_t)if_id;
-      if_id_collection.size++;
+      uint8_t is_unique = true;
+      for(uint8_t j = 0; j < if_id_collection.size; j++) {
+        if(if_id_collection.if_id_list[j] == if_id) {
+          is_unique = false;
+          break;
+        }
+      }
+      if(is_unique) {
+        LOG_DBG("Adding interface with ID = %d to collection\n", (uint8_t)if_id);
+        if_id_collection.if_id_list[if_id_collection.size] = (uint8_t)if_id;
+        if_id_collection.size++;
+      } else {
+        LOG_DBG("Interface with ID = %d already in collection, not added\n", (uint8_t)if_id);
+      }
     } else {
       LOG_DBG("Too damn many interfaces with a valid ID!\n");
       return 0;
