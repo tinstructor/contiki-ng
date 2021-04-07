@@ -77,7 +77,7 @@ static char next_if_desc[32];
 static uint8_t next_if_id;
 /* A collection of all interface ids, technically a variable but only
    to be modified once, i.e., in init() */
-static if_id_collection_t if_id_collection = {.size = 0};
+static if_id_collection_t if_id_collection = { .size = 0 };
 /*---------------------------------------------------------------------------*/
 /* The twofaced radio driver exported to Contiki-NG */
 /*---------------------------------------------------------------------------*/
