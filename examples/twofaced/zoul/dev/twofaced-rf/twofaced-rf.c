@@ -163,6 +163,10 @@ set_if_via_desc(const char *descriptor, size_t size)
      (under normal circumstances). In the future, a more robust mechanism
      is required here. */
 #if MAC_CONF_WITH_TWOFACED
+  if(size > (sizeof(next_if_desc) / sizeof(next_if_desc[0]))) {
+    LOG_DBG("Interface descriptor too large, aborting interface selection\n");
+    return RADIO_RESULT_INVALID_VALUE;
+  }
   if(lock_interface()) {
     LOG_DBG("RF lock acquired by set_if_via_desc()\n");
 
@@ -195,14 +199,13 @@ set_if_via_desc(const char *descriptor, size_t size)
     unlock_interface();
     LOG_DBG("Unlocking RF lock held by set_if_via_desc(), unknown descriptor\n");
     return RADIO_RESULT_INVALID_VALUE;
-  } else {
-    LOG_DBG("Could not switch interface, interfaces are locked\n");
-    LOG_DBG("Deferring interface switch\n");
-    strcpy(next_if_desc, descriptor);
-    LOG_DBG("Setting interface update flag\n");
-    twofaced_rf_flags |= TWOFACED_RF_UPDATE_IF_VIA_DESC;
-    process_poll(&twofaced_rf_process);
   }
+  LOG_DBG("Could not switch interface, interfaces are locked\n");
+  LOG_DBG("Deferring interface switch\n");
+  strcpy(next_if_desc, descriptor);
+  LOG_DBG("Setting interface update flag\n");
+  twofaced_rf_flags |= TWOFACED_RF_UPDATE_IF_VIA_DESC;
+  process_poll(&twofaced_rf_process);
   /* We return RADIO_RESULT_OK because deferring an interface
      switch doesn't constitute an error */
   return RADIO_RESULT_OK;
@@ -229,11 +232,18 @@ set_if_via_id(uint8_t if_id)
     LOG_DBG("Unsetting interface update flag\n");
     twofaced_rf_flags &= ~TWOFACED_RF_UPDATE_IF_VIA_ID;
 
-    /* TODO check if if already selected and unlock + return OK if true */
+    radio_value_t temp_if_id;
+    if(selected_interface->get_value(RADIO_CONST_INTERFACE_ID,
+                                     &temp_if_id) == RADIO_RESULT_OK) {
+      if(if_id == temp_if_id) {
+        unlock_interface();
+        LOG_DBG("Unlocking RF lock held by set_if_via_id(), interface already selected\n");
+        return RADIO_RESULT_OK;
+      }
+    }
 
     for(uint8_t i = 0; i < sizeof(available_interfaces) /
         sizeof(available_interfaces[0]); i++) {
-      radio_value_t temp_if_id;
       if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID,
                                             &temp_if_id) == RADIO_RESULT_OK) {
         if(if_id == temp_if_id) {
@@ -249,14 +259,13 @@ set_if_via_id(uint8_t if_id)
     unlock_interface();
     LOG_DBG("Unlocking RF lock held by set_if_via_id(), unknown id\n");
     return RADIO_RESULT_INVALID_VALUE;
-  } else {
-    LOG_DBG("Could not switch interface, interfaces are locked\n");
-    LOG_DBG("Deferring interface switch\n");
-    next_if_id = if_id;
-    LOG_DBG("Setting interface update flag\n");
-    twofaced_rf_flags |= TWOFACED_RF_UPDATE_IF_VIA_ID;
-    process_poll(&twofaced_rf_process);
   }
+  LOG_DBG("Could not switch interface, interfaces are locked\n");
+  LOG_DBG("Deferring interface switch\n");
+  next_if_id = if_id;
+  LOG_DBG("Setting interface update flag\n");
+  twofaced_rf_flags |= TWOFACED_RF_UPDATE_IF_VIA_ID;
+  process_poll(&twofaced_rf_process);
   /* We return RADIO_RESULT_OK because deferring an interface
      switch doesn't constitute an error */
   return RADIO_RESULT_OK;
