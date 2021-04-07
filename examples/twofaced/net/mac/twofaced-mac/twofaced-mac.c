@@ -90,8 +90,7 @@ const struct mac_driver twofaced_mac_driver = {
 static void
 intercept_callback(void *ptr, int status, int num_tx)
 {
-  /* TODO perform checks and only select new interface if
-     not already selected */
+  /* TODO perform checks */
   NETSTACK_RADIO.set_value(RADIO_PARAM_SEL_IF_ID, selected_if_id);
   mac_call_sent_callback(twofaced_mac_sent_callback, ptr, status, num_tx);
 }

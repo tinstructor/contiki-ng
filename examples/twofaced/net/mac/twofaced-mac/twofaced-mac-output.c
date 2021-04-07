@@ -189,7 +189,7 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
     LOG_DBG("Selecting interface with ID = 0 is not allowed here\n");
   }
 
-  /* NOTE when initializing this MAC layer, we must have made sure that the
+  /* When initializing this MAC layer, we must have made sure that the
      underlying radio driver is multi-rf capable and its interface locking /
      unlocking function pointers aren't NULL. Hence we don't need to repeat
      those checks here. */
@@ -465,9 +465,6 @@ static void
 packet_sent(struct neighbor_queue *nq, struct packet_queue *pq, int status,
             int num_tx)
 {
-  /* REVIEW assert statements outside of a debug context are
-     rarely a good idea and often indicate a lack of effort on
-     the developer's part */
   assert(nq != NULL);
   assert(pq != NULL);
 
