@@ -34,6 +34,7 @@
 #define LINK_STATS_H_
 
 #include "net/linkaddr.h"
+#include "lib/list.h"
 
 /* ETX fixed point divisor. 128 is the value used by RPL (RFC 6551 and RFC 6719) */
 #ifdef LINK_STATS_CONF_ETX_DIVISOR
@@ -90,6 +91,21 @@ struct link_stats {
   struct link_packet_counter cnt_current; /* packets in the current period */
   struct link_packet_counter cnt_total;   /* packets in total */
 #endif
+
+  uint16_t normalized_metric;
+  LIST_STRUCT(interface_list);
+};
+
+typedef enum {
+  LINK_STATS_DEFER_FLAG_FALSE,
+  LINK_STATS_DEFER_FLAG_TRUE
+} link_stats_defer_flag_t;
+
+struct interface_list {
+  struct interface_list *next;
+  uint8_t if_id;
+  uint16_t inferred_metric;
+  link_stats_defer_flag_t defer_flag;
 };
 
 /* Returns the neighbor's link statistics */
