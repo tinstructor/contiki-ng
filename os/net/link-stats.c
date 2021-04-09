@@ -422,6 +422,11 @@ link_stats_reset(void)
   struct link_stats *stats;
   stats = nbr_table_head(link_stats);
   while(stats != NULL) {
+    while(list_head(stats->interface_list) != NULL) {
+      struct interface_list_entry *ile = list_head(stats->interface_list);
+      list_remove(stats->interface_list, ile);
+      memb_free(&interface_memb, ile);
+    }
     nbr_table_remove(link_stats, stats);
     stats = nbr_table_next(link_stats, stats);
   }
