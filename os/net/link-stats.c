@@ -106,6 +106,30 @@ link_stats_update_norm_metric(const linkaddr_t *lladdr)
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+/* Reset the defer flag of each interface list entry of the
+   link stats table entry corresponding to the supplied link-
+   layer address */
+int
+link_stats_reset_defer_flags(const linkaddr_t *lladdr)
+{
+  struct link_stats *stats;
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  if(stats == NULL) {
+    LOG_DBG("Could not find link stats table entry for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(", aborting defer flag reset\n");
+    return 0;
+  } else {
+    struct interface_list_entry *ile;
+    ile = list_head(stats->interface_list);
+    while(ile != NULL) {
+      ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
+      ile = list_item_next(stats->interface_list);
+    }
+  }
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
 /* Returns the neighbor's link stats */
 const struct link_stats *
 link_stats_from_lladdr(const linkaddr_t *lladdr)
@@ -204,11 +228,13 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     LOG_DBG("Interface with ID = %d already in interface list of ", if_id);
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
+    uint16_t old_metric = ile->inferred_metric;
     /* TODO make sure the link quality format is uniform accross
        all possible interfaces, otherwise try calculating from RSSI? */
-    uint16_t old_metric = ile->inferred_metric;
+    /* TODO allow configuration of used inferred metric by setting
+       which attribute is retrieved from packet buffer */
     ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
-    LOG_DBG("Updated LQL to %d (previously %d) for interface with ID = %d of ",
+    LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
             old_metric,
             if_id);
@@ -341,11 +367,13 @@ link_stats_input_callback(const linkaddr_t *lladdr)
     LOG_DBG("Interface with ID = %d already in interface list of ", if_id);
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
+    uint16_t old_metric = ile->inferred_metric;
     /* TODO make sure the link quality format is uniform accross
        all possible interfaces, otherwise try calculating from RSSI? */
-    uint16_t old_metric = ile->inferred_metric;
+    /* TODO allow configuration of used inferred metric by setting
+       which attribute is retrieved from packet buffer */
     ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
-    LOG_DBG("Updated LQL to %d (previously %d) for interface with ID = %d of ",
+    LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
             old_metric,
             if_id);
@@ -369,7 +397,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
         LOG_DBG_(" set because metric crossed threshold\n");
       }
     }
- } else {
+  } else {
     if(list_length(stats->interface_list) < LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR) {
       /* Create new ile and add to interface list */
       ile = memb_alloc(&interface_memb);

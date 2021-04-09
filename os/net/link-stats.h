@@ -126,6 +126,10 @@ struct interface_list_entry {
 /* Update the normalized metric stored in the link stats table
    entry corresponding to the supplied link-layer address */
 int link_stats_update_norm_metric(const linkaddr_t *lladdr);
+/* Reset the defer flag of each interface list entry of the
+   link stats table entry corresponding to the supplied link-
+   layer address */
+int link_stats_reset_defer_flags(const linkaddr_t *lladdr);
 /* Returns the neighbor's link statistics */
 const struct link_stats *link_stats_from_lladdr(const linkaddr_t *lladdr);
 /* Returns the address of the neighbor */
