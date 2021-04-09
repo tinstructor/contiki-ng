@@ -70,7 +70,7 @@
 
 /* Per-neighbor link statistics table */
 NBR_TABLE(struct link_stats, link_stats);
-MEMB(interface_memb, struct interface_list_entry, NBR_TABLE_MAX_NEIGHBORS * LINK_STATS_MAX_INTERFACES_PER_NEIGHBOR);
+MEMB(interface_memb, struct interface_list_entry, NBR_TABLE_MAX_NEIGHBORS * LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR);
 
 /* Called at a period of FRESHNESS_HALF_LIFE */
 struct ctimer periodic_timer;
@@ -199,21 +199,26 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
             if_id);
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
-    if((old_metric < LINK_STATS_METRIC_THRESHOLD) &&
-       (ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD)) {
-      ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
-      LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
-      LOG_DBG_LLADDR(lladdr);
-      LOG_DBG_(" reset because metric crossed threshold\n");
-    } else if((old_metric >= LINK_STATS_METRIC_THRESHOLD) &&
-              (ile->inferred_metric < LINK_STATS_METRIC_THRESHOLD)) {
-      ile->defer_flag = LINK_STATS_DEFER_FLAG_TRUE;
-      LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
-      LOG_DBG_LLADDR(lladdr);
-      LOG_DBG_(" set because metric crossed threshold\n");
+    /* When an inferred metric is not updated, or when it is but it doesn't
+       cross the metric threshold in any direction, the link-layer may not
+       update the corresponding defer flag */
+    if(old_metric != ile->inferred_metric) {
+      if((old_metric < LINK_STATS_METRIC_THRESHOLD) &&
+         (ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD)) {
+        ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
+        LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
+        LOG_DBG_LLADDR(lladdr);
+        LOG_DBG_(" reset because metric crossed threshold\n");
+      } else if((old_metric >= LINK_STATS_METRIC_THRESHOLD) &&
+                (ile->inferred_metric < LINK_STATS_METRIC_THRESHOLD)) {
+        ile->defer_flag = LINK_STATS_DEFER_FLAG_TRUE;
+        LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
+        LOG_DBG_LLADDR(lladdr);
+        LOG_DBG_(" set because metric crossed threshold\n");
+      }
     }
   } else {
-    if(list_length(stats->interface_list) < LINK_STATS_MAX_INTERFACES_PER_NEIGHBOR) {
+    if(list_length(stats->interface_list) < LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR) {
       /* Create new ile and add to interface list */
       ile = memb_alloc(&interface_memb);
       if(ile != NULL) {
@@ -221,8 +226,9 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
         /* TODO make sure the link quality format is uniform accross
            all possible interfaces, otherwise try calculating from RSSI? */
         ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
-        /* TODO set the defer flag based on whether or not the inferred
-           metric exceeds a certain, yet to be defined, metric threshold */
+        /* If there even is a normalized metric value already, it must be
+           updated ASAP and thus we don't set the defer flag here */
+        ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
         LOG_DBG_LLADDR(lladdr);
@@ -329,21 +335,26 @@ link_stats_input_callback(const linkaddr_t *lladdr)
             if_id);
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
-    if((old_metric < LINK_STATS_METRIC_THRESHOLD) &&
-       (ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD)) {
-      ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
-      LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
-      LOG_DBG_LLADDR(lladdr);
-      LOG_DBG_(" reset because metric crossed threshold\n");
-    } else if((old_metric >= LINK_STATS_METRIC_THRESHOLD) &&
-              (ile->inferred_metric < LINK_STATS_METRIC_THRESHOLD)) {
-      ile->defer_flag = LINK_STATS_DEFER_FLAG_TRUE;
-      LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
-      LOG_DBG_LLADDR(lladdr);
-      LOG_DBG_(" set because metric crossed threshold\n");
+    /* When an inferred metric is not updated, or when it is but it doesn't
+       cross the metric threshold in any direction, the link-layer may not
+       update the corresponding defer flag */
+    if(old_metric != ile->inferred_metric) {
+      if((old_metric < LINK_STATS_METRIC_THRESHOLD) &&
+         (ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD)) {
+        ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
+        LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
+        LOG_DBG_LLADDR(lladdr);
+        LOG_DBG_(" reset because metric crossed threshold\n");
+      } else if((old_metric >= LINK_STATS_METRIC_THRESHOLD) &&
+                (ile->inferred_metric < LINK_STATS_METRIC_THRESHOLD)) {
+        ile->defer_flag = LINK_STATS_DEFER_FLAG_TRUE;
+        LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
+        LOG_DBG_LLADDR(lladdr);
+        LOG_DBG_(" set because metric crossed threshold\n");
+      }
     }
   } else {
-    if(list_length(stats->interface_list) < LINK_STATS_MAX_INTERFACES_PER_NEIGHBOR) {
+    if(list_length(stats->interface_list) < LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR) {
       /* Create new ile and add to interface list */
       ile = memb_alloc(&interface_memb);
       if(ile != NULL) {
@@ -351,8 +362,9 @@ link_stats_input_callback(const linkaddr_t *lladdr)
         /* TODO make sure the link quality format is uniform accross
            all possible interfaces, otherwise try calculating from RSSI? */
         ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
-        /* TODO set the defer flag based on whether or not the inferred
-           metric exceeds a certain, yet to be defined, metric threshold */
+        /* If there even is a normalized metric value already, it must be
+           updated ASAP and thus we don't set the defer flag here */
+        ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
         LOG_DBG_LLADDR(lladdr);
