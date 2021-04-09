@@ -185,30 +185,47 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
   uint8_t if_id = packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID);
   ile = interface_list_entry_from_id(stats, if_id);
   if(ile != NULL) {
-    /* TODO update the existing ile */
+    /* Update the existing ile */
     LOG_DBG("Interface with ID = %d already in interface list of ", if_id);
-    LOG_DBG_LLADDR(nbr_table_get_lladdr(link_stats, stats));
+    LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
-    /* TODO set the ile's inferred metric by retrieving some yet to be
-       defined packetbuf attribute and then set the defer flag based on
-       whether or not the inferred metric exceeds a certain, yet to be
-       defined, metric threshold */
-    LOG_DBG("Updated LQL to %d for interface with ID = %d\n",
-            packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
-            packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID));
+    /* TODO make sure the link quality format is uniform accross
+       all possible interfaces, otherwise try calculating from RSSI? */
+    uint16_t old_metric = ile->inferred_metric;
+    ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
+    LOG_DBG("Updated LQL to %d (previously %d) for interface with ID = %d of ",
+            ile->inferred_metric,
+            old_metric,
+            if_id);
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_("\n");
+    if((old_metric < LINK_STATS_METRIC_THRESHOLD) &&
+       (ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD)) {
+      ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
+      LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_(" reset because metric crossed threshold\n");
+    } else if((old_metric >= LINK_STATS_METRIC_THRESHOLD) &&
+              (ile->inferred_metric < LINK_STATS_METRIC_THRESHOLD)) {
+      ile->defer_flag = LINK_STATS_DEFER_FLAG_TRUE;
+      LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_(" set because metric crossed threshold\n");
+    }
   } else {
     if(list_length(stats->interface_list) < LINK_STATS_MAX_INTERFACES_PER_NEIGHBOR) {
-      /* TODO create new ile and add to interface list */
+      /* Create new ile and add to interface list */
       ile = memb_alloc(&interface_memb);
       if(ile != NULL) {
         ile->if_id = if_id;
-        /* TODO set the ile's inferred metric by retrieving some yet to be
-           defined packetbuf attribute and then set the defer flag based on
-           whether or not the inferred metric exceeds a certain, yet to be
-           defined, metric threshold */
+        /* TODO make sure the link quality format is uniform accross
+           all possible interfaces, otherwise try calculating from RSSI? */
+        ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
+        /* TODO set the defer flag based on whether or not the inferred
+           metric exceeds a certain, yet to be defined, metric threshold */
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
-        LOG_DBG_LLADDR(nbr_table_get_lladdr(link_stats, stats));
+        LOG_DBG_LLADDR(lladdr);
         LOG_DBG_("\n");
       } else {
         LOG_DBG("Could not allocate interface list entry\n");
@@ -298,30 +315,47 @@ link_stats_input_callback(const linkaddr_t *lladdr)
   uint8_t if_id = packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID);
   ile = interface_list_entry_from_id(stats, if_id);
   if(ile != NULL) {
-    /* TODO update the existing ile */
+    /* Update the existing ile */
     LOG_DBG("Interface with ID = %d already in interface list of ", if_id);
-    LOG_DBG_LLADDR(nbr_table_get_lladdr(link_stats, stats));
+    LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
-    /* TODO set the ile's inferred metric by retrieving some yet to be
-       defined packetbuf attribute and then set the defer flag based on
-       whether or not the inferred metric exceeds a certain, yet to be
-       defined, metric threshold */
-    LOG_DBG("Updated LQL to %d for interface with ID = %d\n",
-            packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
-            packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID));
+    /* TODO make sure the link quality format is uniform accross
+       all possible interfaces, otherwise try calculating from RSSI? */
+    uint16_t old_metric = ile->inferred_metric;
+    ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
+    LOG_DBG("Updated LQL to %d (previously %d) for interface with ID = %d of ",
+            ile->inferred_metric,
+            old_metric,
+            if_id);
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_("\n");
+    if((old_metric < LINK_STATS_METRIC_THRESHOLD) &&
+       (ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD)) {
+      ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
+      LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_(" reset because metric crossed threshold\n");
+    } else if((old_metric >= LINK_STATS_METRIC_THRESHOLD) &&
+              (ile->inferred_metric < LINK_STATS_METRIC_THRESHOLD)) {
+      ile->defer_flag = LINK_STATS_DEFER_FLAG_TRUE;
+      LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_(" set because metric crossed threshold\n");
+    }
   } else {
     if(list_length(stats->interface_list) < LINK_STATS_MAX_INTERFACES_PER_NEIGHBOR) {
-      /* TODO create new ile and add to interface list */
+      /* Create new ile and add to interface list */
       ile = memb_alloc(&interface_memb);
       if(ile != NULL) {
         ile->if_id = if_id;
-        /* TODO set the ile's inferred metric by retrieving some yet to be
-           defined packetbuf attribute and then set the defer flag based on
-           whether or not the inferred metric exceeds a certain, yet to be
-           defined, metric threshold */
+        /* TODO make sure the link quality format is uniform accross
+           all possible interfaces, otherwise try calculating from RSSI? */
+        ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
+        /* TODO set the defer flag based on whether or not the inferred
+           metric exceeds a certain, yet to be defined, metric threshold */
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
-        LOG_DBG_LLADDR(nbr_table_get_lladdr(link_stats, stats));
+        LOG_DBG_LLADDR(lladdr);
         LOG_DBG_("\n");
       } else {
         LOG_DBG("Could not allocate interface list entry\n");

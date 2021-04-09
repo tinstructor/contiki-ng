@@ -71,6 +71,13 @@
 #define LINK_STATS_MAX_INTERFACES_PER_NEIGHBOR    2
 #endif /* LINK_STATS_MAX_INTERFACES_PER_NEIGHBOR */
 
+/* The metric threshold value below which a physical link is considered down */
+#ifdef LINK_STATS_CONF_METRIC_THRESHOLD
+#define LINK_STATS_METRIC_THRESHOLD LINK_STATS_CONF_METRIC_THRESHOLD
+#else /* LINK_STATS_CONF_METRIC_THRESHOLD */
+#define LINK_STATS_METRIC_THRESHOLD               1
+#endif /* LINK_STATS_METRIC_THRESHOLD */
+
 typedef uint16_t link_packet_stat_t;
 
 struct link_packet_counter {
