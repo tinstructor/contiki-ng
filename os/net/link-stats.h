@@ -123,6 +123,9 @@ struct interface_list_entry {
   link_stats_defer_flag_t defer_flag;   /* The weighted averaging defer flag */
 };
 
+/* Update the normalized metric stored in the link stats table
+   entry corresponding to the supplied link-layer address */
+int link_stats_update_norm_metric(const linkaddr_t *lladdr);
 /* Returns the neighbor's link statistics */
 const struct link_stats *link_stats_from_lladdr(const linkaddr_t *lladdr);
 /* Returns the address of the neighbor */

@@ -91,6 +91,21 @@ interface_list_entry_from_id(struct link_stats *stats, uint8_t if_id)
   return NULL;
 }
 /*---------------------------------------------------------------------------*/
+/* Update the normalized metric stored in the link stats table
+   entry corresponding to the supplied link-layer address */
+int
+link_stats_update_norm_metric(const linkaddr_t *lladdr)
+{
+  struct link_stats *stats;
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  if(stats == NULL) {
+    /* TODO */
+  } else {
+    /* TODO */
+  }
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
 /* Returns the neighbor's link stats */
 const struct link_stats *
 link_stats_from_lladdr(const linkaddr_t *lladdr)
@@ -230,6 +245,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
            updated ASAP and thus we don't set the defer flag here */
         ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
         list_add(stats->interface_list, ile);
+        link_stats_update_norm_metric(lladdr);
         LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
         LOG_DBG_LLADDR(lladdr);
         LOG_DBG_("\n");
@@ -353,7 +369,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
         LOG_DBG_(" set because metric crossed threshold\n");
       }
     }
-  } else {
+ } else {
     if(list_length(stats->interface_list) < LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR) {
       /* Create new ile and add to interface list */
       ile = memb_alloc(&interface_memb);
@@ -366,6 +382,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
            updated ASAP and thus we don't set the defer flag here */
         ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
         list_add(stats->interface_list, ile);
+        link_stats_update_norm_metric(lladdr);
         LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
         LOG_DBG_LLADDR(lladdr);
         LOG_DBG_("\n");
