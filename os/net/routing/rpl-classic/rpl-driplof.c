@@ -39,7 +39,7 @@
 #include "net/routing/rpl-classic/rpl.h"
 #include "net/routing/rpl-classic/rpl-private.h"
 #include "net/nbr-table.h"
-#include "net/link-table.h"
+#include "net/link-stats.h"
 
 #include "sys/log.h"
 
