@@ -35,6 +35,8 @@
 #include "net/packetbuf.h"
 #include "net/nbr-table.h"
 #include "net/link-stats.h"
+#include "lib/list.h"
+#include "lib/memb.h"
 #include <stdio.h>
 
 /* Log configuration */
@@ -68,10 +70,26 @@
 
 /* Per-neighbor link statistics table */
 NBR_TABLE(struct link_stats, link_stats);
+MEMB(interface_memb, struct interface_list_entry, NBR_TABLE_MAX_NEIGHBORS * LINK_STATS_MAX_INTERFACES_PER_NEIGHBOR);
 
 /* Called at a period of FRESHNESS_HALF_LIFE */
 struct ctimer periodic_timer;
 
+/*---------------------------------------------------------------------------*/
+/* Retrieve an entry from the interface list of a supplied
+   link stats table entry based on the interface's id */
+static struct interface_list_entry *
+interface_list_entry_from_id(struct link_stats *stats, uint8_t if_id)
+{
+  struct interface_list_entry *ile = list_head(stats->interface_list);
+  while(ile != NULL) {
+    if(ile->if_id == if_id) {
+      return ile;
+    }
+    ile = list_item_next(ile);
+  }
+  return NULL;
+}
 /*---------------------------------------------------------------------------*/
 /* Returns the neighbor's link stats */
 const struct link_stats *
@@ -131,6 +149,7 @@ guess_etx_from_rssi(const struct link_stats *stats)
 void
 link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
 {
+  struct interface_list_entry *ile;
   struct link_stats *stats;
 #if !LINK_STATS_ETX_FROM_PACKET_COUNT
   uint16_t packet_etx;
@@ -159,6 +178,42 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
 #endif /* LINK_STATS_INIT_ETX_FROM_RSSI */
     } else {
       return; /* No space left, return */
+    }
+    LIST_STRUCT_INIT(stats, interface_list);
+  }
+
+  uint8_t if_id = packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID);
+  ile = interface_list_entry_from_id(stats, if_id);
+  if(ile != NULL) {
+    /* TODO update the existing ile */
+    LOG_DBG("Interface with ID = %d already in interface list of ", if_id);
+    LOG_DBG_LLADDR(nbr_table_get_lladdr(link_stats, stats));
+    LOG_DBG_("\n");
+    /* TODO set the ile's inferred metric by retrieving some yet to be
+       defined packetbuf attribute and then set the defer flag based on
+       whether or not the inferred metric exceeds a certain, yet to be
+       defined, metric threshold */
+    LOG_DBG("Updated LQL to %d for interface with ID = %d\n",
+            packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
+            packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID));
+  } else {
+    if(list_length(stats->interface_list) < LINK_STATS_MAX_INTERFACES_PER_NEIGHBOR) {
+      /* TODO create new ile and add to interface list */
+      ile = memb_alloc(&interface_memb);
+      if(ile != NULL) {
+        ile->if_id = if_id;
+        /* TODO set the ile's inferred metric by retrieving some yet to be
+           defined packetbuf attribute and then set the defer flag based on
+           whether or not the inferred metric exceeds a certain, yet to be
+           defined, metric threshold */
+        list_add(stats->interface_list, ile);
+        LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
+        LOG_DBG_LLADDR(nbr_table_get_lladdr(link_stats, stats));
+        LOG_DBG_("\n");
+      } else {
+        LOG_DBG("Could not allocate interface list entry\n");
+        return;
+      }
     }
   }
 
@@ -215,6 +270,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
 void
 link_stats_input_callback(const linkaddr_t *lladdr)
 {
+  struct interface_list_entry *ile;
   struct link_stats *stats;
   int16_t packet_rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
 
@@ -233,8 +289,45 @@ link_stats_input_callback(const linkaddr_t *lladdr)
 #if LINK_STATS_PACKET_COUNTERS
       stats->cnt_current.num_packets_rx = 1;
 #endif
+    } else {
+      return; /* No space left, return */
     }
-    return;
+    LIST_STRUCT_INIT(stats, interface_list);
+  }
+
+  uint8_t if_id = packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID);
+  ile = interface_list_entry_from_id(stats, if_id);
+  if(ile != NULL) {
+    /* TODO update the existing ile */
+    LOG_DBG("Interface with ID = %d already in interface list of ", if_id);
+    LOG_DBG_LLADDR(nbr_table_get_lladdr(link_stats, stats));
+    LOG_DBG_("\n");
+    /* TODO set the ile's inferred metric by retrieving some yet to be
+       defined packetbuf attribute and then set the defer flag based on
+       whether or not the inferred metric exceeds a certain, yet to be
+       defined, metric threshold */
+    LOG_DBG("Updated LQL to %d for interface with ID = %d\n",
+            packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
+            packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID));
+  } else {
+    if(list_length(stats->interface_list) < LINK_STATS_MAX_INTERFACES_PER_NEIGHBOR) {
+      /* TODO create new ile and add to interface list */
+      ile = memb_alloc(&interface_memb);
+      if(ile != NULL) {
+        ile->if_id = if_id;
+        /* TODO set the ile's inferred metric by retrieving some yet to be
+           defined packetbuf attribute and then set the defer flag based on
+           whether or not the inferred metric exceeds a certain, yet to be
+           defined, metric threshold */
+        list_add(stats->interface_list, ile);
+        LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
+        LOG_DBG_LLADDR(nbr_table_get_lladdr(link_stats, stats));
+        LOG_DBG_("\n");
+      } else {
+        LOG_DBG("Could not allocate interface list entry\n");
+        return;
+      }
+    }
   }
 
   /* Update RSSI EWMA */
@@ -305,5 +398,6 @@ void
 link_stats_init(void)
 {
   nbr_table_register(link_stats, NULL);
+  memb_init(&interface_memb);
   ctimer_set(&periodic_timer, FRESHNESS_HALF_LIFE, periodic, NULL);
 }
