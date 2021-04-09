@@ -64,6 +64,13 @@
 #define LINK_STATS_PACKET_COUNTERS           0
 #endif /* LINK_STATS_PACKET_COUNTERS */
 
+/* The maximum number of interfaces per neighbor */
+#ifdef LINK_STATS_CONF_MAX_INTERFACES
+#define LINK_STATS_MAX_INTERFACES LINK_STATS_CONF_MAX_INTERFACES
+#else /* LINK_STATS_CONF_MAX_INTERFACES */
+#define LINK_STATS_MAX_INTERFACES           2
+#endif /* LINK_STATS_MAX_INTERFACES */
+
 typedef uint16_t link_packet_stat_t;
 
 struct link_packet_counter {
@@ -92,8 +99,8 @@ struct link_stats {
   struct link_packet_counter cnt_total;   /* packets in total */
 #endif
 
-  uint16_t normalized_metric;
-  LIST_STRUCT(interface_list);
+  uint16_t normalized_metric;   /* Weighted average metric accross interfaces */
+  LIST_STRUCT(interface_list);  /* List of interfaces and metrics + flags */
 };
 
 typedef enum {
@@ -101,11 +108,12 @@ typedef enum {
   LINK_STATS_DEFER_FLAG_TRUE
 } link_stats_defer_flag_t;
 
-struct interface_list {
-  struct interface_list *next;
-  uint8_t if_id;
-  uint16_t inferred_metric;
-  link_stats_defer_flag_t defer_flag;
+/* An entry in the interface list of a link stats table entry */
+struct interface_list_entry {
+  struct interface_list_entry *next;
+  uint8_t if_id;                        /* Identifier of the interface */
+  uint16_t inferred_metric;             /* Inferred metric of physical link */
+  link_stats_defer_flag_t defer_flag;   /* The weighted averaging defer flag */
 };
 
 /* Returns the neighbor's link statistics */
