@@ -135,6 +135,7 @@ struct interface_list_entry {
   uint8_t if_id;                        /* Identifier of the interface */
   uint16_t inferred_metric;             /* Inferred metric of physical link */
   link_stats_defer_flag_t defer_flag;   /* The weighted averaging defer flag */
+  uint8_t weight;                       /* The weight associated with a neighboring interface */
 };
 
 /* Modify the wifsel flag to indicate wether or not preferred interface
