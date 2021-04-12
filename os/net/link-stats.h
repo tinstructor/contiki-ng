@@ -97,6 +97,10 @@ struct link_packet_counter {
   link_packet_stat_t num_packets_rx;
 };
 
+typedef enum {
+  LINK_STATS_WIFSEL_FLAG_FALSE,
+  LINK_STATS_WIFSEL_FLAG_TRUE
+} link_stats_wifsel_flag_t;
 
 /* All statistics of a given link */
 struct link_stats {
@@ -116,6 +120,7 @@ struct link_stats {
 
   uint16_t normalized_metric;   /* Weighted average metric accross interfaces */
   uint8_t pref_if_id;           /* ID of the preferred interface towards a neighbor */
+  uint8_t wifsel_flag;          /* Flag indicating if preferred interface selection is weighted */
   LIST_STRUCT(interface_list);  /* List of interfaces and metrics + flags */
 };
 
