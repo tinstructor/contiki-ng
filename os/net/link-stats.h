@@ -137,6 +137,10 @@ struct interface_list_entry {
   link_stats_defer_flag_t defer_flag;   /* The weighted averaging defer flag */
 };
 
+/* Modify the wifsel flag to indicate wether or not preferred interface
+   selection for a given neighbor (whos link-layer addr is supplied) is
+   to be based on weights or not */
+int link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_flag_t value);
 /* Select the preferred interface of the neighbor corresponding
    to the supplied link-layer address. */
 int link_stats_select_pref_interface(const linkaddr_t *lladdr);

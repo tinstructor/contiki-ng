@@ -91,6 +91,9 @@ interface_list_entry_from_id(struct link_stats *stats, uint8_t if_id)
   return NULL;
 }
 /*---------------------------------------------------------------------------*/
+/* Modify the wifsel flag to indicate wether or not preferred interface
+   selection for a given neighbor (whos link-layer addr is supplied) is
+   to be based on weights or not */
 int
 link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_flag_t value)
 {
