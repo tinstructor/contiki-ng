@@ -112,6 +112,33 @@ link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_flag_t
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+/* Modify the weight associated with a neighboring interface by
+   supplying said neighbor's link-layer addr, the interface's ID
+   and a weight. */
+int
+link_stats_modify_weight(const linkaddr_t *lladdr, uint8_t if_id, uint8_t weight)
+{
+  struct link_stats *stats;
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  if(stats == NULL) {
+    LOG_DBG("Could not find link stats table entry for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(", aborting weight modification\n");
+    return 0;
+  }
+  struct interface_list_entry *ile;
+  ile = interface_list_entry_from_id(stats, if_id);
+  if(ile == NULL) {
+    LOG_DBG("Could not find interface list entry for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(" and interface ID = %d, aborting weight modification\n", if_id);
+    return 0;
+  }
+  /* REVIEW contemplate whether a zero weight should be allowed */
+  ile->weight = weight;
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
 /* Select the preferred interface of the neighbor corresponding
    to the supplied link-layer address. */
 int
@@ -367,6 +394,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
         /* If there even is a normalized metric value already, it must be
            updated ASAP and thus we don't set the defer flag here */
         ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
+        ile->weight = 1;
         list_add(stats->interface_list, ile);
         /* REVIEW maybe it's a good idea to reset all defer flags upon
            adding a newly discovered interface to a neighbor's interface
@@ -515,6 +543,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
         /* If there even is a normalized metric value already, it must be
            updated ASAP and thus we don't set the defer flag here */
         ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
+        ile->weight = 1;
         list_add(stats->interface_list, ile);
         /* REVIEW maybe it's a good idea to reset all defer flags upon
            adding a newly discovered interface to a neighbor's interface

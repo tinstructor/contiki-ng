@@ -142,6 +142,10 @@ struct interface_list_entry {
    selection for a given neighbor (whos link-layer addr is supplied) is
    to be based on weights or not */
 int link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_flag_t value);
+/* Modify the weight associated with a neighboring interface by
+   supplying said neighbor's link-layer addr, the interface's ID
+   and a weight. */
+int link_stats_modify_weight(const linkaddr_t *lladdr, uint8_t if_id, uint8_t weight);
 /* Select the preferred interface of the neighbor corresponding
    to the supplied link-layer address. */
 int link_stats_select_pref_interface(const linkaddr_t *lladdr);
