@@ -115,6 +115,7 @@ struct link_stats {
 #endif
 
   uint16_t normalized_metric;   /* Weighted average metric accross interfaces */
+  uint8_t pref_if_id;           /* ID of the preferred interface towards a neighbor */
   LIST_STRUCT(interface_list);  /* List of interfaces and metrics + flags */
 };
 
@@ -131,6 +132,9 @@ struct interface_list_entry {
   link_stats_defer_flag_t defer_flag;   /* The weighted averaging defer flag */
 };
 
+/* Select the preferred interface of the neighbor corresponding
+   to the supplied link-layer address. */
+int link_stats_select_pref_interface(const linkaddr_t *lladdr);
 /* Update the normalized metric stored in the link stats table
    entry corresponding to the supplied link-layer address. Note
    that this function does not check the defer flag status, since

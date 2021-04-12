@@ -91,6 +91,67 @@ interface_list_entry_from_id(struct link_stats *stats, uint8_t if_id)
   return NULL;
 }
 /*---------------------------------------------------------------------------*/
+/* Select the preferred interface of the neighbor corresponding
+   to the supplied link-layer address. */
+int
+link_stats_select_pref_interface(const linkaddr_t *lladdr)
+{
+  struct link_stats *stats;
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  if(stats == NULL) {
+    LOG_DBG("Could not find link stats table entry for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(", aborting preferred interface selection\n");
+    return 0;
+  }
+  /* TODO for now, preferred interface selection is simply based
+     on the lowest inferred metric and does not make use of any
+     weights. From the moment when the normalized metric starts
+     using weights, this function should too! However, whether
+     or not weights are used for interface selection must be 
+     configurable (by the routing layer, via a function parameter)
+     because this does not apply to all neighbors */
+  struct interface_list_entry *ile, *pref_ile;
+  pref_ile = list_head(stats->interface_list);
+  ile = list_item_next(pref_ile);
+  while(ile != NULL) {
+    if(pref_ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD) {
+      if(ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD) {
+        if(ile->inferred_metric < pref_ile->inferred_metric) {
+          pref_ile = ile;
+        }
+      } else {
+        if(LINK_STATS_METRIC_PLACEHOLDER < pref_ile->inferred_metric) {
+          /* This branch is never entered if the placeholder metric
+             value is also the worst possible value of said metric.
+             Nonetheless, it is here just to be sure */
+          pref_ile = ile;
+        }
+      }
+    } else {
+      if(ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD) {
+         if(ile->inferred_metric < LINK_STATS_METRIC_PLACEHOLDER) {
+           pref_ile = ile;
+         }
+      } else {
+        if(LINK_STATS_METRIC_PLACEHOLDER < LINK_STATS_METRIC_PLACEHOLDER) {
+          /* This case is redundant for now. However, it may become
+             useful in the future in case the metrics are multiplied
+             by their corresponding weight */
+          pref_ile = ile;
+        }
+      }
+    }
+    ile = list_item_next(ile);
+  }
+  LOG_DBG("Setting preferred interface for ");
+  LOG_DBG_LLADDR(lladdr);
+  LOG_DBG_(" to interface with ID = %d (previously ID = %d)\n",
+           pref_ile->if_id, stats->pref_if_id);
+  stats->pref_if_id = pref_ile->if_id;
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
 /* Update the normalized metric stored in the link stats table
    entry corresponding to the supplied link-layer address. Note
    that this function does not check the defer flag status, since
@@ -286,6 +347,12 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
         LOG_DBG_LLADDR(lladdr);
         LOG_DBG_(" set because metric crossed threshold\n");
       }
+      /* TODO for now it is appropriate to select the preferred interface
+         here as there are no weights in play yet */
+      /* It makes no sense to re-select the preferred interface if there's
+         no change in inferred metric for the given interface (represented
+         by the ile) */
+      link_stats_select_pref_interface(lladdr);
     }
   } else {
     if(list_length(stats->interface_list) < LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR) {
@@ -305,7 +372,10 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
            list? Maybe it's a better idea to force an update and leave
            the defer flags as is? We're going with the latter for now */
         link_stats_update_norm_metric(lladdr);
-        LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
+        /* TODO for now it is appropriate to select the preferred interface
+           here as there are no weights in play yet */
+        link_stats_select_pref_interface(lladdr);
+        LOG_DBG("Added interface with ID = %d (metric = %d) to interface list of ", if_id, ile->inferred_metric);
         LOG_DBG_LLADDR(lladdr);
         LOG_DBG_("\n");
       } else {
@@ -429,6 +499,12 @@ link_stats_input_callback(const linkaddr_t *lladdr)
         LOG_DBG_LLADDR(lladdr);
         LOG_DBG_(" set because metric crossed threshold\n");
       }
+      /* TODO for now it is appropriate to select the preferred interface
+         here as there are no weights in play yet */
+      /* It makes no sense to re-select the preferred interface if there's
+         no change in inferred metric for the given interface (represented
+         by the ile) */
+      link_stats_select_pref_interface(lladdr);
     }
   } else {
     if(list_length(stats->interface_list) < LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR) {
@@ -448,7 +524,10 @@ link_stats_input_callback(const linkaddr_t *lladdr)
            list? Maybe it's a better idea to force an update and leave
            the defer flags as is? We're going with the latter for now */
         link_stats_update_norm_metric(lladdr);
-        LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
+        /* TODO for now it is appropriate to select the preferred interface
+           here as there are no weights in play yet */
+        link_stats_select_pref_interface(lladdr);
+        LOG_DBG("Added interface with ID = %d (metric = %d) to interface list of ", if_id, ile->inferred_metric);
         LOG_DBG_LLADDR(lladdr);
         LOG_DBG_("\n");
       } else {
