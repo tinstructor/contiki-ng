@@ -91,6 +91,24 @@ interface_list_entry_from_id(struct link_stats *stats, uint8_t if_id)
   return NULL;
 }
 /*---------------------------------------------------------------------------*/
+int
+link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_flag_t value)
+{
+  struct link_stats *stats;
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  if(stats == NULL) {
+    LOG_DBG("Could not find link stats table entry for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(", aborting wifsel flag modification\n");
+    return 0;
+  }
+  stats->wifsel_flag = value;
+  LOG_DBG("Wifsel flag for ");
+  LOG_DBG_LLADDR(lladdr);
+  LOG_DBG_(" modified to %d\n", stats->wifsel_flag);
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
 /* Select the preferred interface of the neighbor corresponding
    to the supplied link-layer address. */
 int
