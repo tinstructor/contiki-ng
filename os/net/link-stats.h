@@ -68,15 +68,23 @@
 #ifdef LINK_STATS_CONF_NUM_INTERFACES_PER_NEIGHBOR
 #define LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR LINK_STATS_CONF_NUM_INTERFACES_PER_NEIGHBOR
 #else /* LINK_STATS_CONF_NUM_INTERFACES_PER_NEIGHBOR */
-#define LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR    2
+#define LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR    2U
 #endif /* LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR */
 
 /* The metric threshold value below which a physical link is considered down */
 #ifdef LINK_STATS_CONF_METRIC_THRESHOLD
 #define LINK_STATS_METRIC_THRESHOLD LINK_STATS_CONF_METRIC_THRESHOLD
 #else /* LINK_STATS_CONF_METRIC_THRESHOLD */
-#define LINK_STATS_METRIC_THRESHOLD               1
+#define LINK_STATS_METRIC_THRESHOLD               1U
 #endif /* LINK_STATS_METRIC_THRESHOLD */
+
+/* The metric placeholder used in normalization when an inferred
+   metric is worse than the metric threshold */
+#ifdef LINK_STATS_CONF_METRIC_PLACEHOLDER
+#define LINK_STATS_METRIC_PLACEHOLDER LINK_STATS_CONF_METRIC_PLACEHOLDER
+#else /* LINK_STATS_CONF_METRIC_PLACEHOLDER */
+#define LINK_STATS_METRIC_PLACEHOLDER             7U
+#endif /* LINK_STATS_METRIC_PLACEHOLDER */
 
 typedef uint16_t link_packet_stat_t;
 
@@ -124,7 +132,10 @@ struct interface_list_entry {
 };
 
 /* Update the normalized metric stored in the link stats table
-   entry corresponding to the supplied link-layer address */
+   entry corresponding to the supplied link-layer address. Note
+   that this function does not check the defer flag status, since
+   that's the responsibility of the routing protocol and pertains
+   only to the preferred parent anyway. */
 int link_stats_update_norm_metric(const linkaddr_t *lladdr);
 /* Reset the defer flag of each interface list entry of the
    link stats table entry corresponding to the supplied link-

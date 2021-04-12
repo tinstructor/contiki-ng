@@ -92,17 +92,47 @@ interface_list_entry_from_id(struct link_stats *stats, uint8_t if_id)
 }
 /*---------------------------------------------------------------------------*/
 /* Update the normalized metric stored in the link stats table
-   entry corresponding to the supplied link-layer address */
+   entry corresponding to the supplied link-layer address. Note
+   that this function does not check the defer flag status, since
+   that's the responsibility of the routing protocol and pertains
+   only to the preferred parent anyway. */
 int
 link_stats_update_norm_metric(const linkaddr_t *lladdr)
 {
   struct link_stats *stats;
   stats = nbr_table_get_from_lladdr(link_stats, lladdr);
   if(stats == NULL) {
-    /* TODO */
-  } else {
-    /* TODO */
+    LOG_DBG("Could not find link stats table entry for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(", aborting normalized metric update\n");
+    return 0;
   }
+  struct interface_list_entry *ile;
+  ile = list_head(stats->interface_list);
+  uint8_t num_if = 0;
+  uint32_t sum = 0;
+  while(ile != NULL) {
+    /* TODO for now, adding inferred metrics without weights suffices */
+    if(ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD) {
+      sum += ile->inferred_metric;
+    } else {
+      sum += LINK_STATS_METRIC_PLACEHOLDER;
+    }
+    num_if++;
+    ile = list_item_next(ile);
+  }
+  if(num_if > LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR) {
+    LOG_DBG("Num ifaces found > LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(", aborting normalized metric update\n");
+    return 0;
+  }
+  /* TODO for now, adding inferred metrics without weights suffices */
+  sum += ((LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR - num_if) * LINK_STATS_METRIC_PLACEHOLDER);
+  stats->normalized_metric = (sum + LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR / 2) / LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR;
+  LOG_DBG("Normalized metric for ");
+  LOG_DBG_LLADDR(lladdr);
+  LOG_DBG_(" updated to %d\n", stats->normalized_metric);
   return 1;
 }
 /*---------------------------------------------------------------------------*/
@@ -119,13 +149,12 @@ link_stats_reset_defer_flags(const linkaddr_t *lladdr)
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_(", aborting defer flag reset\n");
     return 0;
-  } else {
-    struct interface_list_entry *ile;
-    ile = list_head(stats->interface_list);
-    while(ile != NULL) {
-      ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
-      ile = list_item_next(stats->interface_list);
-    }
+  }
+  struct interface_list_entry *ile;
+  ile = list_head(stats->interface_list);
+  while(ile != NULL) {
+    ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
+    ile = list_item_next(ile);
   }
   return 1;
 }
@@ -271,6 +300,10 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
            updated ASAP and thus we don't set the defer flag here */
         ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
         list_add(stats->interface_list, ile);
+        /* REVIEW maybe it's a good idea to reset all defer flags upon
+           adding a newly discovered interface to a neighbor's interface
+           list? Maybe it's a better idea to force an update and leave
+           the defer flags as is? We're going with the latter for now */
         link_stats_update_norm_metric(lladdr);
         LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
         LOG_DBG_LLADDR(lladdr);
@@ -410,6 +443,10 @@ link_stats_input_callback(const linkaddr_t *lladdr)
            updated ASAP and thus we don't set the defer flag here */
         ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
         list_add(stats->interface_list, ile);
+        /* REVIEW maybe it's a good idea to reset all defer flags upon
+           adding a newly discovered interface to a neighbor's interface
+           list? Maybe it's a better idea to force an update and leave
+           the defer flags as is? We're going with the latter for now */
         link_stats_update_norm_metric(lladdr);
         LOG_DBG("Added interface with ID = %d to interface list of ", if_id);
         LOG_DBG_LLADDR(lladdr);
