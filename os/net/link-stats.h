@@ -93,6 +93,13 @@
 #define LINK_STATS_WORSE_THAN_THRESH( x )         ((x)<LINK_STATS_METRIC_THRESHOLD)
 #endif /* LINK_STATS_WORSE_THAN_THRESH */
 
+/* The default weight assigned to a neighboring interface */
+#ifdef LINK_STATS_CONF_DEFAULT_WEIGHT
+#define LINK_STATS_DEFAULT_WEIGHT LINK_STATS_CONF_DEFAULT_WEIGHT
+#else /* LINK_STATS_CONF_DEFAULT_WEIGHT */
+#define LINK_STATS_DEFAULT_WEIGHT                 1U
+#endif /* LINK_STATS_DEFAULT_WEIGHT */
+
 typedef uint16_t link_packet_stat_t;
 
 struct link_packet_counter {
@@ -125,10 +132,10 @@ struct link_stats {
   struct link_packet_counter cnt_total;   /* packets in total */
 #endif
 
-  uint16_t normalized_metric;   /* Weighted average metric accross interfaces */
-  uint8_t pref_if_id;           /* ID of the preferred interface towards a neighbor */
-  uint8_t wifsel_flag;          /* Flag indicating if preferred interface selection is weighted */
-  LIST_STRUCT(interface_list);  /* List of interfaces and metrics + flags */
+  uint16_t normalized_metric;           /* Weighted average metric accross interfaces */
+  uint8_t pref_if_id;                   /* ID of the preferred interface towards a neighbor */
+  link_stats_wifsel_flag_t wifsel_flag; /* Flag indicating if preferred interface selection is weighted */
+  LIST_STRUCT(interface_list);          /* List of interfaces and metrics + flags */
 };
 
 typedef enum {

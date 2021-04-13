@@ -159,15 +159,11 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
     uint16_t pref_if_metric;
     uint16_t if_metric;
     /* Replace the inferred metric with a placeholder if worse than threshold */
-    pref_if_metric = LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : pref_ile->inferred_metric ;
+    pref_if_metric = LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : pref_ile->inferred_metric;
     if_metric = LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : ile->inferred_metric;
     /* If weights are zero, multiplier is 1, regardless of wifsel flag */
-    if(pref_ile->weight > 0) {
-      pref_if_metric *= (stats->wifsel_flag == LINK_STATS_WIFSEL_FLAG_TRUE) ? pref_ile->weight : 1;
-    }
-    if(ile->weight > 0) {
-      if_metric *= (stats->wifsel_flag == LINK_STATS_WIFSEL_FLAG_TRUE) ? ile->weight : 1;
-    }
+    pref_if_metric *= stats->wifsel_flag ? (pref_ile->weight ? pref_ile->weight : 1) : 1;
+    if_metric *= stats->wifsel_flag ? (ile->weight ? ile->weight : 1) : 1;
     /* If metric of interface is better than metric of pref if, new pref if*/
     if(if_metric < pref_if_metric) {
       pref_ile = ile;
@@ -201,10 +197,15 @@ link_stats_update_norm_metric(const linkaddr_t *lladdr)
   struct interface_list_entry *ile;
   ile = list_head(stats->interface_list);
   uint8_t num_if = 0;
-  uint32_t sum = 0;
+  uint32_t numerator = 0;
+  uint16_t denominator = 0;
   while(ile != NULL) {
-    /* TODO for now, adding inferred metrics without weights suffices */
-    sum += LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : ile->inferred_metric;
+    uint32_t inferred_metric;
+    uint8_t weight;
+    inferred_metric = LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : ile->inferred_metric;
+    weight = ile->weight ? ile->weight : 1;
+    numerator += (inferred_metric * weight);
+    denominator += weight;
     num_if++;
     ile = list_item_next(ile);
   }
@@ -214,9 +215,13 @@ link_stats_update_norm_metric(const linkaddr_t *lladdr)
     LOG_DBG_(", aborting normalized metric update\n");
     return 0;
   }
-  /* TODO for now, adding inferred metrics without weights suffices */
-  sum += ((LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR - num_if) * LINK_STATS_METRIC_PLACEHOLDER);
-  stats->normalized_metric = (sum + LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR / 2) / LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR;
+  uint8_t num_if_left = LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR - num_if;
+  numerator += (num_if_left * LINK_STATS_METRIC_PLACEHOLDER * LINK_STATS_DEFAULT_WEIGHT);
+  denominator += (num_if_left * LINK_STATS_DEFAULT_WEIGHT);
+  /* Never divide by zero or the universe might implode */
+  denominator = denominator ? denominator : 1;
+  /* Integer division but rounded to nearest integer */
+  stats->normalized_metric = (numerator + denominator / 2) / denominator;
   LOG_DBG("Normalized metric for ");
   LOG_DBG_LLADDR(lladdr);
   LOG_DBG_(" updated to %d\n", stats->normalized_metric);
@@ -387,10 +392,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
         /* TODO make sure the link quality format is uniform accross
            all possible interfaces, otherwise try calculating from RSSI? */
         ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
-        /* If there even is a normalized metric value already, it must be
-           updated ASAP and thus we don't set the defer flag here */
-        ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
-        ile->weight = 1;
+        ile->weight = LINK_STATS_DEFAULT_WEIGHT;
         list_add(stats->interface_list, ile);
         /* REVIEW maybe it's a good idea to reset all defer flags upon
            adding a newly discovered interface to a neighbor's interface
@@ -536,10 +538,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
         /* TODO make sure the link quality format is uniform accross
            all possible interfaces, otherwise try calculating from RSSI? */
         ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
-        /* If there even is a normalized metric value already, it must be
-           updated ASAP and thus we don't set the defer flag here */
-        ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
-        ile->weight = 1;
+        ile->weight = LINK_STATS_DEFAULT_WEIGHT;
         list_add(stats->interface_list, ile);
         /* REVIEW maybe it's a good idea to reset all defer flags upon
            adding a newly discovered interface to a neighbor's interface
