@@ -46,6 +46,7 @@
 #include "net/ipv6/uip-ds6.h"
 #include "net/ipv6/uip-ds6-nbr.h"
 #include "net/linkaddr.h"
+#include "net/link-stats.h"
 #include "net/routing/routing.h"
 
 #include <string.h>
@@ -727,6 +728,15 @@ tcpip_ipv6_output(void)
 send_packet:
   if(nbr) {
     linkaddr = uip_ds6_nbr_get_ll(nbr);
+    if(!uipbuf_is_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES)) {
+      const struct link_stats *stats = link_stats_from_lladdr((linkaddr_t *)linkaddr);
+      if(stats != NULL) {
+        LOG_INFO("output: retrieved link stats for ");
+        LOG_INFO_LLADDR((linkaddr_t *)linkaddr);
+        LOG_INFO_("\n");
+        uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, stats->pref_if_id);
+      }
+    }
   } else {
     linkaddr = NULL;
   }
