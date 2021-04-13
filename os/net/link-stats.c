@@ -118,6 +118,10 @@ link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_flag_t
 int
 link_stats_modify_weight(const linkaddr_t *lladdr, uint8_t if_id, uint8_t weight)
 {
+  if(weight == 0) {
+    LOG_DBG("Setting a weight of 0 is prohibited, aborting weight modification\n");
+    return 0;
+  }
   struct link_stats *stats;
   stats = nbr_table_get_from_lladdr(link_stats, lladdr);
   if(stats == NULL) {
@@ -134,7 +138,6 @@ link_stats_modify_weight(const linkaddr_t *lladdr, uint8_t if_id, uint8_t weight
     LOG_DBG_(" and interface ID = %d, aborting weight modification\n", if_id);
     return 0;
   }
-  /* REVIEW contemplate whether a zero weight should be allowed */
   ile->weight = weight;
   return 1;
 }
