@@ -159,8 +159,8 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
     uint16_t pref_if_metric;
     uint16_t if_metric;
     /* Replace the inferred metric with a placeholder if worse than threshold */
-    pref_if_metric = (pref_ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD) ? pref_ile->inferred_metric : LINK_STATS_METRIC_PLACEHOLDER;
-    if_metric = (ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD) ? ile->inferred_metric : LINK_STATS_METRIC_PLACEHOLDER;
+    pref_if_metric = LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : pref_ile->inferred_metric ;
+    if_metric = LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : ile->inferred_metric;
     /* If weights are zero, multiplier is 1, regardless of wifsel flag */
     if(pref_ile->weight > 0) {
       pref_if_metric *= (stats->wifsel_flag == LINK_STATS_WIFSEL_FLAG_TRUE) ? pref_ile->weight : 1;
@@ -204,11 +204,7 @@ link_stats_update_norm_metric(const linkaddr_t *lladdr)
   uint32_t sum = 0;
   while(ile != NULL) {
     /* TODO for now, adding inferred metrics without weights suffices */
-    if(ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD) {
-      sum += ile->inferred_metric;
-    } else {
-      sum += LINK_STATS_METRIC_PLACEHOLDER;
-    }
+    sum += LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : ile->inferred_metric;
     num_if++;
     ile = list_item_next(ile);
   }
@@ -364,14 +360,14 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
        cross the metric threshold in any direction, the link-layer may not
        update the corresponding defer flag */
     if(old_metric != ile->inferred_metric) {
-      if((old_metric < LINK_STATS_METRIC_THRESHOLD) &&
-         (ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD)) {
+      if(LINK_STATS_WORSE_THAN_THRESH(old_metric) &&
+         !LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
         ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
         LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
         LOG_DBG_LLADDR(lladdr);
         LOG_DBG_(" reset because metric crossed threshold\n");
-      } else if((old_metric >= LINK_STATS_METRIC_THRESHOLD) &&
-                (ile->inferred_metric < LINK_STATS_METRIC_THRESHOLD)) {
+      } else if(!LINK_STATS_WORSE_THAN_THRESH(old_metric) &&
+                LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
         ile->defer_flag = LINK_STATS_DEFER_FLAG_TRUE;
         LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
         LOG_DBG_LLADDR(lladdr);
@@ -513,14 +509,14 @@ link_stats_input_callback(const linkaddr_t *lladdr)
        cross the metric threshold in any direction, the link-layer may not
        update the corresponding defer flag */
     if(old_metric != ile->inferred_metric) {
-      if((old_metric < LINK_STATS_METRIC_THRESHOLD) &&
-         (ile->inferred_metric >= LINK_STATS_METRIC_THRESHOLD)) {
+      if(LINK_STATS_WORSE_THAN_THRESH(old_metric) &&
+         !LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
         ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
         LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
         LOG_DBG_LLADDR(lladdr);
         LOG_DBG_(" reset because metric crossed threshold\n");
-      } else if((old_metric >= LINK_STATS_METRIC_THRESHOLD) &&
-                (ile->inferred_metric < LINK_STATS_METRIC_THRESHOLD)) {
+      } else if(!LINK_STATS_WORSE_THAN_THRESH(old_metric) &&
+                LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
         ile->defer_flag = LINK_STATS_DEFER_FLAG_TRUE;
         LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
         LOG_DBG_LLADDR(lladdr);

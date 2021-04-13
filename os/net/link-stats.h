@@ -86,6 +86,13 @@
 #define LINK_STATS_METRIC_PLACEHOLDER             7U
 #endif /* LINK_STATS_METRIC_PLACEHOLDER */
 
+/* Define what it means for x to be worse than the metric threshold */
+#ifdef LINK_STATS_CONF_WORSE_THAN_THRESH
+#define LINK_STATS_WORSE_THAN_THRESH LINK_STATS_CONF_WORSE_THAN_THRESH
+#else /* LINK_STATS_CONF_WORSE_THAN_THRESH */
+#define LINK_STATS_WORSE_THAN_THRESH( x )         ((x)<LINK_STATS_METRIC_THRESHOLD)
+#endif /* LINK_STATS_WORSE_THAN_THRESH */
+
 typedef uint16_t link_packet_stat_t;
 
 struct link_packet_counter {
