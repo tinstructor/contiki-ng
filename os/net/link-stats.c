@@ -161,9 +161,9 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
     /* Replace the inferred metric with a placeholder if worse than threshold */
     pref_if_metric = LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : pref_ile->inferred_metric;
     if_metric = LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : ile->inferred_metric;
-    /* If weights are zero, multiplier is 1, regardless of wifsel flag */
-    pref_if_metric *= stats->wifsel_flag ? (pref_ile->weight ? pref_ile->weight : 1) : 1;
-    if_metric *= stats->wifsel_flag ? (ile->weight ? ile->weight : 1) : 1;
+    /* If weights are zero, multiplier is default (if wifsel is set, that is) */
+    pref_if_metric *= stats->wifsel_flag ? (pref_ile->weight ? pref_ile->weight : LINK_STATS_DEFAULT_WEIGHT) : 1;
+    if_metric *= stats->wifsel_flag ? (ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT) : 1;
     /* If metric of interface is better than metric of pref if, new pref if*/
     if(if_metric < pref_if_metric) {
       pref_ile = ile;
@@ -203,7 +203,7 @@ link_stats_update_norm_metric(const linkaddr_t *lladdr)
     uint32_t inferred_metric;
     uint8_t weight;
     inferred_metric = LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : ile->inferred_metric;
-    weight = ile->weight ? ile->weight : 1;
+    weight = ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
     numerator += (inferred_metric * weight);
     denominator += weight;
     num_if++;

@@ -95,7 +95,11 @@
 
 /* The default weight assigned to a neighboring interface */
 #ifdef LINK_STATS_CONF_DEFAULT_WEIGHT
+#if LINK_STATS_CONF_DEFAULT_WEIGHT > 0U
 #define LINK_STATS_DEFAULT_WEIGHT LINK_STATS_CONF_DEFAULT_WEIGHT
+#else /* LINK_STATS_CONF_DEFAULT_WEIGHT > 0U */
+#error "A default interface weight of 0 is not allowed!"
+#endif /* LINK_STATS_CONF_DEFAULT_WEIGHT > 0U */
 #else /* LINK_STATS_CONF_DEFAULT_WEIGHT */
 #define LINK_STATS_DEFAULT_WEIGHT                 1U
 #endif /* LINK_STATS_DEFAULT_WEIGHT */
