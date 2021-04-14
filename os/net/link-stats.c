@@ -348,41 +348,48 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
   uint8_t if_id = packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID);
   ile = interface_list_entry_from_id(stats, if_id);
   if(ile != NULL) {
-    /* Update the existing ile */
-    LOG_DBG("Interface with ID = %d already in interface list of ", if_id);
-    LOG_DBG_LLADDR(lladdr);
-    LOG_DBG_("\n");
-    uint16_t old_metric = ile->inferred_metric;
-    /* TODO make sure the link quality format is uniform accross
-       all possible interfaces, otherwise try calculating from RSSI? */
-    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC();
-    LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
-            ile->inferred_metric,
-            old_metric,
-            if_id);
-    LOG_DBG_LLADDR(lladdr);
-    LOG_DBG_("\n");
-    /* When an inferred metric is not updated, or when it is but it doesn't
-       cross the metric threshold in any direction, the link-layer may not
-       update the corresponding defer flag */
-    if(old_metric != ile->inferred_metric) {
-      if(LINK_STATS_WORSE_THAN_THRESH(old_metric) &&
-         !LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
-        ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
-        LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
-        LOG_DBG_LLADDR(lladdr);
-        LOG_DBG_(" reset because metric crossed threshold\n");
-      } else if(!LINK_STATS_WORSE_THAN_THRESH(old_metric) &&
-                LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
-        ile->defer_flag = LINK_STATS_DEFER_FLAG_TRUE;
-        LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
-        LOG_DBG_LLADDR(lladdr);
-        LOG_DBG_(" set because metric crossed threshold\n");
+    /* The inferred metric can only be updated if an ACK was received,
+       that is, if the tx status was MAC_TX_OK and the packet was not
+       broadcast on the link-layer there should be an ACK in the packet
+       buffer. We perform all checks to be safe but this function should
+       never be called for non-unicast packets anyway */
+    if(status == MAC_TX_OK && !linkaddr_cmp(lladdr, &linkaddr_null)) {
+      /* Update the existing ile */
+      LOG_DBG("Interface with ID = %d already in interface list of ", if_id);
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_("\n");
+      uint16_t old_metric = ile->inferred_metric;
+      /* TODO make sure the link quality format is uniform accross
+         all possible interfaces, otherwise try calculating from RSSI? */
+      ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC();
+      LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
+              ile->inferred_metric,
+              old_metric,
+              if_id);
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_("\n");
+      /* When an inferred metric is not updated, or when it is but it doesn't
+         cross the metric threshold in any direction, the link-layer may not
+         update the corresponding defer flag */
+      if(old_metric != ile->inferred_metric) {
+        if(LINK_STATS_WORSE_THAN_THRESH(old_metric) &&
+          !LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
+          ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
+          LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
+          LOG_DBG_LLADDR(lladdr);
+          LOG_DBG_(" reset because metric crossed threshold\n");
+        } else if(!LINK_STATS_WORSE_THAN_THRESH(old_metric) &&
+                  LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
+          ile->defer_flag = LINK_STATS_DEFER_FLAG_TRUE;
+          LOG_DBG("Defer flag of interface with ID = %d of ", if_id);
+          LOG_DBG_LLADDR(lladdr);
+          LOG_DBG_(" set because metric crossed threshold\n");
+        }
+        /* It makes no sense to re-select the preferred interface if there's
+           no change in inferred metric for the given interface (represented
+           by the ile) */
+        link_stats_select_pref_interface(lladdr);
       }
-      /* It makes no sense to re-select the preferred interface if there's
-         no change in inferred metric for the given interface (represented
-         by the ile) */
-      link_stats_select_pref_interface(lladdr);
     }
   } else {
     if(list_length(stats->interface_list) < LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR) {
@@ -390,9 +397,16 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
       ile = memb_alloc(&interface_memb);
       if(ile != NULL) {
         ile->if_id = if_id;
-        /* TODO make sure the link quality format is uniform accross
-           all possible interfaces, otherwise try calculating from RSSI? */
-        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC();
+        /* The inferred metric of this new ile can only be set if an ACK
+           was received, so we perform some (possibly redundant) checks
+           to make sure */
+        if(status == MAC_TX_OK && !linkaddr_cmp(lladdr, &linkaddr_null)) {
+          /* TODO make sure the link quality format is uniform accross
+             all possible interfaces, otherwise try calculating from RSSI? */
+          ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC();
+        } else {
+          ile->inferred_metric = LINK_STATS_METRIC_PLACEHOLDER;
+        }
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
         list_add(stats->interface_list, ile);
         /* REVIEW maybe it's a good idea to reset all defer flags upon
