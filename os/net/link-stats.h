@@ -71,9 +71,14 @@
 #define LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR    2U
 #endif /* LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR */
 
-/* The metric threshold value below which a physical link is considered down */
+/* The metric threshold value "below" which a physical link is considered down.
+   Below is defined as the outcome of `LINK_STATS_WORSE_THAN_THRESH( x )` */
 #ifdef LINK_STATS_CONF_METRIC_THRESHOLD
+#if LINK_STATS_CONF_METRIC_THRESHOLD > 0U
 #define LINK_STATS_METRIC_THRESHOLD LINK_STATS_CONF_METRIC_THRESHOLD
+#else /* LINK_STATS_CONF_METRIC_THRESHOLD > 0U */
+#error "Metric threshold must be greater than 0"
+#endif /* LINK_STATS_CONF_METRIC_THRESHOLD > 0U */
 #else /* LINK_STATS_CONF_METRIC_THRESHOLD */
 #define LINK_STATS_METRIC_THRESHOLD               1U
 #endif /* LINK_STATS_METRIC_THRESHOLD */
