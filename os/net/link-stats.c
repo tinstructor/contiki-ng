@@ -355,9 +355,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     uint16_t old_metric = ile->inferred_metric;
     /* TODO make sure the link quality format is uniform accross
        all possible interfaces, otherwise try calculating from RSSI? */
-    /* TODO allow configuration of used inferred metric by setting
-       which attribute is retrieved from packet buffer */
-    ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
+    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC();
     LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
             old_metric,
@@ -394,7 +392,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
         ile->if_id = if_id;
         /* TODO make sure the link quality format is uniform accross
            all possible interfaces, otherwise try calculating from RSSI? */
-        ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
+        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC();
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
         list_add(stats->interface_list, ile);
         /* REVIEW maybe it's a good idea to reset all defer flags upon
@@ -501,9 +499,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
     uint16_t old_metric = ile->inferred_metric;
     /* TODO make sure the link quality format is uniform accross
        all possible interfaces, otherwise try calculating from RSSI? */
-    /* TODO allow configuration of used inferred metric by setting
-       which attribute is retrieved from packet buffer */
-    ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
+    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC();
     LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
             old_metric,
@@ -540,7 +536,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
         ile->if_id = if_id;
         /* TODO make sure the link quality format is uniform accross
            all possible interfaces, otherwise try calculating from RSSI? */
-        ile->inferred_metric = packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY);
+        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC();
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
         list_add(stats->interface_list, ile);
         /* REVIEW maybe it's a good idea to reset all defer flags upon
