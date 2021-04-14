@@ -102,7 +102,7 @@
 #ifdef LINK_STATS_CONF_INFERRED_METRIC_FUNC
 #define LINK_STATS_INFERRED_METRIC_FUNC LINK_STATS_CONF_INFERRED_METRIC_FUNC
 #else /* LINK_STATS_CONF_INFERRED_METRIC_FUNC */
-#define LINK_STATS_INFERRED_METRIC_FUNC()         packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY)      
+#define LINK_STATS_INFERRED_METRIC_FUNC()         guess_lql_from_rssi()    
 #endif /* LINK_STATS_INFERRED_METRIC_FUNC */
 
 /* The default weight assigned to a neighboring interface */

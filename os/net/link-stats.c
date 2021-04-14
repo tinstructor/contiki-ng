@@ -68,6 +68,11 @@
 /* Initial ETX value */
 #define ETX_DEFAULT                      2
 
+/* Used for guessing metrics based on RSSI */
+#define RSSI_HIGH                       -60
+#define RSSI_LOW                        -90
+#define RSSI_DIFF                       (RSSI_HIGH - RSSI_LOW)
+
 /* Per-neighbor link statistics table */
 NBR_TABLE(struct link_stats, link_stats);
 MEMB(interface_memb, struct interface_list_entry, NBR_TABLE_MAX_NEIGHBORS * LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR);
@@ -293,9 +298,6 @@ guess_etx_from_rssi(const struct link_stats *stats)
        * etx = (RSSI_DIFF * ETX_DIVOSOR) / (bounded_rssi - RSSI_LOW)
        * */
 #define ETX_INIT_MAX 3
-#define RSSI_HIGH -60
-#define RSSI_LOW  -90
-#define RSSI_DIFF (RSSI_HIGH - RSSI_LOW)
       uint16_t etx;
       int16_t bounded_rssi = stats->rssi;
       bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
@@ -307,6 +309,27 @@ guess_etx_from_rssi(const struct link_stats *stats)
   return 0xffff;
 }
 #endif /* LINK_STATS_INIT_ETX_FROM_RSSI */
+/*---------------------------------------------------------------------------*/
+/* Guess the link-quality level [0-7] from the RSSI of a received packet 
+   that currently still resides in the packet buffer. Must only be called
+   when a received packet is in the packet buffer. */
+uint16_t
+guess_lql_from_rssi()
+{
+  int16_t rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
+
+  if(rssi != 0) {
+    uint16_t lql;
+    int16_t bounded_rssi = rssi;
+    bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
+    bounded_rssi = MAX(bounded_rssi, RSSI_LOW + 1);
+    lql = 7 - ((((bounded_rssi - RSSI_LOW) * (LINK_STATS_METRIC_PLACEHOLDER - 1)) + RSSI_DIFF / 2) / RSSI_DIFF);
+    LOG_DBG("RSSI mapped to LQL = %d\n", lql);
+    return lql;
+  }
+
+  return 0;
+}
 /*---------------------------------------------------------------------------*/
 /* Packet sent callback. Updates stats for transmissions to lladdr */
 void
