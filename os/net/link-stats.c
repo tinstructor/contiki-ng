@@ -317,18 +317,13 @@ uint16_t
 guess_lql_from_rssi()
 {
   int16_t rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
-
-  if(rssi != 0) {
-    uint16_t lql;
-    int16_t bounded_rssi = rssi;
-    bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
-    bounded_rssi = MAX(bounded_rssi, RSSI_LOW + 1);
-    lql = 7 - ((((bounded_rssi - RSSI_LOW) * 6) + RSSI_DIFF / 2) / RSSI_DIFF);
-    LOG_DBG("RSSI mapped to LQL = %d\n", lql);
-    return lql;
-  }
-
-  return 0;
+  uint16_t lql;
+  int16_t bounded_rssi = rssi;
+  bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
+  bounded_rssi = MAX(bounded_rssi, RSSI_LOW + 1);
+  lql = 7 - ((((bounded_rssi - RSSI_LOW) * 6) + RSSI_DIFF / 2) / RSSI_DIFF);
+  LOG_DBG("RSSI mapped to LQL = %d\n", lql);
+  return lql;
 }
 /*---------------------------------------------------------------------------*/
 /* Packet sent callback. Updates stats for transmissions to lladdr */
