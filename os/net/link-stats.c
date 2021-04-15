@@ -323,7 +323,7 @@ guess_lql_from_rssi()
     int16_t bounded_rssi = rssi;
     bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
     bounded_rssi = MAX(bounded_rssi, RSSI_LOW + 1);
-    lql = 7 - ((((bounded_rssi - RSSI_LOW) * (LINK_STATS_METRIC_PLACEHOLDER - 1)) + RSSI_DIFF / 2) / RSSI_DIFF);
+    lql = 7 - ((((bounded_rssi - RSSI_LOW) * 6) + RSSI_DIFF / 2) / RSSI_DIFF);
     LOG_DBG("RSSI mapped to LQL = %d\n", lql);
     return lql;
   }
