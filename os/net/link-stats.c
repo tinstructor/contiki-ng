@@ -236,6 +236,40 @@ link_stats_update_norm_metric(const linkaddr_t *lladdr)
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+/* Check if metric normalization should be deferred according
+   to the current defer flag status of each interface of the
+   neighbor corresponding to the supplied link-layer address */
+int
+link_stats_is_defer_required(const linkaddr_t *lladdr)
+{
+  struct link_stats *stats;
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  if(stats == NULL) {
+    LOG_DBG("Could not find link stats table entry for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(", aborting check of defer requirement\n");
+    return -1;
+  }
+  struct interface_list_entry *ile;
+  ile = list_head(stats->interface_list);
+  uint8_t num_def = 0;
+  while(ile != NULL) {
+    if(ile->defer_flag) {
+      num_def++;
+    }
+    ile = list_item_next(ile);
+  }
+  /* If an interface is not in a neighbor's interface list at this
+     point, it has not gone down but it is has simply never been
+     available (yet) at all. Hence, it makes sense to return 1 when
+     the number of set defer flags is less than nominal but greater
+     than zero. */
+  if(num_def > 0 && num_def < LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR) {
+    return 1;
+  }
+  return 0;
+}
+/*---------------------------------------------------------------------------*/
 /* Reset the defer flag of each interface list entry of the
    link stats table entry corresponding to the supplied link-
    layer address */
@@ -316,9 +350,8 @@ guess_etx_from_rssi(const struct link_stats *stats)
 uint16_t
 guess_lql_from_rssi()
 {
-  int16_t rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
   uint16_t lql;
-  int16_t bounded_rssi = rssi;
+  int16_t bounded_rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
   bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
   bounded_rssi = MAX(bounded_rssi, RSSI_LOW + 1);
   lql = 7 - ((((bounded_rssi - RSSI_LOW) * 6) + RSSI_DIFF / 2) / RSSI_DIFF);

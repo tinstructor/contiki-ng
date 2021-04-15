@@ -185,6 +185,10 @@ int link_stats_select_pref_interface(const linkaddr_t *lladdr);
    that's the responsibility of the routing protocol and pertains
    only to the preferred parent anyway. */
 int link_stats_update_norm_metric(const linkaddr_t *lladdr);
+/* Check if metric normalization should be deferred according
+   to the current defer flag status of each interface of the
+   neighbor corresponding to the supplied link-layer address */
+int link_stats_is_defer_required(const linkaddr_t *lladdr);
 /* Reset the defer flag of each interface list entry of the
    link stats table entry corresponding to the supplied link-
    layer address */
