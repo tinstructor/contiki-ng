@@ -64,7 +64,30 @@ dao_ack_callback(rpl_parent_t *p, int status)
 static uint16_t
 parent_link_metric(rpl_parent_t *p)
 {
-  return 0xffff;
+  if(p == NULL) {
+    return 0xffff;
+  }
+
+  const linkaddr_t *plladdr = rpl_get_parent_lladdr(p);
+  if(plladdr == NULL) {
+    return 0xffff;
+  }
+
+  rpl_dag_t *dag = p->dag;
+  if(p == dag->preferred_parent) {
+    int is_required = link_stats_is_defer_required(plladdr);
+    if(!is_required) {
+      link_stats_update_norm_metric(plladdr);
+    } else if(is_required < 0) {
+      return 0xffff;
+    }
+  } else {
+    link_stats_update_norm_metric(plladdr);
+  }
+  link_stats_reset_defer_flags(plladdr);
+
+  const struct link_stats *stats = rpl_get_parent_link_stats(p);
+  return stats->normalized_metric;
 }
 /*---------------------------------------------------------------------------*/
 static uint16_t
@@ -76,7 +99,11 @@ parent_rank_increase(rpl_parent_t *p)
 static uint16_t
 parent_path_cost(rpl_parent_t *p)
 {
-  return 0xffff;
+  if(p == NULL) {
+    return 0xffff;
+  }
+  /* path cost upper bound: 0xffff */
+  return MIN((uint32_t)p->rank + parent_link_metric(p), 0xffff);
 }
 /*---------------------------------------------------------------------------*/
 static rpl_rank_t
