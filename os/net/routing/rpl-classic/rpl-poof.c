@@ -81,26 +81,26 @@ parent_link_metric(rpl_parent_t *p)
     return 0xffff;
   }
 
-  const linkaddr_t *plladdr = rpl_get_parent_lladdr(p);
-  if(plladdr == NULL) {
-    return 0xffff;
-  }
+  // const linkaddr_t *plladdr = rpl_get_parent_lladdr(p);
+  // if(plladdr == NULL) {
+  //   return 0xffff;
+  // }
 
-  /* TODO do not perform defer flag check and metric normalization
-     here as this function is called multiple times during a single
-     OF call! */
-  rpl_dag_t *dag = p->dag;
-  if(p == dag->preferred_parent) {
-    int is_required = link_stats_is_defer_required(plladdr);
-    if(!is_required) {
-      link_stats_update_norm_metric(plladdr);
-    } else if(is_required < 0) {
-      return 0xffff;
-    }
-  } else {
-    link_stats_update_norm_metric(plladdr);
-  }
-  link_stats_reset_defer_flags(plladdr);
+  // /* TODO do not perform defer flag check and metric normalization
+  //    here as this function is called multiple times during a single
+  //    OF call! */
+  // rpl_dag_t *dag = p->dag;
+  // if(p == dag->preferred_parent) {
+  //   int is_required = link_stats_is_defer_required(plladdr);
+  //   if(!is_required) {
+  //     link_stats_update_norm_metric(plladdr);
+  //   } else if(is_required < 0) {
+  //     return 0xffff;
+  //   }
+  // } else {
+  //   link_stats_update_norm_metric(plladdr);
+  // }
+  // link_stats_reset_defer_flags(plladdr);
 
   const struct link_stats *stats = rpl_get_parent_link_stats(p);
   return stats->normalized_metric;
