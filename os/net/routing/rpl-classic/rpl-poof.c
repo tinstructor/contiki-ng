@@ -46,6 +46,19 @@
 #define LOG_MODULE "RPL"
 #define LOG_LEVEL LOG_LEVEL_RPL
 
+/* Constants from RFC6552. We use the default values. */
+#define RANK_STRETCH        0 /* Must be in the range [0;5] */
+#define RANK_FACTOR         1 /* Must be in the range [1;4] */
+
+#define MIN_STEP_OF_RANK    1
+#define MAX_STEP_OF_RANK    9
+
+#ifdef RPL_POOF_CONF_STEP_OF_RANK
+#define STEP_OF_RANK        RPL_POOF_CONF_STEP_OF_RANK
+#else
+#define STEP_OF_RANK(p)     parent_link_metric(p)
+#endif
+
 /*---------------------------------------------------------------------------*/
 static void
 reset(rpl_dag_t *dag)
@@ -73,6 +86,9 @@ parent_link_metric(rpl_parent_t *p)
     return 0xffff;
   }
 
+  /* TODO do not perform defer flag check and metric normalization
+     here as this function is called multiple times during a single
+     OF call! */
   rpl_dag_t *dag = p->dag;
   if(p == dag->preferred_parent) {
     int is_required = link_stats_is_defer_required(plladdr);
@@ -93,7 +109,12 @@ parent_link_metric(rpl_parent_t *p)
 static uint16_t
 parent_rank_increase(rpl_parent_t *p)
 {
-  return RPL_INFINITE_RANK;
+  uint16_t min_hoprankinc;
+  if(p == NULL || p->dag == NULL || p->dag->instance == NULL) {
+    return RPL_INFINITE_RANK;
+  }
+  min_hoprankinc = p->dag->instance->min_hoprankinc;
+  return (RANK_FACTOR * STEP_OF_RANK(p) + RANK_STRETCH) * min_hoprankinc;
 }
 /*---------------------------------------------------------------------------*/
 static uint16_t
@@ -109,25 +130,63 @@ parent_path_cost(rpl_parent_t *p)
 static rpl_rank_t
 rank_via_parent(rpl_parent_t *p)
 {
-  return RPL_INFINITE_RANK;
+  if(p == NULL) {
+    return RPL_INFINITE_RANK;
+  } else {
+    return MIN((uint32_t)p->rank + parent_rank_increase(p), RPL_INFINITE_RANK);
+  }
 }
 /*---------------------------------------------------------------------------*/
 static int
 parent_is_acceptable(rpl_parent_t *p)
 {
-  return false;
+  return STEP_OF_RANK(p) >= MIN_STEP_OF_RANK
+         && STEP_OF_RANK(p) <= MAX_STEP_OF_RANK;
 }
 /*---------------------------------------------------------------------------*/
 static int
 parent_has_usable_link(rpl_parent_t *p)
 {
-  return false;
+  return parent_is_acceptable(p);
 }
 /*---------------------------------------------------------------------------*/
 static rpl_parent_t *
 best_parent(rpl_parent_t *p1, rpl_parent_t *p2)
 {
-  return NULL;
+  rpl_dag_t *dag;
+  uint16_t p1_cost;
+  uint16_t p2_cost;
+  int p1_is_acceptable;
+  int p2_is_acceptable;
+
+  p1_is_acceptable = p1 != NULL && parent_is_acceptable(p1);
+  p2_is_acceptable = p2 != NULL && parent_is_acceptable(p2);
+
+  if(!p1_is_acceptable) {
+    return p2_is_acceptable ? p2 : NULL;
+  }
+  if(!p2_is_acceptable) {
+    return p1_is_acceptable ? p1 : NULL;
+  }
+
+  dag = p1->dag; /* Both parents are in the same DAG. */
+  p1_cost = parent_path_cost(p1);
+  p2_cost = parent_path_cost(p2);
+
+  /* Paths costs coarse-grained (multiple of min_hoprankinc), we operate without hysteresis */
+  if(p1_cost != p2_cost) {
+    /* Pick parent with lowest path cost */
+    return p1_cost < p2_cost ? p1 : p2;
+  } else {
+    /* We have a tie! */
+    /* Stik to current preferred parent if possible */
+    if(p1 == dag->preferred_parent || p2 == dag->preferred_parent) {
+      return dag->preferred_parent;
+    }
+    /* None of the nodes is the current preferred parent,
+     * choose parent with best link metric */
+    return parent_link_metric(p1) < parent_link_metric(p2) ? p1 : p2;
+  }
 }
 /*---------------------------------------------------------------------------*/
 static rpl_dag_t *
