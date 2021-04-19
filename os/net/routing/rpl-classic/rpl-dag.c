@@ -1383,15 +1383,30 @@ rpl_recalculate_ranks(void)
   while(p != NULL) {
     if(p->dag != NULL && p->dag->instance && (p->flags & RPL_PARENT_FLAG_UPDATED)) {
       p->flags &= ~RPL_PARENT_FLAG_UPDATED;
-      const linkaddr_t *plladdr = rpl_get_parent_lladdr(p);
+      const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
+      LOG_DBG("Executing normalized metric logic prior to recalculating rank of ");
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_("\n");
       if(p == p->dag->preferred_parent) {
-        if(!link_stats_is_defer_required(plladdr)) {
-          link_stats_update_norm_metric(plladdr);
+        LOG_DBG("");
+        LOG_DBG_LLADDR(lladdr);
+        LOG_DBG_(" is a preferred parent, checking defer flags\n");
+        if(!link_stats_is_defer_required(lladdr)) {
+          LOG_DBG("Deferral is not required, updating normalized metric\n");
+          link_stats_update_norm_metric(lladdr);
+        } else {
+          LOG_DBG("Deferring normalized metric update until next call of rpl_recalculate_ranks()\n");
         }
       } else {
-        link_stats_update_norm_metric(plladdr);
+        LOG_DBG("");
+        LOG_DBG_LLADDR(lladdr);
+        LOG_DBG_(" is not preferred, updating normalized metric\n");
+        link_stats_update_norm_metric(lladdr);
       }
-      link_stats_reset_defer_flags(plladdr);
+      LOG_DBG("Resetting all defer flags for parent ");
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_("\n");
+      link_stats_reset_defer_flags(lladdr);
       LOG_DBG("rpl_process_parent_event recalculate_ranks\n");
       if(!rpl_process_parent_event(p->dag->instance, p)) {
         LOG_DBG("A parent was dropped\n");
@@ -1651,6 +1666,12 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
 #if RPL_WITH_MC
   memcpy(&p->mc, &dio->mc, sizeof(p->mc));
 #endif /* RPL_WITH_MC */
+  /* REVIEW calling rpl_process_parent_event() here does not actually
+     guarantee that a candidate parent is rejected when using objective
+     functions based on a normalized metric. That is, the normalized
+     metric of parents may only be updated in rpl_recalculate_ranks()
+     when the rpl periodic timer triggers and the RPL_PARENT_FLAG_UPDATED
+     is set. */
   if(rpl_process_parent_event(instance, p) == 0) {
     LOG_WARN("The candidate parent is rejected\n");
     return;
