@@ -1382,6 +1382,15 @@ rpl_recalculate_ranks(void)
   while(p != NULL) {
     if(p->dag != NULL && p->dag->instance && (p->flags & RPL_PARENT_FLAG_UPDATED)) {
       p->flags &= ~RPL_PARENT_FLAG_UPDATED;
+      const linkaddr_t *plladdr = rpl_get_parent_lladdr(p);
+      if(p == p->dag->preferred_parent) {
+        if(!link_stats_is_defer_required(plladdr)) {
+          link_stats_update_norm_metric(plladdr);
+        }
+      } else {
+        link_stats_update_norm_metric(plladdr);
+      }
+      link_stats_reset_defer_flags(plladdr);
       LOG_DBG("rpl_process_parent_event recalculate_ranks\n");
       if(!rpl_process_parent_event(p->dag->instance, p)) {
         LOG_DBG("A parent was dropped\n");

@@ -73,7 +73,7 @@
  * support a given OF. The OFs a node (both root and non-root) supports
  * are configured through the RPL_CONF_SUPPORTED_OFS parameter.
  */
-#define RPL_CONF_OF_OCP RPL_OCP_MRHOF
+#define RPL_CONF_OF_OCP RPL_OCP_POOF
 
 /*
  * The RPL_CONF_SUPPORTED_OFS parameter configures the OFs supported by
@@ -82,12 +82,12 @@
  * this set as indicated by the OCP in the DODAG Configuration option
  * attached to a DIO.
  */
-#define RPL_CONF_SUPPORTED_OFS { &rpl_mrhof, &rpl_poof, &rpl_driplof }
+#define RPL_CONF_SUPPORTED_OFS { &rpl_poof, &rpl_driplof }
 
 #define LOG_CONF_LEVEL_APP      LOG_LEVEL_INFO
-#define LOG_CONF_LEVEL_RPL      LOG_LEVEL_INFO
-#define LOG_CONF_LEVEL_TCPIP    LOG_LEVEL_INFO
-#define LOG_CONF_LEVEL_IPV6     LOG_LEVEL_INFO
+#define LOG_CONF_LEVEL_RPL      LOG_LEVEL_DBG
+#define LOG_CONF_LEVEL_TCPIP    LOG_LEVEL_NONE
+#define LOG_CONF_LEVEL_IPV6     LOG_LEVEL_NONE
 #define LOG_CONF_LEVEL_6LOWPAN  LOG_LEVEL_NONE
 #define LOG_CONF_LEVEL_MAC      LOG_LEVEL_DBG
 #define LOG_CONF_LEVEL_FRAMER   LOG_LEVEL_NONE
