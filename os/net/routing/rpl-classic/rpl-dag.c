@@ -713,6 +713,7 @@ rpl_add_parent(rpl_dag_t *dag, rpl_dio_t *dio, uip_ipaddr_t *addr)
 #if RPL_WITH_MC
       memcpy(&p->mc, &dio->mc, sizeof(p->mc));
 #endif /* RPL_WITH_MC */
+      link_stats_update_norm_metric((const linkaddr_t *)lladdr);
     }
   }
 
