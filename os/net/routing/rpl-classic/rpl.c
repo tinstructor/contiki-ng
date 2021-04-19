@@ -275,10 +275,8 @@ rpl_link_callback(const linkaddr_t *addr, int status, int numtx)
           instance->urgent_probing_target = NULL;
         }
 #endif /* RPL_WITH_PROBING */
-        /* REVIEW does it make sense to trigger a DAG rank recalculation for
-           every call of this callback (i.e., after tx of any message) or only
-           when the callback was called after sending a message to a neighbor
-           that was both a parent and an urgent probing target? */
+        /* Make sure the normalized metrics of all parents are up to date */
+        rpl_exec_norm_metric_logic();
         /* Trigger DAG rank recalculation. */
         LOG_DBG("rpl_link_callback triggering update\n");
         parent->flags |= RPL_PARENT_FLAG_UPDATED;
@@ -306,6 +304,8 @@ rpl_ipv6_neighbor_callback(uip_ds6_nbr_t *nbr)
       p = rpl_find_parent_any_dag(instance, &nbr->ipaddr);
       if(p != NULL) {
         p->rank = RPL_INFINITE_RANK;
+        /* Make sure the normalized metrics of all parents are up to date */
+        rpl_exec_norm_metric_logic();
         /* Trigger DAG rank recalculation. */
         LOG_DBG("rpl_ipv6_neighbor_callback infinite rank\n");
         p->flags |= RPL_PARENT_FLAG_UPDATED;

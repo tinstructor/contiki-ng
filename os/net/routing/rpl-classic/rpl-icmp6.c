@@ -719,6 +719,8 @@ dao_input_storing(void)
       LOG_WARN("Loop detected when receiving a unicast DAO from a node with a lower rank! (%u < %u)\n",
              DAG_RANK(parent->rank, instance), DAG_RANK(dag->rank, instance));
       parent->rank = RPL_INFINITE_RANK;
+      /* Make sure the normalized metrics of all parents are up to date */
+      rpl_exec_norm_metric_logic();
       parent->flags |= RPL_PARENT_FLAG_UPDATED;
       return;
     }
@@ -727,6 +729,8 @@ dao_input_storing(void)
     if(parent != NULL && parent == dag->preferred_parent) {
       LOG_WARN("Loop detected when receiving a unicast DAO from our parent\n");
       parent->rank = RPL_INFINITE_RANK;
+      /* Make sure the normalized metrics of all parents are up to date */
+      rpl_exec_norm_metric_logic();
       parent->flags |= RPL_PARENT_FLAG_UPDATED;
       return;
     }

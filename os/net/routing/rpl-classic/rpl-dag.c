@@ -234,6 +234,43 @@ rpl_parent_is_reachable(rpl_parent_t *p) {
   }
 }
 /*---------------------------------------------------------------------------*/
+void
+rpl_exec_norm_metric_logic(void)
+{
+  rpl_parent_t *p;
+
+  p = nbr_table_head(rpl_parents);
+  while(p != NULL) {
+    const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
+    if(lladdr != NULL) {
+      LOG_DBG("Executing normalized metric logic for ");
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_("\n");
+      if(p == p->dag->preferred_parent) {
+        LOG_DBG("Parent ");
+        LOG_DBG_LLADDR(lladdr);
+        LOG_DBG_(" is preferred, checking defer flags\n");
+        if(!link_stats_is_defer_required(lladdr)) {
+          LOG_DBG("Deferral is not required, updating normalized metric\n");
+          link_stats_update_norm_metric(lladdr);
+        } else {
+          LOG_DBG("Deferring normalized metric update\n");
+        }
+      } else {
+        LOG_DBG("Parent ");
+        LOG_DBG_LLADDR(lladdr);
+        LOG_DBG_(" is not preferred, updating normalized metric\n");
+        link_stats_update_norm_metric(lladdr);
+      }
+      LOG_DBG("Resetting all defer flags for parent ");
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_("\n");
+      link_stats_reset_defer_flags(lladdr);
+    }
+    p = nbr_table_next(rpl_parents, p);
+  }
+}
+/*---------------------------------------------------------------------------*/
 static void
 rpl_set_preferred_parent(rpl_dag_t *dag, rpl_parent_t *p)
 {
@@ -713,6 +750,7 @@ rpl_add_parent(rpl_dag_t *dag, rpl_dio_t *dio, uip_ipaddr_t *addr)
 #if RPL_WITH_MC
       memcpy(&p->mc, &dio->mc, sizeof(p->mc));
 #endif /* RPL_WITH_MC */
+      link_stats_reset_defer_flags((const linkaddr_t *)lladdr);
       link_stats_update_norm_metric((const linkaddr_t *)lladdr);
     }
   }
@@ -1010,6 +1048,12 @@ rpl_move_parent(rpl_dag_t *dag_src, rpl_dag_t *dag_dst, rpl_parent_t *parent)
   LOG_INFO_("\n");
 
   parent->dag = dag_dst;
+
+  const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
+  if(lladdr != NULL) {
+    link_stats_reset_defer_flags(lladdr);
+    link_stats_update_norm_metric(lladdr);
+  }
 }
 /*---------------------------------------------------------------------------*/
 static rpl_dag_t *
@@ -1383,30 +1427,6 @@ rpl_recalculate_ranks(void)
   while(p != NULL) {
     if(p->dag != NULL && p->dag->instance && (p->flags & RPL_PARENT_FLAG_UPDATED)) {
       p->flags &= ~RPL_PARENT_FLAG_UPDATED;
-      const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
-      LOG_DBG("Executing normalized metric logic prior to recalculating rank of ");
-      LOG_DBG_LLADDR(lladdr);
-      LOG_DBG_("\n");
-      if(p == p->dag->preferred_parent) {
-        LOG_DBG("");
-        LOG_DBG_LLADDR(lladdr);
-        LOG_DBG_(" is a preferred parent, checking defer flags\n");
-        if(!link_stats_is_defer_required(lladdr)) {
-          LOG_DBG("Deferral is not required, updating normalized metric\n");
-          link_stats_update_norm_metric(lladdr);
-        } else {
-          LOG_DBG("Deferring normalized metric update until next call of rpl_recalculate_ranks()\n");
-        }
-      } else {
-        LOG_DBG("");
-        LOG_DBG_LLADDR(lladdr);
-        LOG_DBG_(" is not preferred, updating normalized metric\n");
-        link_stats_update_norm_metric(lladdr);
-      }
-      LOG_DBG("Resetting all defer flags for parent ");
-      LOG_DBG_LLADDR(lladdr);
-      LOG_DBG_("\n");
-      link_stats_reset_defer_flags(lladdr);
       LOG_DBG("rpl_process_parent_event recalculate_ranks\n");
       if(!rpl_process_parent_event(p->dag->instance, p)) {
         LOG_DBG("A parent was dropped\n");
@@ -1651,6 +1671,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
     rpl_reset_dio_timer(instance);
   }
 
+  /* Make sure the normalized metrics of all parents are up to date */
+  rpl_exec_norm_metric_logic();
+
   /* Parent info has been updated, trigger rank recalculation */
   p->flags |= RPL_PARENT_FLAG_UPDATED;
 
@@ -1666,12 +1689,6 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
 #if RPL_WITH_MC
   memcpy(&p->mc, &dio->mc, sizeof(p->mc));
 #endif /* RPL_WITH_MC */
-  /* REVIEW calling rpl_process_parent_event() here does not actually
-     guarantee that a candidate parent is rejected when using objective
-     functions based on a normalized metric. That is, the normalized
-     metric of parents may only be updated in rpl_recalculate_ranks()
-     when the rpl periodic timer triggers and the RPL_PARENT_FLAG_UPDATED
-     is set. */
   if(rpl_process_parent_event(instance, p) == 0) {
     LOG_WARN("The candidate parent is rejected\n");
     return;
