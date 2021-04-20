@@ -719,8 +719,17 @@ dao_input_storing(void)
       LOG_WARN("Loop detected when receiving a unicast DAO from a node with a lower rank! (%u < %u)\n",
              DAG_RANK(parent->rank, instance), DAG_RANK(dag->rank, instance));
       parent->rank = RPL_INFINITE_RANK;
-      /* Make sure the normalized metrics of all parents are up to date */
-      rpl_exec_norm_metric_logic();
+      /* Make sure the normalized metrics of all parents are up to date.
+         Don't defer if the given parent is the preferred parent so that
+         we may recover from a loop as quickly as possible. Also, don't
+         reset any defer flags after running through the metric normalization
+         logic so that if the parent was not preferred, the actual preferred
+         parent may remain stable. */
+      const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
+      if(parent == parent->dag->preferred_parent && lladdr != NULL) {
+        link_stats_reset_defer_flags(lladdr);
+      }
+      rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);
       parent->flags |= RPL_PARENT_FLAG_UPDATED;
       return;
     }
@@ -729,8 +738,17 @@ dao_input_storing(void)
     if(parent != NULL && parent == dag->preferred_parent) {
       LOG_WARN("Loop detected when receiving a unicast DAO from our parent\n");
       parent->rank = RPL_INFINITE_RANK;
-      /* Make sure the normalized metrics of all parents are up to date */
-      rpl_exec_norm_metric_logic();
+      /* Make sure the normalized metrics of all parents are up to date.
+         Don't defer if the given parent is the preferred parent so that
+         we may recover from a loop as quickly as possible. Also, don't
+         reset any defer flags after running through the metric normalization
+         logic so that if the parent was not preferred, the actual preferred
+         parent may remain stable. */
+      const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
+      if(parent == parent->dag->preferred_parent && lladdr != NULL) {
+        link_stats_reset_defer_flags(lladdr);
+      }
+      rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);
       parent->flags |= RPL_PARENT_FLAG_UPDATED;
       return;
     }

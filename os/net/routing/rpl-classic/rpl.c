@@ -275,8 +275,10 @@ rpl_link_callback(const linkaddr_t *addr, int status, int numtx)
           instance->urgent_probing_target = NULL;
         }
 #endif /* RPL_WITH_PROBING */
-        /* Make sure the normalized metrics of all parents are up to date */
-        rpl_exec_norm_metric_logic();
+        /* Make sure the normalized metrics of all parents are up to date and
+           follow the complete logic, including resetting the defer flags of
+           all parents */
+        rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
         /* Trigger DAG rank recalculation. */
         LOG_DBG("rpl_link_callback triggering update\n");
         parent->flags |= RPL_PARENT_FLAG_UPDATED;
@@ -304,8 +306,17 @@ rpl_ipv6_neighbor_callback(uip_ds6_nbr_t *nbr)
       p = rpl_find_parent_any_dag(instance, &nbr->ipaddr);
       if(p != NULL) {
         p->rank = RPL_INFINITE_RANK;
-        /* Make sure the normalized metrics of all parents are up to date */
-        rpl_exec_norm_metric_logic();
+        /* Make sure the normalized metrics of all parents are up to date
+           Don't defer if the given parent is the preferred parent so that
+           we may recover as quickly as possible. Also, don't reset any defer
+           flags after running through the metric normalization logic so that
+           if the parent was not preferred, the actual preferred parent may
+           remain stable. */
+        const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
+        if(p == p->dag->preferred_parent && lladdr != NULL) {
+          link_stats_reset_defer_flags(lladdr);
+        }
+        rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);
         /* Trigger DAG rank recalculation. */
         LOG_DBG("rpl_ipv6_neighbor_callback infinite rank\n");
         p->flags |= RPL_PARENT_FLAG_UPDATED;

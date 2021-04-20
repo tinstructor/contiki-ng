@@ -46,6 +46,7 @@
 #include "net/ipv6/uip-ds6.h"
 #include "net/ipv6/uip-ds6-route.h"
 #include "net/ipv6/multicast/uip-mcast6.h"
+#include "net/link-stats.h"
 
 /*---------------------------------------------------------------------------*/
 /** \brief Is IPv6 address addr the link-local, all-RPL-nodes
@@ -276,6 +277,12 @@ extern rpl_stats_t rpl_stats;
 
 #endif /* MAC_CONF_WITH_TSCH */
 
+/* Flag indicating whether or not defer flags must be reset */
+typedef enum {
+  RPL_RESET_DEFER_FALSE,
+  RPL_RESET_DEFER_TRUE,
+} rpl_reset_defer_t;
+
 /*---------------------------------------------------------------------------*/
 /* RPL macros. */
 
@@ -306,7 +313,7 @@ void rpl_join_instance(uip_ipaddr_t *from, rpl_dio_t *dio);
 void rpl_local_repair(rpl_instance_t *instance);
 void rpl_process_dio(uip_ipaddr_t *, rpl_dio_t *);
 int rpl_process_parent_event(rpl_instance_t *, rpl_parent_t *);
-void rpl_exec_norm_metric_logic(void);
+void rpl_exec_norm_metric_logic(rpl_reset_defer_t);
 
 /* DAG object management. */
 rpl_dag_t *rpl_alloc_dag(uint8_t, uip_ipaddr_t *);

@@ -234,22 +234,26 @@ rpl_parent_is_reachable(rpl_parent_t *p) {
   }
 }
 /*---------------------------------------------------------------------------*/
+/* Execute the normalized metric update logic for all 
+   parents in the rpl_parents global neighbor table. */
 void
-rpl_exec_norm_metric_logic(void)
+rpl_exec_norm_metric_logic(rpl_reset_defer_t reset_defer)
 {
   rpl_parent_t *p;
 
   p = nbr_table_head(rpl_parents);
   while(p != NULL) {
     const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
-    if(lladdr != NULL) {
+    if(p->dag != NULL && lladdr != NULL) {
       LOG_DBG("Executing normalized metric logic for ");
       LOG_DBG_LLADDR(lladdr);
       LOG_DBG_("\n");
       if(p == p->dag->preferred_parent) {
         LOG_DBG("Parent ");
         LOG_DBG_LLADDR(lladdr);
-        LOG_DBG_(" is preferred, checking defer flags\n");
+        LOG_DBG_(" is preferred for DAG ");
+        LOG_DBG_6ADDR(&p->dag->dag_id);
+        LOG_DBG_(", checking defer flags\n");
         if(!link_stats_is_defer_required(lladdr)) {
           LOG_DBG("Deferral is not required, updating normalized metric\n");
           link_stats_update_norm_metric(lladdr);
@@ -259,13 +263,17 @@ rpl_exec_norm_metric_logic(void)
       } else {
         LOG_DBG("Parent ");
         LOG_DBG_LLADDR(lladdr);
-        LOG_DBG_(" is not preferred, updating normalized metric\n");
+        LOG_DBG_(" is not preferred for DAG ");
+        LOG_DBG_6ADDR(&p->dag->dag_id);
+        LOG_DBG_(", updating normalized metric\n");
         link_stats_update_norm_metric(lladdr);
       }
-      LOG_DBG("Resetting all defer flags for parent ");
-      LOG_DBG_LLADDR(lladdr);
-      LOG_DBG_("\n");
-      link_stats_reset_defer_flags(lladdr);
+      if(reset_defer) {
+        LOG_DBG("Resetting all defer flags for parent ");
+        LOG_DBG_LLADDR(lladdr);
+        LOG_DBG_("\n");
+        link_stats_reset_defer_flags(lladdr);
+      }
     }
     p = nbr_table_next(rpl_parents, p);
   }
@@ -810,6 +818,9 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
   last_parent = instance->current_dag->preferred_parent;
 
   if(instance->current_dag->rank != ROOT_RANK(instance)) {
+    /* Select a new preferred parent. This causes the rank to be recomputed
+       for all parents before comparing said computed ranks and choosing the
+       best candidate as the new preferred parent */
     rpl_select_parent(p->dag);
   }
 
@@ -1324,6 +1335,9 @@ rpl_add_dag(uip_ipaddr_t *from, rpl_dio_t *dio)
   memcpy(&dag->prefix_info, &dio->prefix_info, sizeof(rpl_prefix_t));
 
   rpl_set_preferred_parent(dag, p);
+  /* We don't need to update the parent's normalized metric and defer flags
+     because at this point that has already been handled by rpl_add_parent()
+     or rpl_move_parent() */
   dag->rank = rpl_rank_via_parent(p);
   dag->min_rank = dag->rank; /* So far this is the lowest rank we know of. */
 
@@ -1366,6 +1380,8 @@ global_repair(uip_ipaddr_t *from, rpl_dag_t *dag, rpl_dio_t *dio)
     LOG_ERR("Failed to add a parent during the global repair\n");
     dag->rank = RPL_INFINITE_RANK;
   } else {
+    /* We don't need to update the parent's normalized metric and defer flags
+       because at this point that has already been handled by rpl_add_parent() */
     dag->rank = rpl_rank_via_parent(p);
     dag->min_rank = dag->rank;
     LOG_DBG("rpl_process_parent_event global repair\n");
@@ -1413,6 +1429,9 @@ rpl_local_repair(rpl_instance_t *instance)
   RPL_STAT(rpl_stats.local_repairs++);
 }
 /*---------------------------------------------------------------------------*/
+/* Function that is supposed to be called periodically to recalculate ranks
+   asynchronously by setting the RPL_PARENT_FLAG_UPDATED flag of a parent,
+   and thereby causing selection of a new DAG and preferred parent. */
 void
 rpl_recalculate_ranks(void)
 {
@@ -1428,6 +1447,9 @@ rpl_recalculate_ranks(void)
     if(p->dag != NULL && p->dag->instance && (p->flags & RPL_PARENT_FLAG_UPDATED)) {
       p->flags &= ~RPL_PARENT_FLAG_UPDATED;
       LOG_DBG("rpl_process_parent_event recalculate_ranks\n");
+      /* We don't need to update the parent's normalized metric and defer flags
+         because at this point that should have already been handled prior to
+         setting the parent's RPL_PARENT_FLAG_UPDATED flag */
       if(!rpl_process_parent_event(p->dag->instance, p)) {
         LOG_DBG("A parent was dropped\n");
       }
@@ -1671,8 +1693,10 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
     rpl_reset_dio_timer(instance);
   }
 
-  /* Make sure the normalized metrics of all parents are up to date */
-  rpl_exec_norm_metric_logic();
+  /* Make sure the normalized metrics of all parents are up to date and
+     follow the complete logic, including resetting the defer flags of
+     all parents */
+  rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
 
   /* Parent info has been updated, trigger rank recalculation */
   p->flags |= RPL_PARENT_FLAG_UPDATED;
@@ -1689,6 +1713,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
 #if RPL_WITH_MC
   memcpy(&p->mc, &dio->mc, sizeof(p->mc));
 #endif /* RPL_WITH_MC */
+  /* We don't need to update the parent's normalized metric and defer flags
+     because at this point that has already been handled by the prior call to 
+     rpl_exec_norm_metric_logic() */
   if(rpl_process_parent_event(instance, p) == 0) {
     LOG_WARN("The candidate parent is rejected\n");
     return;
