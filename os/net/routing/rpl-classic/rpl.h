@@ -95,6 +95,12 @@ struct rpl_metric_object_energy {
   uint8_t energy_est;
 };
 
+struct rpl_metric_object_lql {
+  uint8_t flags;
+  uint8_t value;
+  uint8_t counter;
+};
+
 /* Logical representation of a DAG Metric Container. */
 struct rpl_metric_container {
   uint8_t type;
@@ -104,6 +110,7 @@ struct rpl_metric_container {
   uint8_t length;
   union metric_object {
     struct rpl_metric_object_energy energy;
+    struct rpl_metric_object_lql lql;
     uint16_t etx;
   } obj;
 };
