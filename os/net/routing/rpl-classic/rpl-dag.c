@@ -234,8 +234,12 @@ rpl_parent_is_reachable(rpl_parent_t *p) {
   }
 }
 /*---------------------------------------------------------------------------*/
-/* Execute the normalized metric update logic for all 
-   parents in the rpl_parents global neighbor table. */
+/* Execute the normalized metric update logic for all parents in the rpl_parents 
+   global neighbor table. Note that the defer flags are only checked if a parent
+   is the preferred parent of the current dag of the default instance. For all other
+   parents, metric normalization is performed regardless of its defer flags. One
+   can also pass a flag that indicates whether or not the defer flags of each parent
+   should be reset or not. */
 void
 rpl_exec_norm_metric_logic(rpl_reset_defer_t reset_defer)
 {
@@ -244,15 +248,16 @@ rpl_exec_norm_metric_logic(rpl_reset_defer_t reset_defer)
   p = nbr_table_head(rpl_parents);
   while(p != NULL) {
     const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
-    if(p->dag != NULL && lladdr != NULL) {
+    if(lladdr != NULL) {
       LOG_DBG("Executing normalized metric logic for ");
       LOG_DBG_LLADDR(lladdr);
       LOG_DBG_("\n");
-      if(p == p->dag->preferred_parent) {
+      if(default_instance != NULL && default_instance->current_dag != NULL &&
+         p == default_instance->current_dag->preferred_parent) {
         LOG_DBG("Parent ");
         LOG_DBG_LLADDR(lladdr);
-        LOG_DBG_(" is preferred for DAG ");
-        LOG_DBG_6ADDR(&p->dag->dag_id);
+        LOG_DBG_(" is preferred for current DAG ");
+        LOG_DBG_6ADDR(&default_instance->current_dag->dag_id);
         LOG_DBG_(", checking defer flags\n");
         if(!link_stats_is_defer_required(lladdr)) {
           LOG_DBG("Deferral is not required, updating normalized metric\n");
@@ -263,9 +268,7 @@ rpl_exec_norm_metric_logic(rpl_reset_defer_t reset_defer)
       } else {
         LOG_DBG("Parent ");
         LOG_DBG_LLADDR(lladdr);
-        LOG_DBG_(" is not preferred for DAG ");
-        LOG_DBG_6ADDR(&p->dag->dag_id);
-        LOG_DBG_(", updating normalized metric\n");
+        LOG_DBG_(" is not preferred for current DAG, updating normalized metric\n");
         link_stats_update_norm_metric(lladdr);
       }
       if(reset_defer) {
@@ -1062,6 +1065,7 @@ rpl_move_parent(rpl_dag_t *dag_src, rpl_dag_t *dag_dst, rpl_parent_t *parent)
 
   const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
   if(lladdr != NULL) {
+    /* REVIEW check if this branch needs more strict requirements. */
     link_stats_reset_defer_flags(lladdr);
     link_stats_update_norm_metric(lladdr);
   }

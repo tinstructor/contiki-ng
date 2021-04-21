@@ -719,14 +719,16 @@ dao_input_storing(void)
       LOG_WARN("Loop detected when receiving a unicast DAO from a node with a lower rank! (%u < %u)\n",
              DAG_RANK(parent->rank, instance), DAG_RANK(dag->rank, instance));
       parent->rank = RPL_INFINITE_RANK;
-      /* Make sure the normalized metrics of all parents are up to date.
-         Don't defer if the given parent is the preferred parent so that
-         we may recover from a loop as quickly as possible. Also, don't
-         reset any defer flags after running through the metric normalization
-         logic so that if the parent was not preferred, the actual preferred
-         parent may remain stable. */
+      /* Make sure the normalized metrics of all parents are up to date
+         Don't defer if the given parent is the preferred parent in the current
+         DAG of the default instance so that we may recover from a loop as quickly 
+         as possible. Also, don't reset any defer flags after running through the metric
+         normalization logic so that if the parent was not preferred (in the
+         current DAG of the default instance), the actual preferred parent may 
+         remain stable.*/
       const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
-      if(parent == parent->dag->preferred_parent && lladdr != NULL) {
+      if(default_instance != NULL && default_instance->current_dag != NULL &&
+         parent == default_instance->current_dag->preferred_parent && lladdr != NULL) {
         link_stats_reset_defer_flags(lladdr);
       }
       rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);
@@ -738,14 +740,16 @@ dao_input_storing(void)
     if(parent != NULL && parent == dag->preferred_parent) {
       LOG_WARN("Loop detected when receiving a unicast DAO from our parent\n");
       parent->rank = RPL_INFINITE_RANK;
-      /* Make sure the normalized metrics of all parents are up to date.
-         Don't defer if the given parent is the preferred parent so that
-         we may recover from a loop as quickly as possible. Also, don't
-         reset any defer flags after running through the metric normalization
-         logic so that if the parent was not preferred, the actual preferred
-         parent may remain stable. */
+     /* Make sure the normalized metrics of all parents are up to date
+        Don't defer if the given parent is the preferred parent in the current
+        DAG of the default instance so that we may recover from a loop as quickly 
+        as possible. Also, don't reset any defer flags after running through the metric
+        normalization logic so that if the parent was not preferred (in the
+        current DAG of the default instance), the actual preferred parent may 
+        remain stable.*/
       const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
-      if(parent == parent->dag->preferred_parent && lladdr != NULL) {
+      if(default_instance != NULL && default_instance->current_dag != NULL &&
+         parent == default_instance->current_dag->preferred_parent && lladdr != NULL) {
         link_stats_reset_defer_flags(lladdr);
       }
       rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);

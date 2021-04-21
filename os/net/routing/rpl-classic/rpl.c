@@ -307,13 +307,15 @@ rpl_ipv6_neighbor_callback(uip_ds6_nbr_t *nbr)
       if(p != NULL) {
         p->rank = RPL_INFINITE_RANK;
         /* Make sure the normalized metrics of all parents are up to date
-           Don't defer if the given parent is the preferred parent so that
-           we may recover as quickly as possible. Also, don't reset any defer
-           flags after running through the metric normalization logic so that
-           if the parent was not preferred, the actual preferred parent may
-           remain stable. */
+           Don't defer if the given parent is the preferred parent in the current
+           DAG of the default instance so that we may recover as quickly as possible. 
+           Also, don't reset any defer flags after running through the metric
+           normalization logic so that if the parent was not preferred (in the
+           current DAG of the default instance), the actual preferred parent may 
+           remain stable.*/
         const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
-        if(p == p->dag->preferred_parent && lladdr != NULL) {
+        if(default_instance != NULL && default_instance->current_dag != NULL &&
+          p == default_instance->current_dag->preferred_parent && lladdr != NULL) {
           link_stats_reset_defer_flags(lladdr);
         }
         rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);

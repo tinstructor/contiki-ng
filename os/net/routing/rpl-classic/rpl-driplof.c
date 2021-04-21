@@ -46,10 +46,27 @@
 #define LOG_MODULE "RPL"
 #define LOG_LEVEL LOG_LEVEL_RPL
 
-#define DRIPL_ETX_DIVISOR         LINK_STATS_ETX_DIVISOR
-#define MAX_LINK_METRIC           (8U * DRIPL_ETX_DIVISOR)
-#define PARENT_SWITCH_THRESHOLD   (.75F * DRIPL_ETX_DIVISOR)
-#define MAX_PATH_COST             (256U * DRIPL_ETX_DIVISOR)
+#ifdef DRIPL_CONF_MAX_LINK_METRIC_BASE
+#define MAX_LINK_METRIC_BASE DRIPL_CONF_MAX_LINK_METRIC_BASE
+#else
+#define MAX_LINK_METRIC_BASE 8U
+#endif
+
+#ifdef DRIPL_CONF_PARENT_SWITCH_THRESHOLD_BASE
+#define PARENT_SWITCH_THRESHOLD_BASE DRIPL_CONF_PARENT_SWITCH_THRESHOLD_BASE
+#else
+#define PARENT_SWITCH_THRESHOLD_BASE .75F
+#endif
+
+#ifdef DRIPL_CONF_MAX_PATH_COST_BASE
+#define MAX_PATH_COST_BASE DRIPL_CONF_MAX_PATH_COST_BASE
+#else
+#define MAX_PATH_COST_BASE 256U
+#endif
+
+#define MAX_LINK_METRIC           (MAX_LINK_METRIC_BASE * LINK_STATS_ETX_DIVISOR)
+#define PARENT_SWITCH_THRESHOLD   (PARENT_SWITCH_THRESHOLD_BASE * LINK_STATS_ETX_DIVISOR)
+#define MAX_PATH_COST             (MAX_PATH_COST_BASE * LINK_STATS_ETX_DIVISOR)
 
 /*---------------------------------------------------------------------------*/
 static void
@@ -125,7 +142,7 @@ parent_is_acceptable(rpl_parent_t *p)
   uint16_t link_metric = parent_link_metric(p);
   uint16_t path_cost = parent_path_cost(p);
   /* Exclude links with too high link metrics or path cost (RFC6719, 3.2.2) */
-  return link_metric <= (MAX_LINK_METRIC) && path_cost <= MAX_PATH_COST;
+  return link_metric <= MAX_LINK_METRIC && path_cost <= MAX_PATH_COST;
 }
 /*---------------------------------------------------------------------------*/
 static int

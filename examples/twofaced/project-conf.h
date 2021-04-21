@@ -84,6 +84,15 @@
  */
 #define RPL_CONF_SUPPORTED_OFS { &rpl_poof, &rpl_driplof }
 
+/*
+ * Although the PO OF and DRiPL OF can both operate with multiple RPL
+ * instances, the metric normalization logic is based on the current
+ * DAG of the default instance only. Hence, it makes sense to allow
+ * only a single instance. However, one could also change which instance
+ * is default at runtime.
+ */
+#define RPL_CONF_MAX_INSTANCES  1
+
 #define LOG_CONF_LEVEL_APP      LOG_LEVEL_INFO
 #define LOG_CONF_LEVEL_RPL      LOG_LEVEL_DBG
 #define LOG_CONF_LEVEL_TCPIP    LOG_LEVEL_NONE
