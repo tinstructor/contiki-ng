@@ -257,14 +257,31 @@ update_metric_container(rpl_instance_t *instance)
 static rpl_rank_t
 rank_via_dag(rpl_dag_t *dag)
 {
-  /* TODO the rank must be set to the max of 3 following values:
+  /* The rank must be set to the max of 3 following values:
      1. The rank computed for the path through the preferred parent.
      2. The highest rank advertised by any of its parent set members
         (this is NOT the same as the computed rank for the path 
         through said node), rounded to the next higher integral rank.
      3. The largest computed rank among paths through the parent set,
         minus MaxRankIncrease. */
-  return RPL_INFINITE_RANK;
+  if(dag == NULL || dag->preferred_parent == NULL || dag->instance == NULL) {
+    return RPL_INFINITE_RANK;
+  }
+  rpl_rank_t min_hoprankinc = dag->instance->min_hoprankinc;
+  rpl_rank_t max_rankinc = dag->instance->max_rankinc;
+  rpl_rank_t rank = rank_via_parent(dag->preferred_parent);
+  rpl_parent_t *p;
+  p = nbr_table_head(rpl_parents);
+  while(p != NULL) {
+    if(p->dag != NULL && p->dag == dag) {
+      rpl_rank_t next_higher_rank = min_hoprankinc * (1 + (p->rank / min_hoprankinc));
+      rank = (next_higher_rank > rank) ? next_higher_rank : rank;
+      rpl_rank_t parent_rank = rank_via_parent(p);
+      rank = ((parent_rank - max_rankinc) > rank) ? (parent_rank - max_rankinc) : rank;
+    }
+    p = nbr_table_next(rpl_parents, p);
+  }
+  return rank;
 }
 /*---------------------------------------------------------------------------*/
 rpl_of_t rpl_driplof = {

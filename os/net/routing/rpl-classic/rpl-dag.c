@@ -187,6 +187,7 @@ rpl_rank_via_parent(rpl_parent_t *p)
   return RPL_INFINITE_RANK;
 }
 /*---------------------------------------------------------------------------*/
+/* Retrieve the rank to be advertised in DIO messages for the given DAG */
 rpl_rank_t
 rpl_rank_via_dag(rpl_dag_t *dag)
 {
