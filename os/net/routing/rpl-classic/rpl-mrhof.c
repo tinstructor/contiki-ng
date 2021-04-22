@@ -166,6 +166,30 @@ parent_path_cost(rpl_parent_t *p)
   return MIN((uint32_t)base + parent_link_metric(p), 0xffff);
 }
 /*---------------------------------------------------------------------------*/
+#if RPL_WITH_MC
+static uint16_t
+dag_path_cost(rpl_dag_t *dag)
+{
+  /* A node must advertise the highest cost path from the node to the
+     root through any member of the parent set, and not simply the path
+     cost associated with the preferred parent! */
+  if(dag == NULL) {
+    return 0xffff;
+  }
+  uint16_t path_cost = 0;
+  rpl_parent_t *p;
+  p = nbr_table_head(rpl_parents);
+  while(p != NULL) {
+    if(p->dag != NULL && p->dag == dag) {
+      uint16_t parent_cost = parent_path_cost(p);
+      path_cost = (parent_cost > path_cost) ? parent_cost : path_cost;
+    }
+    p = nbr_table_next(rpl_parents, p);
+  }
+  return (path_cost != 0) ? path_cost : 0xffff;
+}
+#endif /* RPL_WITH_MC */
+/*---------------------------------------------------------------------------*/
 static rpl_rank_t
 rank_via_parent(rpl_parent_t *p)
 {
@@ -276,11 +300,7 @@ update_metric_container(rpl_instance_t *instance)
     instance->mc.prec = 0;
     path_cost = dag->rank;
   } else {
-    /* FIXME this is incorrect behavior for MRHOF (RFC6719, Section 3.4.)
-       Instead, a node must advertise the highest cost path from the node
-       to the root through any member of the parent set, and not simply the
-       path cost associated with the preferred parent! */
-    path_cost = parent_path_cost(dag->preferred_parent);
+    path_cost = dag_path_cost(dag);
   }
 
   /* Handle the different MC types */
