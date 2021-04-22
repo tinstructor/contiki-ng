@@ -276,6 +276,10 @@ update_metric_container(rpl_instance_t *instance)
     instance->mc.prec = 0;
     path_cost = dag->rank;
   } else {
+    /* FIXME this is incorrect behavior for MRHOF (RFC6719, Section 3.4.)
+       Instead, a node must advertise the highest cost path from the node
+       to the root through any member of the parent set, and not simply the
+       path cost associated with the preferred parent! */
     path_cost = parent_path_cost(dag->preferred_parent);
   }
 
@@ -305,6 +309,19 @@ update_metric_container(rpl_instance_t *instance)
 }
 #endif /* RPL_WITH_MC */
 /*---------------------------------------------------------------------------*/
+static rpl_rank_t
+rank_via_dag(rpl_dag_t *dag)
+{
+  /* TODO the rank must be set to the max of 3 following values:
+     1. The rank computed for the path through the preferred parent.
+     2. The highest rank advertised by any of its parent set members
+        (this is NOT the same as the computed rank for the path 
+        through said node), rounded to the next higher integral rank.
+     3. The largest computed rank among paths through the parent set,
+        minus MaxRankIncrease. */
+  return RPL_INFINITE_RANK;
+}
+/*---------------------------------------------------------------------------*/
 rpl_of_t rpl_mrhof = {
   reset,
 #if RPL_WITH_DAO_ACK
@@ -317,6 +334,7 @@ rpl_of_t rpl_mrhof = {
   best_parent,
   best_dag,
   update_metric_container,
+  rank_via_dag,
   RPL_OCP_MRHOF
 };
 

@@ -187,6 +187,22 @@ rpl_rank_via_parent(rpl_parent_t *p)
   return RPL_INFINITE_RANK;
 }
 /*---------------------------------------------------------------------------*/
+rpl_rank_t
+rpl_rank_via_dag(rpl_dag_t *dag)
+{
+  if(dag != NULL) {
+    rpl_instance_t *instance = dag->instance;
+    if(instance != NULL && instance->of != NULL) {
+      if(instance->of->rank_via_dag != NULL) {
+        return instance->of->rank_via_dag(dag);
+      } else if(instance->of->rank_via_parent != NULL && dag->preferred_parent != NULL) {
+        return instance->of->rank_via_parent(dag->preferred_parent);
+      }
+    }
+  }
+  return RPL_INFINITE_RANK;
+}
+/*---------------------------------------------------------------------------*/
 const linkaddr_t *
 rpl_get_parent_lladdr(rpl_parent_t *p)
 {
@@ -867,7 +883,7 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
 
   instance->of->update_metric_container(instance);
   /* Update the DAG rank. */
-  best_dag->rank = rpl_rank_via_parent(best_dag->preferred_parent);
+  best_dag->rank = rpl_rank_via_dag(best_dag);
   if(last_parent == NULL || best_dag->rank < best_dag->min_rank) {
     /* This is a slight departure from RFC6550: if we had no preferred parent before,
      * reset min_rank. This helps recovering from temporary bad link conditions. */
@@ -984,13 +1000,12 @@ rpl_select_parent(rpl_dag_t *dag)
     }
 #else /* RPL_WITH_PROBING */
     rpl_set_preferred_parent(dag, best);
-    dag->rank = rpl_rank_via_parent(dag->preferred_parent);
+    dag->rank = rpl_rank_via_dag(dag);
 #endif /* RPL_WITH_PROBING */
   } else {
     rpl_set_preferred_parent(dag, NULL);
   }
-
-  dag->rank = rpl_rank_via_parent(dag->preferred_parent);
+  dag->rank = rpl_rank_via_dag(dag);
   return dag->preferred_parent;
 }
 /*---------------------------------------------------------------------------*/
@@ -1245,6 +1260,8 @@ rpl_join_instance(uip_ipaddr_t *from, rpl_dio_t *dio)
 
   rpl_set_preferred_parent(dag, p);
   instance->of->update_metric_container(instance);
+  /* Since at this point there is only one parent in the parent set of the given
+     DAG, the following is correct behavior for MRHOF (RFC6719, Section 3.3.) */
   dag->rank = rpl_rank_via_parent(p);
   /* So far this is the lowest rank we are aware of. */
   dag->min_rank = dag->rank;
@@ -1343,6 +1360,8 @@ rpl_add_dag(uip_ipaddr_t *from, rpl_dio_t *dio)
   /* We don't need to update the parent's normalized metric and defer flags
      because at this point that has already been handled by rpl_add_parent()
      or rpl_move_parent() */
+  /* Since at this point there is only one parent in the parent set of the given
+     DAG, the following is correct behavior for MRHOF (RFC6719, Section 3.3.) */
   dag->rank = rpl_rank_via_parent(p);
   dag->min_rank = dag->rank; /* So far this is the lowest rank we know of. */
 
@@ -1387,6 +1406,8 @@ global_repair(uip_ipaddr_t *from, rpl_dag_t *dag, rpl_dio_t *dio)
   } else {
     /* We don't need to update the parent's normalized metric and defer flags
        because at this point that has already been handled by rpl_add_parent() */
+    /* Since at this point there is only one parent in the parent set of the given
+       DAG, the following is correct behavior for MRHOF (RFC6719, Section 3.3.) */
     dag->rank = rpl_rank_via_parent(p);
     dag->min_rank = dag->rank;
     LOG_DBG("rpl_process_parent_event global repair\n");

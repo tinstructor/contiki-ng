@@ -220,6 +220,15 @@ update_metric_container(rpl_instance_t *instance)
   instance->mc.type = RPL_DAG_MC_NONE;
 }
 /*---------------------------------------------------------------------------*/
+static rpl_rank_t
+rank_via_dag(rpl_dag_t *dag)
+{
+  if(dag != NULL && dag->preferred_parent != NULL) {
+    return rank_via_parent(dag->preferred_parent);
+  }
+  return RPL_INFINITE_RANK;
+}
+/*---------------------------------------------------------------------------*/
 rpl_of_t rpl_of0 = {
   reset,
 #if RPL_WITH_DAO_ACK
@@ -232,6 +241,7 @@ rpl_of_t rpl_of0 = {
   best_parent,
   best_dag,
   update_metric_container,
+  rank_via_dag,
   RPL_OCP_OF0
 };
 
