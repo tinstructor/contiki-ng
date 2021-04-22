@@ -397,11 +397,19 @@ dio_input(void)
         } else if(dio.mc.type == RPL_DAG_MC_ENERGY) {
           dio.mc.obj.energy.flags = buffer[i + 6];
           dio.mc.obj.energy.energy_est = buffer[i + 7];
-          /* TODO add debug statement */
         } else if(dio.mc.type == RPL_DAG_MC_LQL) {
           dio.mc.obj.lql.flags = buffer[i + 6];
           dio.mc.obj.lql.value = (buffer[i + 7] >> 5) & 0x03;
           dio.mc.obj.lql.counter = buffer[i + 7] & 0x1f;
+          
+          LOG_DBG("DAG MC: type %u, flags %u, aggr %u, prec %u, length %u, LQL %u, counter %u\n",
+                 (unsigned)dio.mc.type,
+                 (unsigned)dio.mc.flags,
+                 (unsigned)dio.mc.aggr,
+                 (unsigned)dio.mc.prec,
+                 (unsigned)dio.mc.length,
+                 (unsigned)dio.mc.obj.lql.value,
+                 (unsigned)dio.mc.obj.lql.counter);
         } else {
           LOG_WARN("Unhandled DAG MC type: %u\n", (unsigned)dio.mc.type);
           goto discard;
