@@ -344,7 +344,7 @@ guess_etx_from_rssi(const struct link_stats *stats)
 }
 #endif /* LINK_STATS_INIT_ETX_FROM_RSSI */
 /*---------------------------------------------------------------------------*/
-/* Guess the link-quality level [0-7] from the RSSI of a received packet 
+/* Guess the link-quality level [1-7] from the RSSI of a received packet 
    that currently still resides in the packet buffer. Must only be called
    when a received packet is in the packet buffer. */
 uint16_t
