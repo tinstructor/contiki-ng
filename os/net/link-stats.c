@@ -160,6 +160,15 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
     LOG_DBG_(", aborting preferred interface selection\n");
     return 0;
   }
+  if(stats->wifsel_flag) {
+    LOG_DBG("Preferred interface selection is weight-based for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_("\n");
+  } else {
+    LOG_DBG("Preferred interface selection is not weight-based for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_("\n");
+  }
   struct interface_list_entry *ile, *pref_ile;
   pref_ile = list_head(stats->interface_list);
   ile = list_item_next(pref_ile);
@@ -170,9 +179,12 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
     pref_if_metric = LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : pref_ile->inferred_metric;
     if_metric = LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : ile->inferred_metric;
     /* If weights are zero, multiplier is default (if wifsel is set, that is) */
-    pref_if_metric *= stats->wifsel_flag ? (pref_ile->weight ? pref_ile->weight : LINK_STATS_DEFAULT_WEIGHT) : 1;
-    if_metric *= stats->wifsel_flag ? (ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT) : 1;
-    /* If metric of interface is better than metric of pref if, new pref if*/
+    if(stats->wifsel_flag) {
+      pref_if_metric *= pref_ile->weight ? pref_ile->weight : LINK_STATS_DEFAULT_WEIGHT;
+      if_metric *= ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
+    }
+    /* If metric of interface is better than metric of pref if, new pref if */
+    /* TODO account for interfaces that are down when selecting new pref if */
     if(if_metric < pref_if_metric) {
       pref_ile = ile;
     }
