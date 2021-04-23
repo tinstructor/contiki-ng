@@ -175,17 +175,22 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
   while(ile != NULL) {
     uint16_t pref_if_metric;
     uint16_t if_metric;
-    /* Replace the inferred metric with a placeholder if worse than threshold */
-    pref_if_metric = LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : pref_ile->inferred_metric;
-    if_metric = LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : ile->inferred_metric;
-    /* If weights are zero, multiplier is default (if wifsel is set, that is) */
-    if(stats->wifsel_flag) {
-      pref_if_metric *= pref_ile->weight ? pref_ile->weight : LINK_STATS_DEFAULT_WEIGHT;
-      if_metric *= ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
-    }
-    /* If metric of interface is better than metric of pref if, new pref if */
-    /* TODO account for interfaces that are down when selecting new pref if */
-    if(if_metric < pref_if_metric) {
+    /* If both interfaces are down, preferred interface selection should be based on weighted non-placeholder values.
+       If both interfaces are up, preferred interface selection should be based on weighted non-placeholder values.
+       If the current pref if is up and the next if is down, the currently preferred interface should remain preferred.
+       If the current pref if is down and the next if is up, the next interface should become the preferred interface. */
+    if(LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) == LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric)) {
+      pref_if_metric = pref_ile->inferred_metric;
+      if_metric = ile->inferred_metric;
+      /* If weights are zero, multiplier is default (if wifsel is set, that is) */
+      if(stats->wifsel_flag) {
+        pref_if_metric *= pref_ile->weight ? pref_ile->weight : LINK_STATS_DEFAULT_WEIGHT;
+        if_metric *= ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
+      }
+      /* If metric of next interface is better than metric of pref if, new pref if */
+      pref_ile = (if_metric < pref_if_metric) ? ile : pref_ile;
+    } else if(LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric)) {
+      /* The next if is better simply because it is up and the currently pref if is down! */
       pref_ile = ile;
     }
     ile = list_item_next(ile);
@@ -411,6 +416,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
   uint8_t if_id = packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID);
   ile = interface_list_entry_from_id(stats, if_id);
   uint16_t bad_metric = LINK_STATS_METRIC_THRESHOLD;
+  /* FIXME the following is problematic for preferred interface selection */
   bad_metric += (LINK_STATS_WORSE_THAN_THRESH(LINK_STATS_METRIC_THRESHOLD - 1) ? (-1) : (1));
   if(ile != NULL) {
     /* Update the existing ile */
