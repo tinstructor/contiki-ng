@@ -1017,6 +1017,16 @@ rpl_remove_parent(rpl_parent_t *parent)
   LOG_INFO_6ADDR(rpl_parent_get_ipaddr(parent));
   LOG_INFO_("\n");
 
+  /* In any conceivable case, when a parent is removed from the rpl_parents table,
+     preferred interface selection for that neighbor should no longer be based on 
+     weights and thus its wifsel flag must be unset in the corresponding link_stats 
+     table entry. No additional checks are needed, we can simply override the current
+     wifsel flag state in the corresponding ile */
+  const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
+  if(lladdr != NULL) {
+    link_stats_modify_wifsel_flag(lladdr, LINK_STATS_WIFSEL_FLAG_FALSE);
+  }
+
   rpl_nullify_parent(parent);
 
   nbr_table_remove(rpl_parents, parent);
@@ -1085,6 +1095,15 @@ rpl_move_parent(rpl_dag_t *dag_src, rpl_dag_t *dag_dst, rpl_parent_t *parent)
     /* REVIEW check if this branch needs more strict requirements. */
     link_stats_reset_defer_flags(lladdr);
     link_stats_update_norm_metric(lladdr);
+    /* Set the wifsel flag if the parent is a candidate parent in the current DAG
+       of the default instance. For now, this functionality is limited to the default
+       instance because the link-stats module would otherwise need to keep a link_stats
+       table for every instance. */
+    if(default_instance != NULL) {
+      link_stats_wifsel_flag_t wifsel_flag;
+      wifsel_flag = (parent->dag == default_instance->current_dag) ? LINK_STATS_WIFSEL_FLAG_TRUE : LINK_STATS_WIFSEL_FLAG_FALSE;
+      link_stats_modify_wifsel_flag(lladdr, wifsel_flag);
+    }
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -1431,6 +1450,9 @@ rpl_local_repair(rpl_instance_t *instance)
     LOG_WARN("local repair requested for instance NULL\n");
     return;
   }
+
+  /* TODO do we need to reset wifsel flags here? */
+
   LOG_INFO("Starting a local instance repair\n");
   for(i = 0; i < RPL_MAX_DAG_PER_INSTANCE; i++) {
     if(instance->dag_table[i].used) {
@@ -1516,6 +1538,8 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
     if(p != instance->current_dag->preferred_parent) {
       return 0;
     } else {
+      /* The call to rpl_nullify_parent would have set p->dag->preferred_parent to NULL
+         and thus this branch can only be entered if instance->current_dag != p->dag */
       return_value = 0;
     }
   }
@@ -1543,6 +1567,19 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
     }
   }
 #endif /* LOG_DBG_ENABLED */
+
+  const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
+  if(lladdr != NULL && return_value == 1) {
+    /* Set the wifsel flag if the parent is a candidate parent in the current DAG
+       of the default instance. For now, this functionality is limited to the default
+       instance because the link-stats module would otherwise need to keep a link_stats
+       table for every instance. */
+    if(default_instance != NULL) {
+      link_stats_wifsel_flag_t wifsel_flag;
+      wifsel_flag = (p->dag == default_instance->current_dag) ? LINK_STATS_WIFSEL_FLAG_TRUE : LINK_STATS_WIFSEL_FLAG_FALSE;
+      link_stats_modify_wifsel_flag(lladdr, wifsel_flag);
+    }
+  }
 
   return return_value;
 }
