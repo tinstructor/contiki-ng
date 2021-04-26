@@ -102,6 +102,7 @@ init(void)
 {
   radio_value_t radio_multi_rf = RADIO_MULTI_RF_DIS;
   radio_value_t radio_max_payload_len = 0;
+  if_id_collection_t if_id_collection;
 
   /* Check that the radio driver is multi-rf enabled */
   if(NETSTACK_RADIO.get_value(RADIO_CONST_MULTI_RF, &radio_multi_rf) != RADIO_RESULT_OK) {
@@ -130,6 +131,13 @@ init(void)
   /* Check that the radio can correctly report its max supported payload */
   if(NETSTACK_RADIO.get_value(RADIO_CONST_MAX_PAYLOAD_LEN, &radio_max_payload_len) != RADIO_RESULT_OK) {
     LOG_ERR("! radio does not support getting RADIO_CONST_MAX_PAYLOAD_LEN. Abort init.\n");
+    return;
+  }
+
+  /* Check that the radio can correctly report its interface id collection */
+  if(NETSTACK_RADIO.get_object(RADIO_CONST_INTERFACE_ID_COLLECTION, &if_id_collection,
+                               sizeof(if_id_collection)) != RADIO_RESULT_OK) {
+    LOG_ERR("! radio does not support getting RADIO_CONST_INTERFACE_ID_COLLECTION. Abort init.\n");
     return;
   }
 

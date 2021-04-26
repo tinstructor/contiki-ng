@@ -57,7 +57,7 @@
 #include "lib/memb.h"
 #include "sys/ctimer.h"
 #include "sys/log.h"
-// #include "dev/radio.h"
+#include "dev/radio.h"
 
 #include <limits.h>
 #include <string.h>
@@ -303,7 +303,7 @@ rpl_exec_norm_metric_logic(rpl_reset_defer_t reset_defer)
 void
 rpl_recalculate_interface_weights(void)
 {
-#if LINK_STATS_PACKET_COUNTERS
+#if LINK_STATS_PACKET_COUNTERS && MAC_CONF_WITH_TWOFACED
   if(default_instance == NULL || default_instance->current_dag == NULL ||
      default_instance->current_dag->preferred_parent == NULL) {
     return;
@@ -318,13 +318,18 @@ rpl_recalculate_interface_weights(void)
      density towards our preferred parent and in turn translate this relative
      measure into a weight for each type of interface we possess. This latter
      calculation will rely at least partly on the data rate of each interface type. */
-  // if_id_collection_t if_id_collection;
-  // if(NETSTACK_RADIO.get_object(RADIO_CONST_INTERFACE_ID_COLLECTION, &if_id_collection,
-  //                              sizeof(if_id_collection)) == RADIO_RESULT_OK) {
-    
-  // } else {
-  //   return
-  // }
+  /* REVIEW the previous mechanism of getting outgoing upward packet numbers might
+     be problematic if the preferred parent changes often. Hence, we might look into
+     keeping this count in a different manner */
+  if_id_collection_t if_id_collection;
+  if(NETSTACK_RADIO.get_object(RADIO_CONST_INTERFACE_ID_COLLECTION, &if_id_collection,
+                               sizeof(if_id_collection)) == RADIO_RESULT_OK) {
+    /* TODO debug statement */
+  } else {
+    /* TODO debug statement */
+    return
+  }
+  /* TODO update the weights for all neighbors and not just for the RPL parents */
 #endif
 }
 /*---------------------------------------------------------------------------*/
