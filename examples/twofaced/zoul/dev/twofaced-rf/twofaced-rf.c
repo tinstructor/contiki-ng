@@ -298,6 +298,7 @@ init(void)
       radio_value_t reported_max_payload_len = 0;
       radio_value_t radio_rx_mode;
       radio_value_t def_chan;
+      radio_value_t data_rate;
       radio_value_t if_id;
 
       /* Initialize underlying radio driver */
@@ -367,6 +368,17 @@ init(void)
         return 0;
       }
 
+      /* Check if the underlying radio driver correctly reports its data rate (in kbps) */
+      if(available_interfaces[i]->get_value(RADIO_CONST_DATA_RATE, &data_rate) != RADIO_RESULT_OK) {
+        if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
+          LOG_DBG("Failed to retrieve data rate of underlying radio driver\n");
+        } else {
+          LOG_DBG("Failed to retrieve data rate of underlying radio driver (%s)\n",
+                  available_interfaces[i]->driver_descriptor);
+        }
+        return 0;
+      }
+
       /* Check if the underlying radio driver correctly reports its interface id */
       if(available_interfaces[i]->get_value(RADIO_CONST_INTERFACE_ID, &if_id) != RADIO_RESULT_OK) {
         if(!strcmp(available_interfaces[i]->driver_descriptor, "")) {
@@ -387,6 +399,7 @@ init(void)
         if(is_unique) {
           LOG_DBG("Adding interface with ID = %d to collection\n", (uint8_t)if_id);
           if_id_collection.if_id_list[if_id_collection.size] = (uint8_t)if_id;
+          if_id_collection.data_rates[if_id_collection.size] = (uint16_t)data_rate;
           if_id_collection.size++;
         } else {
           LOG_DBG("Interface with ID = %d already in collection, not added\n", (uint8_t)if_id);

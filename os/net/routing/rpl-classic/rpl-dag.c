@@ -57,6 +57,7 @@
 #include "lib/memb.h"
 #include "sys/ctimer.h"
 #include "sys/log.h"
+// #include "dev/radio.h"
 
 #include <limits.h>
 #include <string.h>
@@ -297,6 +298,34 @@ rpl_exec_norm_metric_logic(rpl_reset_defer_t reset_defer)
     }
     p = nbr_table_next(rpl_parents, p);
   }
+}
+/*---------------------------------------------------------------------------*/
+void
+rpl_recalculate_interface_weights(void)
+{
+#if LINK_STATS_PACKET_COUNTERS
+  if(default_instance == NULL || default_instance->current_dag == NULL ||
+     default_instance->current_dag->preferred_parent == NULL) {
+    return;
+  }
+  const struct link_stats *stats;
+  stats = rpl_get_parent_link_stats(default_instance->current_dag->preferred_parent);
+  uint16_t num_packets_acked;
+  num_packets_acked = stats->cnt_current.num_packets_acked;
+  /* TODO we now know how many packets we have successfully transmitted towards
+     our preferred parent during the current FRESHNESS_HALF_LIFE period. We must
+     now somehow translate this absolute number into a relative measure of traffic
+     density towards our preferred parent and in turn translate this relative
+     measure into a weight for each type of interface we possess. This latter
+     calculation will rely at least partly on the data rate of each interface type. */
+  // if_id_collection_t if_id_collection;
+  // if(NETSTACK_RADIO.get_object(RADIO_CONST_INTERFACE_ID_COLLECTION, &if_id_collection,
+  //                              sizeof(if_id_collection)) == RADIO_RESULT_OK) {
+    
+  // } else {
+  //   return
+  // }
+#endif
 }
 /*---------------------------------------------------------------------------*/
 static void

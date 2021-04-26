@@ -439,6 +439,11 @@ enum radio_param_e {
    * Retrieving the collection is only possible through `get_object()`.
    */
   RADIO_CONST_INTERFACE_ID_COLLECTION,
+
+  /**
+   * The data rate of the radio in kbps. 
+   */
+  RADIO_CONST_DATA_RATE,
 };
 
 /**
@@ -488,11 +493,25 @@ enum radio_multi_rf_e {
 };
 
 /**
- * A list of interface identifiers annotated with the number of identifiers
- * in said list.
+ * The maximum number of interfaces a node may have. 
+ */
+#ifdef RADIO_CONF_MAX_INTERFACES
+#if RADIO_CONF_MAX_INTERFACES <= UINT8_MAX
+#define RADIO_MAX_INTERFACES RADIO_CONF_MAX_INTERFACES
+#else /* RADIO_CONF_MAX_INTERFACES <= UINT8_MAX */
+#error "RADIO_CONF_MAX_INTERFACES exceeds UINT8_MAX"
+#endif /* RADIO_CONF_MAX_INTERFACES <= UINT8_MAX */
+#else /* RADIO_CONF_MAX_INTERFACES */
+#define RADIO_MAX_INTERFACES 5 
+#endif /* RADIO_MAX_INTERFACES */
+
+/**
+ * A list of interface identifiers, and a list of their corresponding data rates
+ * in kbps, annotated with the number of identifiers in said lists.
  */
 typedef struct {
-  uint8_t if_id_list[UINT8_MAX];
+  uint8_t if_id_list[RADIO_MAX_INTERFACES];
+  uint16_t data_rates[RADIO_MAX_INTERFACES];
   uint8_t size;
 } if_id_collection_t;
 

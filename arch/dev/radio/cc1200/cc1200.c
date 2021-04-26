@@ -1370,6 +1370,11 @@ get_value(radio_param_t param, radio_value_t *value)
     *value = (radio_value_t)CC1200_INTERFACE_ID;
      return RADIO_RESULT_OK;
 
+  case RADIO_CONST_DATA_RATE:
+    /* Round to nearest integer multiple of bitrate divided by 1000 */
+    *value = (radio_value_t)((CC1200_RF_CFG.bitrate + 500) / 1000);
+    return RADIO_RESULT_OK;
+
   default:
 
     return RADIO_RESULT_NOT_SUPPORTED;

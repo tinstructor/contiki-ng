@@ -434,6 +434,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     LOG_DBG_("\n");
     uint16_t old_metric = ile->inferred_metric;
     /* Set inferred metric to worse than threshold if no ACK was received */
+    /* FIXME issue with bad_metric mechanism remains */
     ile->inferred_metric = (status == MAC_TX_OK ? LINK_STATS_INFERRED_METRIC_FUNC() : bad_metric);
     LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
@@ -470,6 +471,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
       if(ile != NULL) {
         ile->if_id = if_id;
         /* Set inferred metric to worse than threshold if no ACK was received */
+        /* FIXME issue with bad_metric mechanism remains */
         ile->inferred_metric = (status == MAC_TX_OK ? LINK_STATS_INFERRED_METRIC_FUNC() : bad_metric);
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
         list_add(stats->interface_list, ile);

@@ -951,6 +951,9 @@ get_value(radio_param_t param, radio_value_t *value)
   case RADIO_CONST_INTERFACE_ID:
     *value = (radio_value_t)CC2538_INTERFACE_ID;
     return RADIO_RESULT_OK;
+  case RADIO_CONST_DATA_RATE:
+    *value = (radio_value_t)250;
+    return RADIO_RESULT_OK;
   default:
     return RADIO_RESULT_NOT_SUPPORTED;
   }
