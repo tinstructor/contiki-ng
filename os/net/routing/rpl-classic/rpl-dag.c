@@ -330,10 +330,19 @@ rpl_recalculate_interface_weights(void)
   rpl_id_weight_t id_weight_list[RADIO_MAX_INTERFACES];
   if(NETSTACK_RADIO.get_object(RADIO_CONST_INTERFACE_ID_COLLECTION, &if_id_collection,
                                sizeof(if_id_collection)) == RADIO_RESULT_OK) {
-    /* TODO debug statement */
-    /* TODO calculate the weight for each interface type here */
+    if(if_id_collection.size > RADIO_MAX_INTERFACES) {
+      LOG_DBG("Size of if_id collection exceeds RADIO_MAX_INTERFACES. Aborting weight recalculation.\n");
+      return;
+    }
+    for(uint8_t i = 0; i < if_id_collection.size; i++) {
+      uint8_t weight = 1;
+      /* TODO calculate the weight for each interface type here */
+      id_weight_list[i].if_id = if_id_collection.if_id_list[i];
+      id_weight_list[i].weight = weight;
+      LOG_DBG("Weight for interface with ID = %d changed to %d\n", id_weight_list[i].if_id, id_weight_list[i].weight);
+    }
   } else {
-    /* TODO debug statement */
+    LOG_DBG("Could not retrieve if_id collection from radio driver. Aborting weight recalculation.\n");
     return
   }
   /* TODO update the weights for all neighbors and not just for the RPL parents */
