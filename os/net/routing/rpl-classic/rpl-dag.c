@@ -83,6 +83,11 @@ static rpl_of_t * const objective_functions[] = RPL_SUPPORTED_OFS;
 #define RPL_GROUNDED                    RPL_CONF_GROUNDED
 #endif /* !RPL_CONF_GROUNDED */
 
+typedef struct {
+  uint8_t if_id;
+  uint8_t weight;
+} rpl_id_weight_t;
+
 /*---------------------------------------------------------------------------*/
 /* Per-parent RPL information */
 NBR_TABLE_GLOBAL(rpl_parent_t, rpl_parents);
@@ -322,9 +327,11 @@ rpl_recalculate_interface_weights(void)
      be problematic if the preferred parent changes often. Hence, we might look into
      keeping this count in a different manner */
   if_id_collection_t if_id_collection;
+  rpl_id_weight_t id_weight_list[RADIO_MAX_INTERFACES];
   if(NETSTACK_RADIO.get_object(RADIO_CONST_INTERFACE_ID_COLLECTION, &if_id_collection,
                                sizeof(if_id_collection)) == RADIO_RESULT_OK) {
     /* TODO debug statement */
+    /* TODO calculate the weight for each interface type here */
   } else {
     /* TODO debug statement */
     return
