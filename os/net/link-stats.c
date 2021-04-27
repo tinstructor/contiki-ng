@@ -144,6 +144,28 @@ link_stats_modify_weight(const linkaddr_t *lladdr, uint8_t if_id, uint8_t weight
     return 0;
   }
   ile->weight = weight;
+  LOG_DBG("Weight for interface with ID = %d towards ", if_id);
+  LOG_DBG_LLADDR(lladdr);
+  LOG_DBG_(" changed to %d\n", weight);
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
+/* Modify the weight for all neighbors to which a connection with
+   the interface of the given id exists. */
+int
+link_stats_modify_weights(uint8_t if_id, uint8_t weight)
+{
+  if(weight == 0) {
+    LOG_DBG("Setting a weight of 0 is prohibited, aborting weight modification\n");
+    return 0;
+  }
+  struct link_stats *stats;
+  stats = nbr_table_head(link_stats);
+  while(stats != NULL) {
+    const linkaddr_t *lladdr = link_stats_get_lladdr(stats);
+    link_stats_modify_weight(lladdr, if_id, weight);
+    stats = nbr_table_next(link_stats, stats);
+  }
   return 1;
 }
 /*---------------------------------------------------------------------------*/

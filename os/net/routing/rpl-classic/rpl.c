@@ -65,6 +65,7 @@ rpl_stats_t rpl_stats;
 #endif
 
 static enum rpl_mode mode = RPL_MODE_MESH;
+uint16_t num_tx_preferred;
 /*---------------------------------------------------------------------------*/
 enum rpl_mode
 rpl_get_mode(void)
@@ -275,6 +276,14 @@ rpl_link_callback(const linkaddr_t *addr, int status, int numtx)
           instance->urgent_probing_target = NULL;
         }
 #endif /* RPL_WITH_PROBING */
+        /* Increase the count of packets successfully transmitted to a
+           preferred parent during the current RPL_IF_WEIGHTS_WINDOW */
+        if(default_instance != NULL && default_instance->current_dag != NULL &&
+           parent == default_instance->current_dag->preferred_parent &&
+           status == MAC_TX_OK) {
+          /* Not += num_tx as we're only interested in successful attempts */
+          num_tx_preferred++;
+        }
         /* Make sure the normalized metrics of all parents are up to date and
            follow the complete logic, including resetting the defer flags of
            all parents */
@@ -364,6 +373,7 @@ init(void)
 
   rpl_dag_init();
   rpl_reset_periodic_timer();
+  rpl_reset_interface_weights_timer();
   rpl_icmp6_register_handlers();
 
   /* add rpl multicast address */

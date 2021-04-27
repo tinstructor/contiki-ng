@@ -68,8 +68,10 @@ clock_time_t RPL_PROBING_DELAY_FUNC(rpl_dag_t *dag);
 
 /*---------------------------------------------------------------------------*/
 static struct ctimer periodic_timer;
+static struct ctimer interface_weights_timer;
 
 static void handle_periodic_timer(void *ptr);
+static void handle_interface_weights_timer(void *ptr);
 static void new_dio_interval(rpl_instance_t *instance);
 static void handle_dio_timer(void *ptr);
 
@@ -104,6 +106,14 @@ handle_periodic_timer(void *ptr)
   }
 #endif
   ctimer_reset(&periodic_timer);
+}
+/*---------------------------------------------------------------------------*/
+static void
+handle_interface_weights_timer(void *ptr)
+{
+  rpl_recalculate_interface_weights();
+  num_tx_preferred = 0;
+  ctimer_reset(&interface_weights_timer);
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -209,6 +219,13 @@ rpl_reset_periodic_timer(void)
     ((uint32_t)RPL_DIS_INTERVAL * (uint32_t)random_rand()) / RANDOM_RAND_MAX -
     RPL_DIS_START_DELAY;
   ctimer_set(&periodic_timer, CLOCK_SECOND, handle_periodic_timer, NULL);
+}
+/*---------------------------------------------------------------------------*/
+void 
+rpl_reset_interface_weights_timer(void)
+{
+  num_tx_preferred = 0;
+  ctimer_set(&interface_weights_timer, RPL_IF_WEIGHTS_WINDOW, handle_interface_weights_timer, NULL);
 }
 /*---------------------------------------------------------------------------*/
 /* Resets the DIO timer in the instance to its minimal interval. */

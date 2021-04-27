@@ -83,11 +83,6 @@ static rpl_of_t * const objective_functions[] = RPL_SUPPORTED_OFS;
 #define RPL_GROUNDED                    RPL_CONF_GROUNDED
 #endif /* !RPL_CONF_GROUNDED */
 
-typedef struct {
-  uint8_t if_id;
-  uint8_t weight;
-} rpl_id_weight_t;
-
 /*---------------------------------------------------------------------------*/
 /* Per-parent RPL information */
 NBR_TABLE_GLOBAL(rpl_parent_t, rpl_parents);
@@ -308,26 +303,16 @@ rpl_exec_norm_metric_logic(rpl_reset_defer_t reset_defer)
 void
 rpl_recalculate_interface_weights(void)
 {
-#if LINK_STATS_PACKET_COUNTERS && MAC_CONF_WITH_TWOFACED
-  if(default_instance == NULL || default_instance->current_dag == NULL ||
-     default_instance->current_dag->preferred_parent == NULL) {
-    return;
-  }
-  const struct link_stats *stats;
-  stats = rpl_get_parent_link_stats(default_instance->current_dag->preferred_parent);
-  uint16_t num_packets_acked;
-  num_packets_acked = stats->cnt_current.num_packets_acked;
+  /* TODO add possibility to turn off weight recalculation */
+  uint16_t ntp = num_tx_preferred;
+  LOG_DBG("Transmitted %u packets to preferred parent in current RPL_IF_WEIGHTS_WINDOW\n", ntp);
   /* TODO we now know how many packets we have successfully transmitted towards
-     our preferred parent during the current FRESHNESS_HALF_LIFE period. We must
+     our preferred parent during the current RPL_IF_WEIGHTS_WINDOW period. We must
      now somehow translate this absolute number into a relative measure of traffic
      density towards our preferred parent and in turn translate this relative
      measure into a weight for each type of interface we possess. This latter
      calculation will rely at least partly on the data rate of each interface type. */
-  /* REVIEW the previous mechanism of getting outgoing upward packet numbers might
-     be problematic if the preferred parent changes often. Hence, we might look into
-     keeping this count in a different manner */
   if_id_collection_t if_id_collection;
-  rpl_id_weight_t id_weight_list[RADIO_MAX_INTERFACES];
   if(NETSTACK_RADIO.get_object(RADIO_CONST_INTERFACE_ID_COLLECTION, &if_id_collection,
                                sizeof(if_id_collection)) == RADIO_RESULT_OK) {
     if(if_id_collection.size > RADIO_MAX_INTERFACES) {
@@ -335,18 +320,20 @@ rpl_recalculate_interface_weights(void)
       return;
     }
     for(uint8_t i = 0; i < if_id_collection.size; i++) {
-      uint8_t weight = 1;
+      /* NOTE at this point we assume each if_id appears at most once in
+         the if_id_collection's if_id_list. However, we won't check this
+         here as this is the responsibility of the creator of said list,
+         i.e., it's the responsibility of the radio driver */
+      uint8_t weight;
       /* TODO calculate the weight for each interface type here */
-      id_weight_list[i].if_id = if_id_collection.if_id_list[i];
-      id_weight_list[i].weight = weight;
-      LOG_DBG("Weight for interface with ID = %d changed to %d\n", id_weight_list[i].if_id, id_weight_list[i].weight);
+      // weight = <something density-based> * <something rate-based>;
+      weight = weight ? weight : 1; /* catch zero weights (which aren't allowed) */
+      link_stats_modify_weights(if_id_collection.if_id_list[i], weight);
     }
   } else {
     LOG_DBG("Could not retrieve if_id collection from radio driver. Aborting weight recalculation.\n");
-    return
+    return;
   }
-  /* TODO update the weights for all neighbors and not just for the RPL parents */
-#endif
 }
 /*---------------------------------------------------------------------------*/
 static void

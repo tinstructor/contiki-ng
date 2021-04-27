@@ -181,6 +181,9 @@ int link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_fl
    supplying said neighbor's link-layer addr, the interface's ID
    and a weight. */
 int link_stats_modify_weight(const linkaddr_t *lladdr, uint8_t if_id, uint8_t weight);
+/* Modify the weight for all neighbors to which a connection with
+   the interface of the given id exists. */
+int link_stats_modify_weights(uint8_t if_id, uint8_t weight);
 /* Select the preferred interface of the neighbor corresponding
    to the supplied link-layer address. */
 int link_stats_select_pref_interface(const linkaddr_t *lladdr);

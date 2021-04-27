@@ -182,6 +182,15 @@
 #define RPL_MAX_RANKINC             RPL_CONF_MAX_RANKINC
 #endif /* RPL_CONF_MAX_RANKINC */
 
+/* The window (in milliseconds) during which the number of
+   packets successfully transmitted to the preferred
+   parent is kept for interface weight recalculation */
+#ifdef RPL_CONF_IF_WEIGHTS_WINDOW
+#define RPL_IF_WEIGHTS_WINDOW       RPL_CONF_IF_WEIGHTS_WINDOW
+#else /* RPL_CONF_IF_WEIGHTS_WINDOW */
+#define RPL_IF_WEIGHTS_WINDOW       (20U * CLOCK_SECOND)
+#endif /* RPL_CONF_IF_WEIGHTS_WINDOW */
+
 #define DAG_RANK(fixpt_rank, instance) \
   ((fixpt_rank) / (instance)->min_hoprankinc)
 
@@ -297,6 +306,10 @@ typedef enum {
 #endif /* RPL_CONF_STATS */
 
 /*---------------------------------------------------------------------------*/
+/* Number of packets successfully transmitted to preferred
+   parent within current window */
+extern uint16_t num_tx_preferred;
+
 /* Instances */
 extern rpl_instance_t instance_table[];
 extern rpl_instance_t *default_instance;
@@ -358,6 +371,7 @@ void rpl_schedule_probing_now(rpl_instance_t *instance);
 
 void rpl_reset_dio_timer(rpl_instance_t *);
 void rpl_reset_periodic_timer(void);
+void rpl_reset_interface_weights_timer(void);
 
 /* Route poisoning. */
 void rpl_poison_routes(rpl_dag_t *, rpl_parent_t *);
