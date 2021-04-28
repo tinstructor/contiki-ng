@@ -59,6 +59,10 @@
 #include "sys/log.h"
 #include "dev/radio.h"
 
+#if RPL_WEIGHTED_INTERFACES
+#include <math.h>
+#endif
+
 #include <limits.h>
 #include <string.h>
 
@@ -327,8 +331,10 @@ rpl_recalculate_interface_weights(void)
       uint8_t weight;
       uint8_t if_id = if_id_collection.if_id_list[i];
       uint16_t data_rate = if_id_collection.data_rates[i];
-      /* TODO calculate the weight for each interface type here */
-      // weight = <something density-based> * <something rate-based>;
+      /* FIXME the floating point stuff is bugged AF */
+      float precise_weight = powf(2.0f, (float)(ntp * data_rate) / 8192.0f);
+      weight = (uint8_t)(precise_weight + 0.5f);
+      LOG_DBG("Weight for all neighboring interfaces with ID = %d is precisely %f rounding to %d\n", if_id, precise_weight, weight);
       weight = weight ? weight : 1; /* catch zero weights (which aren't allowed) */
       link_stats_modify_weights(if_id, weight);
     }

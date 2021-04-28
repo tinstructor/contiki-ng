@@ -226,7 +226,11 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
         if_metric *= ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
       }
       /* If metric of next interface is better than metric of pref if, new pref if */
-      /* FIXME the logic behind this is NOT solid */
+      /* FIXME the logic behind this is NOT solid. More specifically, this mechanism would
+         only work if we assigned a lower weight to the interface we would like to give
+         the advantage based on traffic density and data rate. However, in order for that
+         "advantage" to come through during normalized metric calculation, the weight
+         assigned to the more desireable interface must higher instead! */
       pref_ile = (if_metric < pref_if_metric) ? ile : pref_ile;
     } else if(LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric)) {
       /* The next if is better simply because it is up and the currently pref if is down! */
