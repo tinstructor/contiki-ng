@@ -234,7 +234,7 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
           LOG_DBG("Attempting tx on interface with ID = %d\n", if_id);
         }
         tx_res = NETSTACK_RADIO.transmit(packetbuf_totlen());
-        RTIMER_BUSYWAIT(RTIMER_SECOND / 200);
+        RTIMER_BUSYWAIT(RTIMER_SECOND / 210);
         switch(tx_res) {
         case RADIO_TX_OK:
           if(is_broadcast) {

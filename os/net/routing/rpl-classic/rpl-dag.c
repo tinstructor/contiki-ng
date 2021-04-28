@@ -303,7 +303,7 @@ rpl_exec_norm_metric_logic(rpl_reset_defer_t reset_defer)
 void
 rpl_recalculate_interface_weights(void)
 {
-  /* TODO add possibility to turn off weight recalculation */
+#if RPL_WEIGHTED_INTERFACES
   uint16_t ntp = num_tx_preferred;
   LOG_DBG("Transmitted %u packets to preferred parent in current RPL_IF_WEIGHTS_WINDOW\n", ntp);
   /* TODO we now know how many packets we have successfully transmitted towards
@@ -325,15 +325,18 @@ rpl_recalculate_interface_weights(void)
          here as this is the responsibility of the creator of said list,
          i.e., it's the responsibility of the radio driver */
       uint8_t weight;
+      uint8_t if_id = if_id_collection.if_id_list[i];
+      uint16_t data_rate = if_id_collection.data_rates[i];
       /* TODO calculate the weight for each interface type here */
       // weight = <something density-based> * <something rate-based>;
       weight = weight ? weight : 1; /* catch zero weights (which aren't allowed) */
-      link_stats_modify_weights(if_id_collection.if_id_list[i], weight);
+      link_stats_modify_weights(if_id, weight);
     }
   } else {
     LOG_DBG("Could not retrieve if_id collection from radio driver. Aborting weight recalculation.\n");
     return;
   }
+#endif
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -1054,6 +1057,7 @@ rpl_remove_parent(rpl_parent_t *parent)
   LOG_INFO_6ADDR(rpl_parent_get_ipaddr(parent));
   LOG_INFO_("\n");
 
+#if RPL_WEIGHTED_INTERFACES
   /* In any conceivable case, when a parent is removed from the rpl_parents table,
      preferred interface selection for that neighbor should no longer be based on 
      weights and thus its wifsel flag must be unset in the corresponding link_stats 
@@ -1063,6 +1067,7 @@ rpl_remove_parent(rpl_parent_t *parent)
   if(lladdr != NULL) {
     link_stats_modify_wifsel_flag(lladdr, LINK_STATS_WIFSEL_FLAG_FALSE);
   }
+#endif
 
   rpl_nullify_parent(parent);
 
@@ -1132,6 +1137,7 @@ rpl_move_parent(rpl_dag_t *dag_src, rpl_dag_t *dag_dst, rpl_parent_t *parent)
     /* REVIEW check if this branch needs more strict requirements. */
     link_stats_reset_defer_flags(lladdr);
     link_stats_update_norm_metric(lladdr);
+#if RPL_WEIGHTED_INTERFACES
     /* Set the wifsel flag if the parent is a candidate parent in the current DAG
        of the default instance. For now, this functionality is limited to the default
        instance because the link-stats module would otherwise need to keep a link_stats
@@ -1141,6 +1147,7 @@ rpl_move_parent(rpl_dag_t *dag_src, rpl_dag_t *dag_dst, rpl_parent_t *parent)
       wifsel_flag = (parent->dag == default_instance->current_dag) ? LINK_STATS_WIFSEL_FLAG_TRUE : LINK_STATS_WIFSEL_FLAG_FALSE;
       link_stats_modify_wifsel_flag(lladdr, wifsel_flag);
     }
+#endif
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -1488,7 +1495,9 @@ rpl_local_repair(rpl_instance_t *instance)
     return;
   }
 
+#if RPL_WEIGHTED_INTERFACES
   /* TODO do we need to reset wifsel flags here? */
+#endif
 
   LOG_INFO("Starting a local instance repair\n");
   for(i = 0; i < RPL_MAX_DAG_PER_INSTANCE; i++) {
@@ -1605,6 +1614,7 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
   }
 #endif /* LOG_DBG_ENABLED */
 
+#if RPL_WEIGHTED_INTERFACES
   const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
   if(lladdr != NULL && return_value == 1) {
     /* Set the wifsel flag if the parent is a candidate parent in the current DAG
@@ -1617,6 +1627,7 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
       link_stats_modify_wifsel_flag(lladdr, wifsel_flag);
     }
   }
+#endif
 
   return return_value;
 }

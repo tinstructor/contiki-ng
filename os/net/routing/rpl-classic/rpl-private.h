@@ -188,8 +188,14 @@
 #ifdef RPL_CONF_IF_WEIGHTS_WINDOW
 #define RPL_IF_WEIGHTS_WINDOW       RPL_CONF_IF_WEIGHTS_WINDOW
 #else /* RPL_CONF_IF_WEIGHTS_WINDOW */
-#define RPL_IF_WEIGHTS_WINDOW       (20U * CLOCK_SECOND)
+#define RPL_IF_WEIGHTS_WINDOW       (20U * CLOCK_SECOND) /* TODO set to more appropriate value */
 #endif /* RPL_CONF_IF_WEIGHTS_WINDOW */
+
+#ifdef RPL_CONF_WEIGHTED_INTERFACES
+#define RPL_WEIGHTED_INTERFACES     RPL_CONF_WEIGHTED_INTERFACES
+#else /* RPL_CONF_WEIGHTED_INTERFACES */
+#define RPL_WEIGHTED_INTERFACES     1
+#endif /* RPL_CONF_WEIGHTED_INTERFACES */
 
 #define DAG_RANK(fixpt_rank, instance) \
   ((fixpt_rank) / (instance)->min_hoprankinc)

@@ -192,6 +192,12 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
     LOG_DBG_("\n");
   }
   struct interface_list_entry *ile, *pref_ile;
+  // ile = list_head(stats->interface_list);
+  // uint16_t denominator = 0;
+  // while(ile != NULL) {
+  //   denominator += ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
+  //   ile = list_item_next(ile);
+  // }
   pref_ile = list_head(stats->interface_list);
   ile = list_item_next(pref_ile);
   while(ile != NULL) {
@@ -220,6 +226,7 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
         if_metric *= ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
       }
       /* If metric of next interface is better than metric of pref if, new pref if */
+      /* FIXME the logic behind this is NOT solid */
       pref_ile = (if_metric < pref_if_metric) ? ile : pref_ile;
     } else if(LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric)) {
       /* The next if is better simply because it is up and the currently pref if is down! */
@@ -514,6 +521,9 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
   }
 
   /* Update last timestamp and freshness */
+  /* FIXME this is problematic when running multi-rf because
+     freshness should then be interface-scope instead of
+     neighbor-scope */
   stats->last_tx_time = clock_time();
   stats->freshness = MIN(stats->freshness + numtx, FRESHNESS_MAX);
 
