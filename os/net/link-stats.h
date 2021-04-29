@@ -187,6 +187,8 @@ int link_stats_modify_weights(uint8_t if_id, uint8_t weight);
 /* Select the preferred interface of the neighbor corresponding
    to the supplied link-layer address. */
 int link_stats_select_pref_interface(const linkaddr_t *lladdr);
+/* Select the preferred interface for all neighbors. */
+int link_stats_select_pref_interfaces(void);
 /* Update the normalized metric stored in the link stats table
    entry corresponding to the supplied link-layer address. Note
    that this function does not check the defer flag status, since

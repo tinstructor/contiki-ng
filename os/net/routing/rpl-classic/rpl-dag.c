@@ -310,12 +310,15 @@ rpl_recalculate_interface_weights(void)
 #if RPL_WEIGHTED_INTERFACES
   uint16_t ntp = num_tx_preferred;
   LOG_DBG("Transmitted %u packets to preferred parent in current RPL_IF_WEIGHTS_WINDOW\n", ntp);
-  /* TODO we now know how many packets we have successfully transmitted towards
+  /* We now know how many packets we have successfully transmitted towards
      our preferred parent during the current RPL_IF_WEIGHTS_WINDOW period. We must
-     now somehow translate this absolute number into a relative measure of traffic
-     density towards our preferred parent and in turn translate this relative
-     measure into a weight for each type of interface we possess. This latter
-     calculation will rely at least partly on the data rate of each interface type. */
+     now somehow translate this absolute number into a into a weight for each type
+     of interface we possess. This latter calculation will rely at least partly on
+     the data rate of each interface type. */
+  uint16_t period = (RPL_IF_WEIGHTS_WINDOW / CLOCK_SECOND);
+  /* REVIEW should we make density a moving average accross a given number
+     of RPL_IF_WEIGHTS_WINDOWs? */
+  double density = ((double)ntp / (double)period) * 240.0; /* Density = per 4 minutes */
   if_id_collection_t if_id_collection;
   if(NETSTACK_RADIO.get_object(RADIO_CONST_INTERFACE_ID_COLLECTION, &if_id_collection,
                                sizeof(if_id_collection)) == RADIO_RESULT_OK) {
@@ -324,20 +327,22 @@ rpl_recalculate_interface_weights(void)
       return;
     }
     for(uint8_t i = 0; i < if_id_collection.size; i++) {
-      /* NOTE at this point we assume each if_id appears at most once in
+      /* At this point we assume each if_id appears at most once in
          the if_id_collection's if_id_list. However, we won't check this
          here as this is the responsibility of the creator of said list,
          i.e., it's the responsibility of the radio driver */
       uint8_t weight;
       uint8_t if_id = if_id_collection.if_id_list[i];
       uint16_t data_rate = if_id_collection.data_rates[i];
-      /* FIXME the floating point stuff is bugged AF */
-      float precise_weight = powf(2.0f, (float)(ntp * data_rate) / 8192.0f);
-      weight = (uint8_t)(precise_weight + 0.5f);
-      LOG_DBG("Weight for all neighboring interfaces with ID = %d is precisely %f rounding to %d\n", if_id, precise_weight, weight);
-      weight = weight ? weight : 1; /* catch zero weights (which aren't allowed) */
+      double exponent = (density * (double)data_rate) / 8197.7;
+      double precise_weight = pow(2.0, exponent); /* Approaches 255 for density * data_rate = 65535 */
+      weight = (uint8_t)(precise_weight + 0.5);
       link_stats_modify_weights(if_id, weight);
     }
+    /* TODO it makes no sense to re-select the preferred interfaces if there's
+       been no change in weight for any interface type. However, there's currently
+       no way of telling whether any weight has changed or not */
+    link_stats_select_pref_interfaces();
   } else {
     LOG_DBG("Could not retrieve if_id collection from radio driver. Aborting weight recalculation.\n");
     return;

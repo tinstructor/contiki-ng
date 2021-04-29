@@ -192,17 +192,11 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
     LOG_DBG_("\n");
   }
   struct interface_list_entry *ile, *pref_ile;
-  // ile = list_head(stats->interface_list);
-  // uint16_t denominator = 0;
-  // while(ile != NULL) {
-  //   denominator += ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
-  //   ile = list_item_next(ile);
-  // }
   pref_ile = list_head(stats->interface_list);
   ile = list_item_next(pref_ile);
   while(ile != NULL) {
-    uint16_t pref_if_metric;
-    uint16_t if_metric;
+    uint32_t pref_if_metric;
+    uint32_t if_metric;
     if(LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) == LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric)) {
       if(LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
         /* Both interfaces are down */
@@ -220,17 +214,19 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
         pref_if_metric = pref_ile->inferred_metric;
         if_metric = ile->inferred_metric;
       }
-      /* If weights are zero, multiplier is default (if wifsel is set, that is) */
+      /* Divide by weights if wifsel flag is set */
       if(stats->wifsel_flag) {
-        pref_if_metric *= pref_ile->weight ? pref_ile->weight : LINK_STATS_DEFAULT_WEIGHT;
-        if_metric *= ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
+        /* Increase precision to 4 decimal points */
+        pref_if_metric *= 10000;
+        if_metric *= 10000;
+        /* If weight is zero, use default weight */
+        uint8_t pref_if_weight = pref_ile->weight ? pref_ile->weight : LINK_STATS_DEFAULT_WEIGHT;
+        uint8_t if_weight = ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
+        /* Integer division rounded to nearest */
+        pref_if_metric = (pref_if_metric + pref_if_weight / 2) / pref_if_weight;
+        if_metric = (if_metric + if_weight / 2) / if_weight;
       }
       /* If metric of next interface is better than metric of pref if, new pref if */
-      /* FIXME the logic behind this is NOT solid. More specifically, this mechanism would
-         only work if we assigned a lower weight to the interface we would like to give
-         the advantage based on traffic density and data rate. However, in order for that
-         "advantage" to come through during normalized metric calculation, the weight
-         assigned to the more desireable interface must higher instead! */
       pref_ile = (if_metric < pref_if_metric) ? ile : pref_ile;
     } else if(LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric)) {
       /* The next if is better simply because it is up and the currently pref if is down! */
@@ -243,6 +239,20 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
   LOG_DBG_(" to interface with ID = %d (previously ID = %d)\n",
            pref_ile->if_id, stats->pref_if_id);
   stats->pref_if_id = pref_ile->if_id;
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
+/* Select the preferred interface for all neighbors. */
+int 
+link_stats_select_pref_interfaces(void)
+{
+  struct link_stats *stats;
+  stats = nbr_table_head(link_stats);
+  while(stats != NULL) {
+    const linkaddr_t *lladdr = link_stats_get_lladdr(stats);
+    link_stats_select_pref_interface(lladdr);
+    stats = nbr_table_next(link_stats, stats);
+  }
   return 1;
 }
 /*---------------------------------------------------------------------------*/
