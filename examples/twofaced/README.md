@@ -12,7 +12,8 @@ This document describes the usage and configuration of the twofaced example for 
     - [Project Structure & Configuration](#project-structure--configuration)
       - [Physical Layer](#physical-layer)
       - [Link Layer](#link-layer)
-      - [Routing Layer](#routing-layer)
+      - [Network Layer](#network-layer)
+      - [Transport Layer](#transport-layer)
   - [Cooja](#cooja)
   - [Renode](#renode)
     - [The Robot Framework](#the-robot-framework)
@@ -448,7 +449,27 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
 
 > More coming soon.
 
-#### Routing Layer
+#### Network Layer
+
+While technically redundant for the `MAKE_NET` variable (because it is configured like that by default in `Makefile.include`), we set the following make variables in `examples/twofaced/Makefile` (partially for the sake of clarity):
+
+```makefile
+MAKE_NET = MAKE_NET_IPV6
+MAKE_ROUTING = MAKE_ROUTING_RPL_CLASSIC
+```
+
+The choice for RPL-classic over RPL-lite has a lot to do with the feature-completeness of RPL-classic (which, frankly, is abominable, but RPL-lite is even worse **\*deep sigh to signify I'm triggered\***) and the fact that it supports all MOPs (instead of just non-storing mode). As you undoubtedly know, much of the functionality provided by RPL is governed by the objective function. Hence, a large part of our efforts towards truly multi-interfaced RPL nodes consisted of developing new objective functions. Much like with our multi-interface radio driver abstraction (well let's say we borrowed those principles from here) `os/net/routing/rpl-classic/rpl-dag.c` declares all possible objective functions a RPL node could run with the storage class specifier `extern`:
+
+>**Note:** a RPL objective function that is declared without a storage class specifier automatically has external linkage because it is of type `rpl_of_t` and not `struct rpl_of`. Hence, `os/net/routing/rpl-classic/rpl-of0.c` for example, simply declares (and simultaneously defines) OF0 as `rpl_of_t rpl_of0 = {<init list>}`. However, in `os/net/routing/rpl-classic/rpl-dag.c` we must still use the `extern` keyword to **continue here**
+
+```c
+extern rpl_of_t rpl_of0, rpl_mrhof, rpl_poof, rpl_driplof;
+static rpl_of_t * const objective_functions[] = RPL_SUPPORTED_OFS;
+```
+
+> More coming soon.
+
+#### Transport Layer
 
 > Coming soon.
 
