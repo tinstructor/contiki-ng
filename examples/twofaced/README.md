@@ -339,7 +339,26 @@ const struct radio_driver twofaced_rf_driver = {
 
 #### Link Layer
 
-> Coming soon.
+Contrary to the generally accepted process for defining a new MAC layer in Contiki-NG (as defined [here](https://github.com/contiki-ng/contiki-ng/wiki/The-Contiki%E2%80%90NG-configuration-system#network-stack-mac-layer)), we do not set the `MAKE_MAC` variable to `MAKE_MAC_OTHER` in `examples/twofaced/Makefile`. Instead, we do the following:
+
+```makefile
+MAKE_MAC = MAKE_MAC_TWOFACED
+
+ifeq ($(MAKE_MAC),MAKE_MAC_TWOFACED)
+  MODULES_REL += net/mac/twofaced-mac
+  CFLAGS += -DMAC_CONF_WITH_TWOFACED=1
+endif
+```
+
+However, we still put the following in `examples/twofaced/project-conf.h`:
+
+```c
+#define NETSTACK_CONF_MAC twofaced_mac_driver
+```
+
+This allows us to perform preprocessor checks on `MAC_CONF_WITH_TWOFACED` rather than `MAC_CONF_WITH_OTHER` and includes the module required to run the twofaced mac protocol only when necessary. This MAC protocol is an adaptation of the CSMA MAC protocol with some multi-interface specific changes / additions.
+
+> More coming soon.
 
 #### Routing Layer
 
