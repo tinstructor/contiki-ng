@@ -308,6 +308,33 @@ const struct radio_driver cc2538_rf_driver = {
 
 >**Note:** because of how list-initialization works, adding new parameters at the end of a struct declaration does not break existing functionality of other radio drivers of the type `struct radio_driver`. It does however mean that you need to put something (in our case all NULL pointers) at all positions in the initialization list prior to the last parameter you actually wish to initialize (or use member initialization instead).
 
+To make sure you can't change the selected interface in between two radio driver operations that MUST be performed on the same underlying radio driver (such as, e.g., consecutive calls to `prepare()` and `transmit()`), we've introduced a mutex lock (have a look at `mutex_try_lock()` and `mutex_unlock()` in `os/sys/mutex.h`) that may be (try-) locked and unlocked by means of calling the `twofaced_rf_driver`'s `lock_interface()` and `unlock_interface()` functions respectively whenever you want to prevent the selected interface from changing in a certain region.
+
+```c
+const struct radio_driver twofaced_rf_driver = {
+  init,
+  prepare,
+  transmit,
+  send,
+  read,
+  channel_clear,
+  receiving_packet,
+  pending_packet,
+  on,
+  off,
+  get_value,
+  set_value,
+  get_object,
+  set_object,
+  lock_interface,
+  unlock_interface,
+  channel_clear_all,
+  receiving_packet_all,
+  pending_packet_all,
+  "twofaced_rf_driver"
+};
+```
+
 > More coming soon.
 
 #### Link Layer
