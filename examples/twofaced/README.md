@@ -9,8 +9,10 @@ This document describes the usage and configuration of the twofaced example for 
   - [Tips & Tricks](#tips--tricks)
     - [Custom Commands on Linux](#custom-commands-on-linux)
   - [Usage](#usage)
-    - [Project Structure](#project-structure)
-    - [Project Configuration](#project-configuration)
+    - [Project Structure & Configuration](#project-structure--configuration)
+      - [Physical Layer](#physical-layer)
+      - [Link Layer](#link-layer)
+      - [Routing Layer](#routing-layer)
   - [Cooja](#cooja)
   - [Renode](#renode)
     - [The Robot Framework](#the-robot-framework)
@@ -226,65 +228,95 @@ rm twofaced-node.o twofaced-root.o build/zoul/firefly/twofaced-root.i16hex build
 
 If, for some reason, you need direct access to the appropriate binaries for (in this case) the Zolertia Firefly (e.g., because you want to use them in conjunction with simulated hardware through [Renode](#renode)), you can thus find them in the `build/zoul/firefly/` directory. More specifically, `twofaced-node.elf` is the binary file for a non-root RPL node (as implemented in `twofaced-node.c`), while `twofaced-root.elf` is the binary file for a RPL root node (as implemented in `twofaced-root.c`). A similar output build directory is created if you compile for another (supported) platform.
 
-More coming soon.
+> More coming soon.
 
-### Project Structure
+### Project Structure & Configuration
 
-The following files have been added or adapted outside the twofaced example filestructure and are hence of interest (more info coming soon):
+This project was written to enable trully multi-interfaced operation (specifically for RPL nodes but you could re-use the radio driver principles for other purposes just as well). In order for that to work, several additions / changes needed to be made to the Contiki-NG code base. Many of these changes closely align with the 3 bottom layers of the TCP / IP stack.
 
-[line 90-91](../../os/net/routing/rpl-classic/rpl.h#L90-L91) of `~/contiki-ng/os/net/routing/rpl-classic/rpl.h`
+#### Physical Layer
 
-[line 73](../../os/net/routing/rpl-classic/rpl-dag.c#L73) of `~/contiki-ng/os/net/routing/rpl-classic/rpl-dag.c`
+Notice how `examples/twofaced/Makefile` contains the line `MODULES_REL += $(TARGET)/dev/twofaced-rf`. This means that when you execute the make command (for example) as `make TARGET=zoul BOARD=firefly`, the files contained in the directory `./zoul/dev/twofaced-rf` (notice this directory is relative w.r.t. the Makefile's directory) will be included during the build process. The purpose of this is to allow anybody to write a platform-specific radio driver for multi-interfaced operation.
 
-[line 165](../../os/net/routing/rpl-classic/rpl-private.h#L165) of `~/contiki-ng/os/net/routing/rpl-classic/rpl-private.h`
+>**Note:** make sure `NETSTACK_CONF_RADIO` is set to `twofaced_rf_driver` in `examples/twofaced/project-conf.h`
 
-[the PO OF](../../os/net/routing/rpl-classic/rpl-poof.c) implemented in `~/contiki-ng/os/net/routing/rpl-classic/rpl-poof.c`
+A twofaced-rf radio driver module generally consists of a single source file (`twofaced-rf.c`), wherein the driver is actually implemented, and a single header file (`twofaced-rf.h`), mainly serving to declare radio driver functions such that they can be called from anywhere within the driver module's source file. Now, the purpose of a twofaced-rf driver is merely to serve as an abstraction on top of multiple existing radio drivers such that they may be used with minimal modifications. For example, each board in the Zoul platform family (such as the Firefly or RE-Mote) possesses both a cc2538 and a cc1200 radio. As such, since identifiers that are not names of variables or functions (e.g., structure tags) have internal linkage by default, we declared all the possible underlying radio drivers in the beginning of `examples/twofaced/zoul/dev/twofaced-rf/twofaced-rf.c` with the storage class specifier `extern` (such that they have external linkage and hence represent the same objects as the drivers declared in `arch/cpu/cc2538/dev/cc2538-rf.h` and `arch/dev/radio/cc1200/cc1200.c`, which are also presented to the linker by virtue of them being declared with the storage class specifier `extern`).
 
-[the DRiPL OF](../../os/net/routing/rpl-classic/rpl-driplof.c) implemented in `~/contiki-ng/os/net/routing/rpl-classic/rpl-driplof.c`
+```c
+/* The supported interface drivers */
+extern const struct radio_driver cc2538_rf_driver;
+extern const struct radio_driver cc1200_driver;
+static const struct radio_driver *const available_interfaces[] = TWOFACED_RF_AVAILABLE_IFS;
+```
 
-[a link-table](../../os/net/link-table.c) implemented in `~/contiki-ng/os/net/link-table.c`
+The drivers / interfaces that are actually used by the twofaced-rf abstraction driver are then configurable by means of a macro called `TWOFACED_RF_CONF_AVAILABLE_IFS`. If you don't define it (for example in `examples/twofaced/project-conf.h`), the array of available interfaces will be initialized to `{ &cc2538_rf_driver, &cc1200_driver }`, meaning that both the cc2538 and cc1200 radio will be operational and the cc2538 radio (which is the first one in the list) shall start out as the preferred interface for all outgoing transmissions (more on that later).
 
-[the same link-table](../../os/net/link-table.h) configured in `~/contiki-ng/os/net/link-table.h`
+>**Note:** since `available_interfaces[]` is an array of const-qualified pointers to const-qualified `struct radio_driver` objects, nothing about the array nor its contents is modifiable after initialization (by means of list-initialization in this case)
 
-[a new member in the radio_driver struct](../../os/dev/radio.h#L828) which is a string that describes the radio driver, see `~/contiki-ng/os/dev/radio.h`
+```c
+#ifdef TWOFACED_RF_CONF_AVAILABLE_IFS
+#define TWOFACED_RF_AVAILABLE_IFS TWOFACED_RF_CONF_AVAILABLE_IFS
+#else /* TWOFACED_RF_CONF_AVAILABLE_IFS */
+#define TWOFACED_RF_AVAILABLE_IFS { &cc2538_rf_driver, &cc1200_driver }
+#endif /* TWOFACED_RF_CONF_AVAILABLE_IFS */
+```
 
-[initialization of this new member](../../arch/cpu/cc2538/dev/cc2538-rf.c#L1098) in `~/contiki-ng/arch/cpu/cc2538/dev/cc2538-rf.c`
+The actual abstraction provided by a `twofaced_rf_driver` is predominantly centered auround setting the pointer `selected_interface` to the radio driver / interface to be used for outgoing transmissions, after which the driver passes most (not all) non-abstraction specific function calls to the selected underlying driver, takes the return value obtained from the underlying function call, and returns that same value. For example, the `transmit` function of the Zoul platform's `twofaced_rf_driver` looks like this:
 
-[initialization of this new member](../../arch/dev/radio/cc1200/cc1200.c#L489) in `~/contiki-ng/arch/dev/radio/cc1200/cc1200.c`
+```c
+static int
+transmit(unsigned short transmit_len)
+{
+  return selected_interface->transmit(transmit_len);
+}
+```
 
-[a new radio parameter](../../os/dev/radio.h#L321) which selects / retrieves the current interface `~/contiki-ng/os/dev/radio.h`
+Setting the selected interface of a twofaced-rf radio driver module can be achieved in two ways. Firstly, one could call the `twofaced_rf_driver`'s `set_value()` function and pass the `RADIO_PARAM_SEL_IF_ID` radio parameter with a value equal to the identifier (this is NOT the MAC address, which uniquely identifies the whole node and not its interfaces!) associated with the radio driver / interface you want to select. For example, `examples/twofaced/project-conf.h` sets the following interface identifiers (make sure they're unique and not 0):
 
-[a new radio constant](../../os/dev/radio.h#L408) which retrieves multi-rf capabilities via the radio driver in `~/contiki-ng/os/dev/radio.h`
+```c
+#define CC2538_CONF_INTERFACE_ID 1
+#define CC1200_CONF_INTERFACE_ID 2
+```
 
-[possible states of this new constant](../../os/dev/radio.h#L448-455) in `~/contiki-ng/os/dev/radio.h`
+Secondly, one could also call the `twofaced_rf_driver`'s `set_object()` function, while passing the `RADIO_PARAM_SEL_IF_DESC` radio parameter and a string literal equal to the `driver_descriptor` of a certain `struct radio_driver` object. However, since this parameter was newly added to `struct radio_driver` in `os/dev/radio.h`, it is not neccessarily initialized in every existing definition of a `const struct radio_driver` object (since this must be explicitly added to the initialization list). Note that this is also the case for several other newly added `struct radio_driver` parameters which are typically only used for twofaced-rf abstraction drivers. As such, the cc2538's radio driver now looks like this:
 
-[printing the currently selected radio driver at boot](../../os/contiki-main.c#L116-L122) in `~/contiki-ng/os/contiki-main.c`
+```c
+const struct radio_driver cc2538_rf_driver = {
+  init,
+  prepare,
+  transmit,
+  send,
+  read,
+  channel_clear,
+  receiving_packet,
+  pending_packet,
+  on,
+  off,
+  get_value,
+  set_value,
+  get_object,
+  set_object,
+// The following are all newly added parameters:
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  "cc2538_rf_driver"
+};
+```
 
-[new shell commmands](../../os/services/shell/shell-commands.c#L933#L987) to get or set the selected radio driver in `~/contiki-ng/os/services/shell/shell-commands.c`
+>**Note:** because of how list-initialization works, adding new parameters at the end of a struct declaration does not break existing functionality of other radio drivers of the type `struct radio_driver`. It does however mean that you need to put something (in our case all NULL pointers) at all positions in the initialization list prior to the last parameter you actually wish to initialize (or use member initialization instead).
 
-> **Note:** we've also made [some changes](../../tools/viewconf/viewconf.c#L92-L93) to `~/contiki-ng/tools/viewconf/viewconf.c` such that the `make viewconf` command outputs the correct string when printing the OF configuration to the terminal.
+> More coming soon.
 
-The following files are part of the twofaced example filestructure and are hence of interest (more info coming soon):
+#### Link Layer
 
-[a MAC abstraction for DRiPL and PO](net/mac/twofaced-mac/twofaced-mac.c) implemented in `~/contiki-ng/examples/twofaced/net/mac/twofaced-mac/twofaced-mac.c`
+> Coming soon.
 
-[the same MAC abstraction for DRiPL and PO](net/mac/twofaced-mac/twofaced-mac.h) configured in `~/contiki-ng/examples/twofaced/net/mac/twofaced-mac/twofaced-mac.h`
+#### Routing Layer
 
-[a cooja-specific dual-interface radio driver](cooja/dev/twofaced-rf/twofaced-rf.c) implemented in `~/contiki-ng/examples/twofaced/cooja/dev/twofaced-rf/twofaced-rf.c`
-
-[the same dual-interface radio driver](cooja/dev/twofaced-rf/twofaced-rf.h) configured in `~/contiki-ng/examples/twofaced/cooja/dev/twofaced-rf/twofaced-rf.h`
-
-[a zoul-specific dual-interface radio driver](zoul/dev/twofaced-rf/twofaced-rf.c) implemented in `~/contiki-ng/examples/twofaced/zoul/dev/twofaced-rf/twofaced-rf.c`
-
-[the same dual-interface radio driver](zoul/dev/twofaced-rf/twofaced-rf.h) configured in `~/contiki-ng/examples/twofaced/zoul/dev/twofaced-rf/twofaced-rf.h`
-
-The `target-conf.h` files in the BOARD-specific `~/contiki-ng/examples/twofaced/zoul` subdirectories are, as the name implies, configuration files for each supported / corresponding zoul board.
-
-[generic type defintions for all twofaced radio drivers](dev/radio/twofaced-rf/twofaced-rf-types.h) in `~/contiki-ng/examples/twofaced/dev/radio/twofaced-rf/twofaced-rf-types.h`
-
-### Project Configuration
-
-Coming soon.
+> Coming soon.
 
 ## Cooja
 
