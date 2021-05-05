@@ -360,6 +360,94 @@ This allows us to perform preprocessor checks on `MAC_CONF_WITH_TWOFACED` rather
 
 > More coming soon.
 
+This brings us to the way in which Contiki-NG keeps statistics about links to neighbors. More specifically, it keeps track of per-neighbor link-statistics by storing value entries of type `struct link_stats` in a Contiki-NG `NBR_TABLE` called `link_stats` (see `os/net/link-stats.c`). Upon successfully transmitting a packet, the function `link_stats_packet_sent()` is called (defined in `os/net/link-stats.c` and declared in `os/net/link-stats.h`). Here, **continue here**.
+
+>**Note:** a Contiki-NG `NBR_TABLE` is pretty straightforward once you get the hang of it. Have a look at `os/net/nbr-table.h`. If you don't speak fluent preprocessor hocus-pocus, don't worry. What it boils down to is that each entry in a neighbor table is keyed on the link-layer address of a neighbor and stores entries of a given type.
+
+```c
+void
+link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
+{
+  struct interface_list_entry *ile;
+  struct link_stats *stats;
+  ...
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  if(stats == NULL) {
+    /* If transmission failed, do not add the neighbor */
+    if(status != MAC_TX_OK) {
+      return;
+    }
+    /* Add the neighbor */
+    stats = nbr_table_add_lladdr(link_stats, lladdr, NBR_TABLE_REASON_LINK_STATS, NULL);
+    if(stats != NULL) {
+      /* Init node-scope metric (irrelevant for twofaced) */
+      ...
+    } else {
+      return; /* No space left, return */
+    }
+    LIST_STRUCT_INIT(stats, interface_list);
+  }
+
+  uint8_t if_id = packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID);
+  ile = interface_list_entry_from_id(stats, if_id);
+  uint16_t bad_metric = ...
+  ...
+  if(ile != NULL) {
+    /* Update the existing ile */
+    ...
+    uint16_t old_metric = ile->inferred_metric;
+    /* Set inferred metric to worse than threshold if no ACK was received */
+    ...
+    ile->inferred_metric = (status == MAC_TX_OK ? LINK_STATS_INFERRED_METRIC_FUNC() : bad_metric);
+    ...
+    /* When an inferred metric is not updated, or when it is but it doesn't
+       cross the metric threshold in any direction, the link-layer may not
+       update the corresponding defer flag */
+    if(old_metric != ile->inferred_metric) {
+      if(LINK_STATS_WORSE_THAN_THRESH(old_metric) &&
+        !LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
+        ile->defer_flag = LINK_STATS_DEFER_FLAG_FALSE;
+        ...
+      } else if(!LINK_STATS_WORSE_THAN_THRESH(old_metric) &&
+                LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
+        ile->defer_flag = LINK_STATS_DEFER_FLAG_TRUE;
+        ...
+      }
+      /* It makes no sense to re-select the preferred interface if there's
+         no change in inferred metric for the given interface (represented
+         by the ile) */
+      link_stats_select_pref_interface(lladdr);
+    }
+  } else {
+    if(list_length(stats->interface_list) < LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR) {
+      /* Create new ile and add to interface list */
+      ile = memb_alloc(&interface_memb);
+      if(ile != NULL) {
+        ile->if_id = if_id;
+        /* Set inferred metric to worse than threshold if no ACK was received */
+        ...
+        ile->inferred_metric = (status == MAC_TX_OK ? LINK_STATS_INFERRED_METRIC_FUNC() : bad_metric);
+        ile->weight = LINK_STATS_DEFAULT_WEIGHT;
+        list_add(stats->interface_list, ile);
+        ...
+        link_stats_update_norm_metric(lladdr);
+        link_stats_select_pref_interface(lladdr);
+      } else {
+        ...
+        return;
+      }
+    }
+  }
+
+  /* Update last timestamp and freshness */
+  ...
+  /* Other stuff */
+  ...
+}
+```
+
+> More coming soon.
+
 #### Routing Layer
 
 > Coming soon.
