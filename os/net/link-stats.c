@@ -429,15 +429,25 @@ guess_etx_from_rssi(const struct link_stats *stats)
    that currently still resides in the packet buffer. Must only be called
    when a received packet is in the packet buffer. */
 uint16_t
-guess_lql_from_rssi()
+guess_lql_from_rssi(int status)
 {
-  uint16_t lql;
-  int16_t bounded_rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
-  bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
-  bounded_rssi = MAX(bounded_rssi, RSSI_LOW + 1);
-  lql = 7 - ((((bounded_rssi - RSSI_LOW) * 6) + RSSI_DIFF / 2) / RSSI_DIFF);
-  LOG_DBG("RSSI mapped to LQL = %d\n", lql);
-  return lql;
+  if(status == MAC_TX_OK) {
+    uint16_t lql;
+    int16_t bounded_rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
+    bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
+    bounded_rssi = MAX(bounded_rssi, RSSI_LOW + 1);
+    lql = 7 - ((((bounded_rssi - RSSI_LOW) * 6) + RSSI_DIFF / 2) / RSSI_DIFF);
+    LOG_DBG("RSSI mapped to LQL = %d\n", lql);
+    return lql;
+  }
+  /* FIXME issue with bad_metric mechanism remains */
+  uint16_t bad_metric;
+  if(LINK_STATS_WORSE_THAN_THRESH(LINK_STATS_METRIC_THRESHOLD - 1)) {
+    bad_metric = LINK_STATS_METRIC_THRESHOLD - 1;
+  } else {
+    bad_metric = LINK_STATS_METRIC_THRESHOLD + 1;
+  }
+  return bad_metric;
 }
 /*---------------------------------------------------------------------------*/
 /* Packet sent callback. Updates stats for transmissions to lladdr */
@@ -479,9 +489,6 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
 
   uint8_t if_id = packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID);
   ile = interface_list_entry_from_id(stats, if_id);
-  /* FIXME issue with bad_metric mechanism remains */
-  uint16_t bad_metric = LINK_STATS_METRIC_THRESHOLD;
-  bad_metric += (LINK_STATS_WORSE_THAN_THRESH(LINK_STATS_METRIC_THRESHOLD - 1) ? (-1) : (1));
   if(ile != NULL) {
     /* Update the existing ile */
     LOG_DBG("Interface with ID = %d already in interface list of ", if_id);
@@ -489,8 +496,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     LOG_DBG_("\n");
     uint16_t old_metric = ile->inferred_metric;
     /* Set inferred metric to worse than threshold if no ACK was received */
-    /* FIXME issue with bad_metric mechanism remains */
-    ile->inferred_metric = (status == MAC_TX_OK ? LINK_STATS_INFERRED_METRIC_FUNC() : bad_metric);
+    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(status);
     LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
             old_metric,
@@ -526,8 +532,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
       if(ile != NULL) {
         ile->if_id = if_id;
         /* Set inferred metric to worse than threshold if no ACK was received */
-        /* FIXME issue with bad_metric mechanism remains */
-        ile->inferred_metric = (status == MAC_TX_OK ? LINK_STATS_INFERRED_METRIC_FUNC() : bad_metric);
+        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(status);
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d (metric = %d) to interface list of ", if_id, ile->inferred_metric);
@@ -635,7 +640,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
     uint16_t old_metric = ile->inferred_metric;
-    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC();
+    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(MAC_TX_OK);
     LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
             old_metric,
@@ -670,7 +675,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
       ile = memb_alloc(&interface_memb);
       if(ile != NULL) {
         ile->if_id = if_id;
-        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC();
+        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(MAC_TX_OK);
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d (metric = %d) to interface list of ", if_id, ile->inferred_metric);
