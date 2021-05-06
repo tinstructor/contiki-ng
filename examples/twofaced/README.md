@@ -456,6 +456,25 @@ Notice how the inferred metric stored in an ile is set to `LINK_STATS_INFERRED_M
 #endif /* LINK_STATS_INFERRED_METRIC_FUNC */
 ```
 
+In case of the default configuration, the inferred metric uses a very basic function to calculate the LQL from the RSSI value currently contained in the `packetbuf` (and thus you should make sure to only call this function when there is an actual packet in `packetbuf`). That is, if the transmit status passed to the function (which is named `guess_lql_from_rssi()` by the way) equals `MAC_TX_OK`. Otherwise, it shall return an LQL value of 0, indicating the LQL is unavailable and the link should be considered down.
+
+```c
+uint16_t
+guess_lql_from_rssi(int status)
+{
+  if(status == MAC_TX_OK) {
+    uint16_t lql;
+    int16_t bounded_rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
+    bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
+    bounded_rssi = MAX(bounded_rssi, RSSI_LOW + 1);
+    lql = 7 - ((((bounded_rssi - RSSI_LOW) * 6) + RSSI_DIFF / 2) / RSSI_DIFF);
+    LOG_DBG("RSSI mapped to LQL = %d\n", lql);
+    return lql;
+  }
+  return 0;
+}
+```
+
 > More coming soon.
 
 #### Network Layer
