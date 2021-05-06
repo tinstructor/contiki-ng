@@ -445,6 +445,8 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
 }
 ```
 
+>**Note:** a similar function named `link_stats_input_callback()` is called when a packet is received from a neighbor. Since the functionality provided by this function with regard to multi-interfaced operation is almost (not completely) identical to `link_stats_packet_sent()` you should be able to understand how it works by just looking at `os/net/link-stats.c`. Hence, we shall not discuss it any further.
+
 Notice how the inferred metric stored in an ile is set to `LINK_STATS_INFERRED_METRIC_FUNC(status)`? This allows you to configure the function used to obtain and / or calculate said inferred metric by means of the macro `LINK_STATS_CONF_INFERRED_METRIC_FUNC` as can be seen in `os/net/link-stats.h`:
 
 ```c
@@ -474,6 +476,72 @@ guess_lql_from_rssi(int status)
   return 0;
 }
 ```
+
+The inferred metric stored in the entries of link-stats table entry's interface list is primarily used for two purposes, i.e., selecting the preferred interface for communication with a given neighbor (i.e., the neighbor represented by a link-stats table entry) and calculating the normalized metric towards that same neighbor. Preferred interface selection is handled by the function `link_stats_select_pref_interface()` in `os/net/link-stats.c`. 
+
+More specifically, it looks for an existing entry in the `link_stats` neighbor table by means of the supplied link-layer address. If such entry is found, it iterates through said entry's interface list (which is a linked list, see `os/lib/list.h` for more info) and compares each ile's inferred metric with the inferred metric stored in the ile that currently represents the preferred interface towards the neighbor represented by the link-stats table entry containing the interface list of which it is part. Then, if both interfaces are down (as indicated by `LINK_STATS_WORSE_THAN_THRESH`) or if both interfaces are up, and `LINK_STATS_WORSE_THAN_THRESH` is not defined as `< LINK_STATS_METRIC_THRESHOLD`, metric comparison is based on the weighted (if weighting is used, more on that later) actual value of the `inferred_metric` parameter stored in each ile. However, if both interfaces are down and `LINK_STATS_WORSE_THAN_THRESH` is indeed defined as `< LINK_STATS_METRIC_THRESHOLD`, then comparison is effectively based on weights only, that is (if weighting is used) we set both inferred metrics to `LINK_STATS_METRIC_PLACEHOLDER` and multiply each interface metric by the weight stored in their corresponding ile. **Continue here**. 
+
+At the end of each iteration, if `if_metric < pref_if_metric`, the `pref_ile` is set to `ile`.
+
+```c
+int
+link_stats_select_pref_interface(const linkaddr_t *lladdr)
+{
+  struct link_stats *stats;
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  ...
+  struct interface_list_entry *ile, *pref_ile;
+  pref_ile = list_head(stats->interface_list);
+  ile = list_item_next(pref_ile);
+  while(ile != NULL) {
+    uint32_t pref_if_metric;
+    uint32_t if_metric;
+    if(LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) == LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric)) {
+      if(LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
+        /* Both interfaces are down */
+        if(LINK_STATS_WORSE_THAN_THRESH(LINK_STATS_METRIC_THRESHOLD - 1)) {
+          /* If worse than threshold is defined as "< threshold", use placeholder values */
+          pref_if_metric = LINK_STATS_METRIC_PLACEHOLDER;
+          if_metric = LINK_STATS_METRIC_PLACEHOLDER;
+        } else {
+          /* If worse than threshold is defines as "> threshold", use actual values */
+          pref_if_metric = pref_ile->inferred_metric;
+          if_metric = ile->inferred_metric;
+        }
+      } else {
+        /* Both interfaces are up, use actual values */
+        pref_if_metric = pref_ile->inferred_metric;
+        if_metric = ile->inferred_metric;
+      }
+      /* Divide by weights if wifsel flag is set */
+      if(stats->wifsel_flag) {
+        /* Increase precision to 4 decimal points */
+        pref_if_metric *= 10000;
+        if_metric *= 10000;
+        /* If weight is zero, use default weight */
+        uint8_t pref_if_weight = pref_ile->weight ? pref_ile->weight : LINK_STATS_DEFAULT_WEIGHT;
+        uint8_t if_weight = ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
+        /* Integer division rounded to nearest */
+        pref_if_metric = (pref_if_metric + pref_if_weight / 2) / pref_if_weight;
+        if_metric = (if_metric + if_weight / 2) / if_weight;
+      }
+      /* If metric of next interface is better than metric of pref if, new pref if */
+      pref_ile = (if_metric < pref_if_metric) ? ile : pref_ile;
+    } else if(LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric)) {
+      /* The next if is better simply because it is up and the currently pref if is down! */
+      pref_ile = ile;
+    }
+    ile = list_item_next(ile);
+  }
+  ...
+  stats->pref_if_id = pref_ile->if_id;
+  return 1;
+}
+```
+
+**Put info on normalized metric calc here**
+
+**Put info on interface weights here**
 
 > More coming soon.
 

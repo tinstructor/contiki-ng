@@ -194,6 +194,7 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
   struct interface_list_entry *ile, *pref_ile;
   pref_ile = list_head(stats->interface_list);
   ile = list_item_next(pref_ile);
+  /* TODO make this iteration much more efficient */
   while(ile != NULL) {
     uint32_t pref_if_metric;
     uint32_t if_metric;
