@@ -398,8 +398,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     ...
     uint16_t old_metric = ile->inferred_metric;
     /* Set inferred metric to worse than threshold if no ACK was received */
-    ...
-    ile->inferred_metric = (status == MAC_TX_OK ? LINK_STATS_INFERRED_METRIC_FUNC() : bad_metric);
+    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(status);
     ...
     /* When an inferred metric is not updated, or when it is but it doesn't
        cross the metric threshold in any direction, the link-layer may not
@@ -426,8 +425,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
       if(ile != NULL) {
         ile->if_id = if_id;
         /* Set inferred metric to worse than threshold if no ACK was received */
-        ...
-        ile->inferred_metric = (status == MAC_TX_OK ? LINK_STATS_INFERRED_METRIC_FUNC() : bad_metric);
+        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(status);
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
         list_add(stats->interface_list, ile);
         ...
@@ -445,6 +443,17 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
   /* Other stuff */
   ...
 }
+```
+
+Notice how the inferred metric stored in an ile is set to `LINK_STATS_INFERRED_METRIC_FUNC(status)`? This allows you to configure the function used to obtain and / or calculate said inferred metric by means of the macro `LINK_STATS_CONF_INFERRED_METRIC_FUNC` as can be seen in `os/net/link-stats.h`:
+
+```c
+/* Function used to retrieve inferred metric */
+#ifdef LINK_STATS_CONF_INFERRED_METRIC_FUNC
+#define LINK_STATS_INFERRED_METRIC_FUNC LINK_STATS_CONF_INFERRED_METRIC_FUNC
+#else /* LINK_STATS_CONF_INFERRED_METRIC_FUNC */
+#define LINK_STATS_INFERRED_METRIC_FUNC( status ) guess_lql_from_rssi(status)
+#endif /* LINK_STATS_INFERRED_METRIC_FUNC */
 ```
 
 > More coming soon.
