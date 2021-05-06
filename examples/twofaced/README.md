@@ -467,6 +467,26 @@ extern rpl_of_t rpl_of0, rpl_mrhof, rpl_poof, rpl_driplof;
 static rpl_of_t * const objective_functions[] = RPL_SUPPORTED_OFS;
 ```
 
+The objective functions that may actually be used by a RPL node are then configurable by means of a macro called `RPL_CONF_SUPPORTED_OFS` (see `os/net/routing/rpl-classic/rpl-conf.h`). Put differently, the `RPL_CONF_SUPPORTED_OFS` macro (which should be defined as an array initialization list) configures the OFs supported by any node (root or non-root) at runtime. A node may only join a RPL instance (advertised in a DIO) which is based on one of the OFs in this list as indicated by the OCP in the DODAG Configuration option attached to a DIO. If you don't define it (for example in `examples/twofaced/project-conf.h`), the array of supported objective functions will be initialized to `{ &rpl_mrhof }`, meaning that a node will only understand MRHOF.
+
+```c
+#ifdef RPL_CONF_SUPPORTED_OFS
+#define RPL_SUPPORTED_OFS RPL_CONF_SUPPORTED_OFS
+#else /* RPL_CONF_SUPPORTED_OFS */
+#define RPL_SUPPORTED_OFS {&rpl_mrhof}
+#endif /* RPL_CONF_SUPPORTED_OFS */
+```
+
+Similarly, the OF that is disseminated through the network by root nodes (i.e., through the OCP field of DODAG Configuration options attached to DIOs) is configurable by means of a macro called `RPL_CONF_OF_OCP` (see `os/net/routing/rpl-classic/rpl-conf.h`). If you don't define it (for example, in `examples/twofaced/project-conf.h`), a node configured as root will set the OCP of DODAG Configuration options to `RPL_OCP_MRHOF` (i.e., 0x01). The OCP setting has no meaning to non-root nodes, as they'll run any OF advertised by the root as long as they recognize the corresponding OCP value and thus support a given OF.
+
+```c
+#ifdef RPL_CONF_OF_OCP
+#define RPL_OF_OCP RPL_CONF_OF_OCP
+#else /* RPL_CONF_OF_OCP */
+#define RPL_OF_OCP RPL_OCP_MRHOF
+#endif /* RPL_CONF_OF_OCP */
+```
+
 > More coming soon.
 
 #### Transport Layer
