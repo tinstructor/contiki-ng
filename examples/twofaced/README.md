@@ -458,9 +458,9 @@ MAKE_NET = MAKE_NET_IPV6
 MAKE_ROUTING = MAKE_ROUTING_RPL_CLASSIC
 ```
 
-The choice for RPL-classic over RPL-lite has a lot to do with the feature-completeness of RPL-classic (which, frankly, is abominable, but RPL-lite is even worse **\*deep sigh to signify I'm triggered\***) and the fact that it supports all MOPs (instead of just non-storing mode). As you undoubtedly know, much of the functionality provided by RPL is governed by the objective function. Hence, a large part of our efforts towards truly multi-interfaced RPL nodes consisted of developing new objective functions. Much like with our multi-interface radio driver abstraction (well let's say we borrowed those principles from here) `os/net/routing/rpl-classic/rpl-dag.c` declares all possible objective functions a RPL node could run with the storage class specifier `extern`:
+The choice for RPL-classic over RPL-lite has a lot to do with the feature-completeness of RPL-classic (which, frankly, is abominable, but RPL-lite is even worse **\*deep sigh to signify I'm deeply disappointed\***) and the fact that it supports all MOPs (instead of just non-storing mode). As you undoubtedly know, much of the functionality provided by RPL is governed by the objective function. Hence, a large part of our efforts towards truly multi-interfaced RPL nodes consisted of developing new objective functions. Much like with our multi-interface radio driver abstraction (well let's say we borrowed those principles from here) `os/net/routing/rpl-classic/rpl-dag.c` declares all possible objective functions a RPL node could run with the storage class specifier `extern`:
 
->**Note:** a RPL objective function that is declared without a storage class specifier automatically has external linkage because it is of type `rpl_of_t` and not `struct rpl_of`. Hence, `os/net/routing/rpl-classic/rpl-of0.c` for example, simply declares (and simultaneously defines) OF0 as `rpl_of_t rpl_of0 = {<init list>}`. However, in `os/net/routing/rpl-classic/rpl-dag.c` we must still use the `extern` keyword to **continue here**
+>**Note:** a RPL objective function that is declared without a storage class specifier automatically has external linkage because it is of type `rpl_of_t` and not `struct rpl_of`. Hence, `os/net/routing/rpl-classic/rpl-of0.c` for example, simply declares (and simultaneously defines) OF0 as `rpl_of_t rpl_of0 = {<init list>}`. However, in `os/net/routing/rpl-classic/rpl-dag.c` we must still use the `extern` keyword for reasons that currently escape me.
 
 ```c
 extern rpl_of_t rpl_of0, rpl_mrhof, rpl_poof, rpl_driplof;
@@ -471,11 +471,31 @@ static rpl_of_t * const objective_functions[] = RPL_SUPPORTED_OFS;
 
 #### Transport Layer
 
-> Coming soon.
+When the execution flow (when transmitting a packet) inevitably ends up in `tcpip_ipv6_output()` (see `os/net/ipv6/tcpip.c`) and encounters an unconditional jump in the form of a `goto send_packet;` statement, the `uip_buf` flags are checked to see if the `UIPBUF_ATTR_FLAGS_ALL_INTERFACES` flag is set (see `os/net/routing/rpl-classic/rpl-icmp6.c` and `os/net/routing/rpl-classic/rpl-timers.c` for examples of when that happens). If it is not set, meaning the packet to be transmitted must be sent to the given `nbr` via the preferred interface for that neighbor, the link-stats table entry corresponding to said neighbor is retrieved and the therein contained preferred interface identifier (which is NOT a MAC address) is passed to the `UIPBUF_ATTR_INTERFACE_ID` attribute. As you undoubtedly know by now, the 6LoWPAN adaptation layer (see `os/net/ipv6/sicslowpan.c`) shall copy this attribute to the corresponding `packetbuf` attribute (i.e., `PACKETBUF_ATTR_INTERFACE_ID`) further down the line, after which the twofaced MAC protocol eventually calls a twofaced-rf radio driver abstraction's `set_value()` function passing the `RADIO_PARAM_SEL_IF_ID` radio parameter and a value copied from the `PACKETBUF_ATTR_INTERFACE_ID` attribute value (see `send()` in `examples/twofaced/net/mac/twofaced-mac/twofaced-mac.c` and `send_one_packet()` in `examples/twofaced/net/mac/twofaced-mac/twofaced-mac-output.c`) in order to change the currently selected interface.
+
+>**Note:** the [access rules for Contiki-NG packet buffers](https://github.com/contiki-ng/contiki-ng/wiki/Documentation:-Packet-buffers) (amongst which `uip_buf` and `packetbuf`) state that `uip_buf` may only be accessed from the 6LoWPAN adaptation layer (see `os/net/ipv6/sicslowpan.c`) and above, while the `packetbuf` may only be accessed from the 6LoWPAN adaptation layer and below.
+
+```c
+send_packet:
+  if(nbr) {
+    linkaddr = uip_ds6_nbr_get_ll(nbr);
+    if(!uipbuf_is_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES)) {
+      const struct link_stats *stats = link_stats_from_lladdr((linkaddr_t *)linkaddr);
+      if(stats != NULL) {
+        ...
+        uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, stats->pref_if_id);
+      }
+    }
+  } else {
+    linkaddr = NULL;
+  }
+  ...
+  tcpip_output(linkaddr);
+```
 
 ## Cooja
 
-There are generally two ways to simulate experiments using the Cooja network simulator, i.e., by running Cooja in a Docker container or running it natively on Linux (tested for Ubuntu 18.04 LTS and should work on 20.04 LTS). The downside of the Docker approach is that you can't really modify the Cooja source itself (only the Contiki-NG codebase when installed as a bind mount). The downside of running Cooja natively is that not all node types are supported in a 64-bit version of Linux, which is most likely what you'll be running. While future implementations of this example will most likely rely on running Cooja natively, for now, the Docker approach suffices. Before you can run Cooja through Docker however, you must first go through the installation process.
+There are generally two ways to simulate experiments using the Cooja network simulator, i.e., by running Cooja in a Docker container or running it natively on Linux (tested for Ubuntu 18.04 LTS and should work on 20.04 LTS). The downside of the Docker approach is that you can't really modify the Cooja source itself (only the Contiki-NG codebase when installed as a bind mount). The downside of running Cooja natively is that not all node types are supported in a 64-bit version of Linux, which is most likely what you'll be running. While future implementations of this example will most likely rely on running Cooja natively, for now, the Docker approach suffices. Before you can run Cooja through Docker however, yo_u must first go through the installation process.
 
 The installation process (for Ubuntu) starts by [making sure there are no older versions of Docker installed](https://docs.docker.com/engine/install/ubuntu/#uninstall-old-versions). Next, it is recommended to install Docker through its repository [as explained here](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository). Following the installation of Docker, you must first make sure your user is added to the `docker` group and rebooting as follows:
 
