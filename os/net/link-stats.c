@@ -206,17 +206,6 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
           if_metric = LINK_STATS_METRIC_PLACEHOLDER;
         } else {
           /* If worse than threshold is defines as "> threshold", use actual values */
-          /* FIXME this is where the bad_metric mechanism of link_stats_packet_sent() is problematic.
-             Specifically, depending on LINK_STATS_WORSE_THAN_THRESH(LINK_STATS_METRIC_THRESHOLD - 1),
-             bad_metric is simply equal to LINK_STATS_METRIC_THRESHOLD plus or minus an integer value
-             of 1. While this works just fine for updating the normalized metric, since values worse
-             than threshold get replaced by a placeholder anyway, this is not (and should not) always
-             be the case when selecting the preferred interface towards a given neighbor. Note that
-             the inferred_metric parameter of an ile gets assigned a value of bad_metric in case the
-             packet transmission status passed to link_stats_packet_sent() does not equal MAC_TX_OK,
-             i.e., when an ACK was not received (and is hence not present in the packetbuf). Note that
-             this only leads to issues when both considered interfaces are down simultaneously because
-             in all other cases, preferred interface selection would have the same outcome. */
           pref_if_metric = pref_ile->inferred_metric;
           if_metric = ile->inferred_metric;
         }
@@ -426,8 +415,8 @@ guess_etx_from_rssi(const struct link_stats *stats)
 #endif /* LINK_STATS_INIT_ETX_FROM_RSSI */
 /*---------------------------------------------------------------------------*/
 /* Guess the link-quality level [1-7] from the RSSI of a received packet 
-   that currently still resides in the packet buffer. Must only be called
-   when a received packet is in the packet buffer. */
+   that currently still resides in the packet buffer or return 0 if the
+   given status != MAC_TX_OK. */
 uint16_t
 guess_lql_from_rssi(int status)
 {
@@ -440,14 +429,7 @@ guess_lql_from_rssi(int status)
     LOG_DBG("RSSI mapped to LQL = %d\n", lql);
     return lql;
   }
-  /* FIXME issue with bad_metric mechanism remains */
-  uint16_t bad_metric;
-  if(LINK_STATS_WORSE_THAN_THRESH(LINK_STATS_METRIC_THRESHOLD - 1)) {
-    bad_metric = LINK_STATS_METRIC_THRESHOLD - 1;
-  } else {
-    bad_metric = LINK_STATS_METRIC_THRESHOLD + 1;
-  }
-  return bad_metric;
+  return 0;
 }
 /*---------------------------------------------------------------------------*/
 /* Packet sent callback. Updates stats for transmissions to lladdr */
