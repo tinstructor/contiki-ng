@@ -505,9 +505,32 @@ handle_probing_timer(void *ptr)
       );
 
     /* Send probe, e.g. unicast DIO or DIS */
-    LOG_DBG("Setting the UIPBUF_ATTR_FLAGS_ALL_INTERFACES flag\n");
-    uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES);
-    RPL_PROBING_SEND_FUNC(instance, target_ipaddr);
+    /* TODO remove following if new freshness mechanism works */
+    // LOG_DBG("Setting the UIPBUF_ATTR_FLAGS_ALL_INTERFACES flag\n");
+    // uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES);
+    // RPL_PROBING_SEND_FUNC(instance, target_ipaddr);
+
+    /* Instead of just blanket sending a probe over all interfaces, only 
+       probe the interfaces of a parent that are not considered fresh */
+    if(stats != NULL) {
+      struct interface_list_entry *ile;
+      ile = list_head(stats->interface_list);
+      while(ile != NULL) {
+        if(!link_stats_interface_is_fresh(ile)) {
+          /* Send probe, e.g. unicast DIO or DIS */
+          LOG_DBG("Inferred metric for interface with ID = %d of ", ile->if_id);
+          LOG_DBG_LLADDR(lladdr);
+          LOG_DBG_(" is not fresh, sending probe\n");
+          uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, ile->if_id);
+          RPL_PROBING_SEND_FUNC(instance, target_ipaddr);
+        } else {
+          LOG_DBG("Inferred metric for interface with ID = %d of ", ile->if_id);
+          LOG_DBG_LLADDR(lladdr);
+          LOG_DBG_(" is fresh, no probing needed\n");
+        }
+        ile = list_item_next(ile);
+      }
+    }
   }
 
   /* Schedule next probing */

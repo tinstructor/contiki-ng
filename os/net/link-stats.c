@@ -387,6 +387,15 @@ link_stats_is_fresh(const struct link_stats *stats)
       && stats->freshness >= FRESHNESS_TARGET;
 }
 /*---------------------------------------------------------------------------*/
+/* Are the statistics fresh for interface? */
+int
+link_stats_interface_is_fresh(const struct interface_list_entry *ile)
+{
+  return (ile != NULL)
+      && clock_time() - ile->last_tx_time < FRESHNESS_EXPIRATION_TIME
+      && ile->freshness >= FRESHNESS_TARGET;
+}
+/*---------------------------------------------------------------------------*/
 #if LINK_STATS_INIT_ETX_FROM_RSSI
 uint16_t
 guess_etx_from_rssi(const struct link_stats *stats)
@@ -551,6 +560,11 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
      is mostly problematic for the preferred parent */
   stats->last_tx_time = clock_time();
   stats->freshness = MIN(stats->freshness + numtx, FRESHNESS_MAX);
+  /* NOTE I propose to do the following instead: */
+  if(ile != NULL) {
+    ile->last_tx_time = clock_time();
+    ile->freshness = MIN(ile->freshness + numtx, FRESHNESS_MAX);
+  }
 
 #if LINK_STATS_PACKET_COUNTERS
   /* Update paket counters */
@@ -732,6 +746,11 @@ periodic(void *ptr)
   ctimer_reset(&periodic_timer);
   for(stats = nbr_table_head(link_stats); stats != NULL; stats = nbr_table_next(link_stats, stats)) {
     stats->freshness >>= 1;
+    /* Do the same with the freshness counter of each ile */
+    struct interface_list_entry *ile;
+    for(ile = list_head(stats->interface_list); ile != NULL; ile = list_item_next(ile)) {
+      ile->freshness >>= 1;
+    }
   }
 
 #if LINK_STATS_PACKET_COUNTERS

@@ -171,6 +171,8 @@ struct interface_list_entry {
   uint16_t inferred_metric;             /* Inferred metric of physical link */
   link_stats_defer_flag_t defer_flag;   /* The weighted averaging defer flag */
   uint8_t weight;                       /* The weight associated with a neighboring interface */
+  clock_time_t last_tx_time;            /* Last tx timestamp for this interface */
+  uint8_t freshness;                    /* Freshness of the statistics of this interface */
 };
 
 /* Modify the wifsel flag to indicate wether or not preferred interface
@@ -209,6 +211,8 @@ const struct link_stats *link_stats_from_lladdr(const linkaddr_t *lladdr);
 const linkaddr_t *link_stats_get_lladdr(const struct link_stats *);
 /* Are the statistics fresh? */
 int link_stats_is_fresh(const struct link_stats *stats);
+/* Are the statistics fresh for interface? */
+int link_stats_interface_is_fresh(const struct interface_list_entry *ile);
 /* Resets link-stats module */
 void link_stats_reset(void);
 /* Initializes link-stats module */
