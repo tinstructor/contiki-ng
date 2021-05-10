@@ -728,7 +728,8 @@ tcpip_ipv6_output(void)
 send_packet:
   if(nbr) {
     linkaddr = uip_ds6_nbr_get_ll(nbr);
-    if(!uipbuf_is_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES)) {
+    if(!uipbuf_is_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES) &&
+       !uipbuf_is_attr_flag(UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID)) {
       const struct link_stats *stats = link_stats_from_lladdr((linkaddr_t *)linkaddr);
       if(stats != NULL) {
         LOG_INFO("output: retrieved link stats for ");

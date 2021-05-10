@@ -188,6 +188,9 @@ void uipbuf_init(void);
 #define UIPBUF_ATTR_FLAGS_6LOWPAN_NO_PREFIX_COMPRESSION   0x02
 /* The packet must be sent accross all available interfaces */
 #define UIPBUF_ATTR_FLAGS_ALL_INTERFACES                  0x04
+/* The packet must be sent on the interface whose ID is currently
+   stored in UIPBUF_ATTR_INTERFACE_ID */
+#define UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID          0x08
 
 /* MAC will set the default for this packet */
 #define UIPBUF_ATTR_LLSEC_LEVEL_MAC_DEFAULT               0xffff

@@ -1650,6 +1650,10 @@ output(const linkaddr_t *localdest)
   packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID,
                      uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID));
 
+  /* reset the mandatory interface id flag because it is not copied to the packetbuf
+     and hence no longer serves a purpose for this packet */
+  uipbuf_clr_attr_flag(UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID);
+
   /* copy over the retransmission count from uipbuf attributes */
   packetbuf_set_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS,
                      uipbuf_get_attr(UIPBUF_ATTR_MAX_MAC_TRANSMISSIONS));

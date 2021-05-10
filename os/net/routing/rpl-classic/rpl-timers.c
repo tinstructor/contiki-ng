@@ -408,7 +408,7 @@ get_probing_target(rpl_dag_t *dag)
    * probing target if any, or the preferred parent if its link statistics need refresh.
    * Otherwise, it picks at random between:
    * (1) selecting the best parent with non-fresh link statistics
-   * (2) selecting the least recently updated parent
+   * (2) selecting the parent with the least-recently updated interface
    */
 
   rpl_parent_t *p;
@@ -427,38 +427,105 @@ get_probing_target(rpl_dag_t *dag)
     return dag->instance->urgent_probing_target;
   }
 
-  /* The preferred parent needs probing */
-  if(dag->preferred_parent != NULL && !rpl_parent_is_fresh(dag->preferred_parent)) {
-    return dag->preferred_parent;
+  /* Check if the preferred parent needs probing */
+  /* TODO remove following if new freshness mechanism works */
+  // if(dag->preferred_parent != NULL && !rpl_parent_is_fresh(dag->preferred_parent)) {
+  //   return dag->preferred_parent;
+  // }
+  if(dag->preferred_parent != NULL) {
+    const struct link_stats *stats = rpl_get_parent_link_stats(dag->preferred_parent);
+    if(!rpl_parent_is_fresh(dag->preferred_parent)) {
+      /* If the preferred parent is not fresh than none of its interfaces can be
+         be fresh either, so there is no point in checking for freshness on a per-
+         interface basis */
+      return dag->preferred_parent;
+    } else if(stats != NULL) {
+      struct interface_list_entry *ile;
+      ile = list_head(stats->interface_list);
+      while(ile != NULL) {
+        if(!link_stats_interface_is_fresh(ile)) {
+          /* If the metrics for any interface of the preferred parent are not fresh
+             we should preferrably probe the preferred parent sooner than later */
+          return dag->preferred_parent;
+        }
+        ile = list_item_next(ile);
+      }
+    }
   }
 
-  /* With 50% probability: probe best non-fresh parent */
+  /* With 50% probability: probe best parent with a non-fresh interface */
   if(random_rand() % 2 == 0) {
     p = nbr_table_head(rpl_parents);
     while(p != NULL) {
-      if(p->dag == dag && !rpl_parent_is_fresh(p)) {
-        /* p is in our dag and needs probing */
+      /* TODO remove following if new freshness mechanism works */
+      // if(p->dag == dag && !rpl_parent_is_fresh(p)) {
+      //   /* p is in our dag and needs probing */
+      //   rpl_rank_t p_rank = rpl_rank_via_parent(p);
+      //   if(probing_target == NULL
+      //       || p_rank < probing_target_rank) {
+      //     probing_target = p;
+      //     probing_target_rank = p_rank;
+      //   }
+      // }
+      if(p->dag == dag) {
+        /* p is in our dag, now we determine if it needs probing */
         rpl_rank_t p_rank = rpl_rank_via_parent(p);
-        if(probing_target == NULL
-            || p_rank < probing_target_rank) {
-          probing_target = p;
-          probing_target_rank = p_rank;
+        if(probing_target == NULL || p_rank < probing_target_rank) {
+          const struct link_stats *stats = rpl_get_parent_link_stats(p);
+          if(!rpl_parent_is_fresh(p)) {
+            /* If p is not fresh than none of its interfaces can be be fresh either,
+               so there is no point in checking for freshness on a per-interface basis */
+            probing_target = p;
+            probing_target_rank = p_rank;
+          } else if(stats != NULL) {
+            struct interface_list_entry *ile;
+            ile = list_head(stats->interface_list);
+            while(ile != NULL) {
+              if(!link_stats_interface_is_fresh(ile)) {
+                /* If p (which is in our dag) possesses a non-fresh interface, and
+                   there is no probing target yet or there is but p's rank is smaller
+                   (and hence better) than the rank of the current target, then we
+                   select p as the new target and break the interface list loop */
+                probing_target = p;
+                probing_target_rank = p_rank;
+                break;
+              }
+              ile = list_item_next(ile);
+            }
+          }
         }
       }
       p = nbr_table_next(rpl_parents, p);
     }
   }
 
-  /* If we still do not have a probing target: pick the least recently updated parent */
+  /* If we still do not have a probing target: pick the parent with the least recently
+     updated interface */
   if(probing_target == NULL) {
     p = nbr_table_head(rpl_parents);
     while(p != NULL) {
-      const struct link_stats *stats =rpl_get_parent_link_stats(p);
+      const struct link_stats *stats = rpl_get_parent_link_stats(p);
       if(p->dag == dag && stats != NULL) {
-        if(probing_target == NULL
-            || clock_now - stats->last_tx_time > probing_target_age) {
-          probing_target = p;
-          probing_target_age = clock_now - stats->last_tx_time;
+        /* TODO remove following if new freshness mechanism works */
+        // if(probing_target == NULL
+        //     || clock_now - stats->last_tx_time > probing_target_age) {
+        //   probing_target = p;
+        //   probing_target_age = clock_now - stats->last_tx_time;
+        // }
+        struct interface_list_entry *ile;
+        ile = list_head(stats->interface_list);
+        while(ile != NULL) {
+          if(probing_target == NULL || clock_now - ile->last_tx_time > probing_target_age) {
+            /* If there is no probing target yet, or if there is and the interface of
+               p currently being considered was updated less recently than the least
+               recently updated interface of the current target, then we select p as
+               the new target */
+            probing_target = p;
+            probing_target_age = clock_now - ile->last_tx_time;
+            /* We don't break the loop here because p might have another
+               interface that's even less recently updated! */
+          }
+          ile = list_item_next(ile);
         }
       }
       p = nbr_table_next(rpl_parents, p);
@@ -522,6 +589,7 @@ handle_probing_timer(void *ptr)
           LOG_DBG_LLADDR(lladdr);
           LOG_DBG_(" is not fresh, sending probe\n");
           uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, ile->if_id);
+          uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID);
           RPL_PROBING_SEND_FUNC(instance, target_ipaddr);
         } else {
           LOG_DBG("Inferred metric for interface with ID = %d of ", ile->if_id);

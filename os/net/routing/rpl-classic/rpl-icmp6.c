@@ -245,6 +245,7 @@ dis_input(void)
           /* The following statement is redundant but it shows our intentions */
           uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, 
                           uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID));
+          uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID);
           dio_output(instance, &UIP_IP_BUF->srcipaddr);
         }
         /* } */
@@ -863,6 +864,7 @@ dao_input_storing(void)
       uint16_t if_id = uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID);
       uipbuf_clear();
       uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, if_id);
+      uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID);
       dao_ack_output(instance, &dao_sender_addr, sequence,
                      RPL_DAO_ACK_UNCONDITIONAL_ACCEPT);
     }
@@ -882,6 +884,7 @@ dao_input_storing(void)
       /* The following statement is redundant but it shows our intentions */
       uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, 
                       uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID));
+      uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID);
       /* signal the failure to add the node */
       dao_ack_output(instance, &dao_sender_addr, sequence,
                      is_root ? RPL_DAO_ACK_UNABLE_TO_ADD_ROUTE_AT_ROOT :
@@ -898,6 +901,7 @@ dao_input_storing(void)
       /* The following statement is redundant but it shows our intentions */
       uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, 
                       uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID));
+      uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID);
       /* signal the failure to add the node */
       dao_ack_output(instance, &dao_sender_addr, sequence,
                      is_root ? RPL_DAO_ACK_UNABLE_TO_ADD_ROUTE_AT_ROOT :
@@ -961,6 +965,7 @@ fwd_dao:
       uint16_t if_id = uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID);
       uipbuf_clear();
       uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, if_id);
+      uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID);
       dao_ack_output(instance, &dao_sender_addr, sequence,
                      RPL_DAO_ACK_UNCONDITIONAL_ACCEPT);
     }
@@ -1077,6 +1082,7 @@ dao_input_nonstoring(void)
     uint16_t if_id = uipbuf_get_attr(UIPBUF_ATTR_INTERFACE_ID);
     uipbuf_clear();
     uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, if_id);
+    uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID);
     dao_ack_output(instance, &dao_sender_addr, sequence,
                    RPL_DAO_ACK_UNCONDITIONAL_ACCEPT);
   }
