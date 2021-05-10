@@ -116,8 +116,9 @@ rpl_print_neighbor_list(void)
           p->rank,
           rpl_get_parent_link_metric(p),
           rpl_rank_via_parent(p),
+          /* TODO devise another mechanism to display freshness */
           stats != NULL ? stats->freshness : 0,
-          link_stats_is_fresh(stats) ? 'f' : ' ',
+          rpl_parent_is_fresh(p) ? 'f' : ' ',
           p == default_instance->current_dag->preferred_parent ? 'p' : ' ',
           stats != NULL ? (unsigned)((clock_now - stats->last_tx_time) / (60 * CLOCK_SECOND)) : -1u
       );
@@ -236,7 +237,21 @@ int
 rpl_parent_is_fresh(rpl_parent_t *p)
 {
   const struct link_stats *stats = rpl_get_parent_link_stats(p);
-  return link_stats_is_fresh(stats);
+  if(stats == NULL) {
+    return 0;
+  }
+  /* Return not fresh when none of p's interfaces are fresh, but return
+     fresh if any of its interfaces are fresh to maintain backward compatibility */
+  uint8_t is_not_fresh = 1;
+  struct interface_list_entry *ile;
+  ile = list_head(stats->interface_list);
+  while(ile != NULL) {
+    is_not_fresh = (is_not_fresh && !link_stats_interface_is_fresh(ile));
+    ile = list_item_next(ile);
+  }
+  return !is_not_fresh;
+  /* TODO remove following if new freshness mechanism works */
+  // return link_stats_is_fresh(stats);
 }
 /*---------------------------------------------------------------------------*/
 int
@@ -1032,6 +1047,7 @@ rpl_select_parent(rpl_dag_t *dag)
 
   if(best != NULL) {
 #if RPL_WITH_PROBING
+    /* TODO fix problem with freshness */
     if(rpl_parent_is_fresh(best)) {
       rpl_set_preferred_parent(dag, best);
       /* Unschedule any already scheduled urgent probing */
