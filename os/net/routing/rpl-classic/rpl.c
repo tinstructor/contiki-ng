@@ -270,7 +270,8 @@ rpl_link_callback(const linkaddr_t *addr, int status, int numtx)
       parent = rpl_find_parent_any_dag(instance, &ipaddr);
       if(parent != NULL) {
         /* If this is the neighbor we were probing urgently, mark urgent
-        probing as done */
+        probing as done. */
+        /* TODO make sure this works with the new freshness / probing mechanism */
 #if RPL_WITH_PROBING
         if(instance->urgent_probing_target == parent) {
           instance->urgent_probing_target = NULL;

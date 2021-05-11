@@ -292,6 +292,7 @@ void rpl_insert_header(void);
 bool rpl_ext_header_remove(void);
 const struct link_stats *rpl_get_parent_link_stats(rpl_parent_t *p);
 int rpl_parent_is_fresh(rpl_parent_t *p);
+int rpl_parent_is_stale(rpl_parent_t *p);
 int rpl_parent_is_reachable(rpl_parent_t *p);
 uint16_t rpl_get_parent_link_metric(rpl_parent_t *p);
 rpl_rank_t rpl_rank_via_parent(rpl_parent_t *p);

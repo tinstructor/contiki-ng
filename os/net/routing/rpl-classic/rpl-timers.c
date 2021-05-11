@@ -427,72 +427,26 @@ get_probing_target(rpl_dag_t *dag)
     return dag->instance->urgent_probing_target;
   }
 
-  /* Check if the preferred parent needs probing */
-  /* TODO remove following if new freshness mechanism works */
-  // if(dag->preferred_parent != NULL && !rpl_parent_is_fresh(dag->preferred_parent)) {
-  //   return dag->preferred_parent;
-  // }
-  if(dag->preferred_parent != NULL) {
-    const struct link_stats *stats = rpl_get_parent_link_stats(dag->preferred_parent);
-    if(!rpl_parent_is_fresh(dag->preferred_parent)) {
-      /* If the preferred parent is not fresh than none of its interfaces can be
-         be fresh either, so there is no point in checking for freshness on a per-
-         interface basis */
-      return dag->preferred_parent;
-    } else if(stats != NULL) {
-      struct interface_list_entry *ile;
-      ile = list_head(stats->interface_list);
-      while(ile != NULL) {
-        if(!link_stats_interface_is_fresh(ile)) {
-          /* If the metrics for any interface of the preferred parent are not fresh
-             we should preferrably probe the preferred parent sooner than later */
-          return dag->preferred_parent;
-        }
-        ile = list_item_next(ile);
-      }
-    }
+  /* Check if the preferred parent needs probing. We don't call rpl_parent_is_stale()
+     here because we want to know whether ANY of the preferred parent's interfaces is
+     stale, as opposed to just all of them */
+  if(dag->preferred_parent != NULL && !rpl_parent_is_fresh(dag->preferred_parent)) {
+    return dag->preferred_parent;
   }
 
-  /* With 50% probability: probe best parent with a non-fresh interface */
+  /* With 50% probability: probe best parent with at least 1 non-fresh interface */
   if(random_rand() % 2 == 0) {
     p = nbr_table_head(rpl_parents);
     while(p != NULL) {
-      /* TODO remove following if new freshness mechanism works */
-      // if(p->dag == dag && !rpl_parent_is_fresh(p)) {
-      //   /* p is in our dag and needs probing */
-      //   rpl_rank_t p_rank = rpl_rank_via_parent(p);
-      //   if(probing_target == NULL
-      //       || p_rank < probing_target_rank) {
-      //     probing_target = p;
-      //     probing_target_rank = p_rank;
-      //   }
-      // }
-      if(p->dag == dag) {
-        /* p is in our dag, now we determine if it needs probing */
+      /* Check if p needs probing. We don't call rpl_parent_is_stale()
+         here because we want to know whether ANY of p's interfaces is
+         stale, as opposed to just all of them */
+      if(p->dag == dag && !rpl_parent_is_fresh(p)) {
+        /* p is in our dag and needs probing */
         rpl_rank_t p_rank = rpl_rank_via_parent(p);
         if(probing_target == NULL || p_rank < probing_target_rank) {
-          const struct link_stats *stats = rpl_get_parent_link_stats(p);
-          if(!rpl_parent_is_fresh(p)) {
-            /* If p is not fresh than none of its interfaces can be be fresh either,
-               so there is no point in checking for freshness on a per-interface basis */
-            probing_target = p;
-            probing_target_rank = p_rank;
-          } else if(stats != NULL) {
-            struct interface_list_entry *ile;
-            ile = list_head(stats->interface_list);
-            while(ile != NULL) {
-              if(!link_stats_interface_is_fresh(ile)) {
-                /* If p (which is in our dag) possesses a non-fresh interface, and
-                   there is no probing target yet or there is but p's rank is smaller
-                   (and hence better) than the rank of the current target, then we
-                   select p as the new target and break the interface list loop */
-                probing_target = p;
-                probing_target_rank = p_rank;
-                break;
-              }
-              ile = list_item_next(ile);
-            }
-          }
+          probing_target = p;
+          probing_target_rank = p_rank;
         }
       }
       p = nbr_table_next(rpl_parents, p);
@@ -506,12 +460,6 @@ get_probing_target(rpl_dag_t *dag)
     while(p != NULL) {
       const struct link_stats *stats = rpl_get_parent_link_stats(p);
       if(p->dag == dag && stats != NULL) {
-        /* TODO remove following if new freshness mechanism works */
-        // if(probing_target == NULL
-        //     || clock_now - stats->last_tx_time > probing_target_age) {
-        //   probing_target = p;
-        //   probing_target_age = clock_now - stats->last_tx_time;
-        // }
         struct interface_list_entry *ile;
         ile = list_head(stats->interface_list);
         while(ile != NULL) {
@@ -571,12 +519,19 @@ handle_probing_timer(void *ptr)
            (unsigned)((clock_time() - stats->last_tx_time) / (60 * CLOCK_SECOND)) : 0
       );
 
-    /* Send probe, e.g. unicast DIO or DIS */
-    /* TODO remove following if new freshness mechanism works */
-    // LOG_DBG("Setting the UIPBUF_ATTR_FLAGS_ALL_INTERFACES flag\n");
-    // uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES);
-    // RPL_PROBING_SEND_FUNC(instance, target_ipaddr);
-
+#if RPL_PROBING_STALE_INTERFACES_ONLY == 1
+    /* TODO debate if this actually still makes sense as opposed to probing
+       across all interfaces. Before I reworked the freshness mechanism, a
+       probe was sent to the target regardless of its freshness because
+       (even though selection of the target depended -- and still depends --
+       on its freshness) selection of the target was not the responsibility
+       of this function (and it still isn't). Hence, I wonder whether we
+       should even bother to check interface freshness here because it seems
+       innapropriate to me and may even cause the network to be less responsive
+       because nodes and their interfaces are probed less often (which, on the
+       other hand, has the benefit of limiting the amount of overhead induced
+       by the fact that we now have more interfaces). For now, we shall leave
+       this choice up to the implementer by means of a macro */
     /* Instead of just blanket sending a probe over all interfaces, only 
        probe the interfaces of a parent that are not considered fresh */
     if(stats != NULL) {
@@ -599,6 +554,12 @@ handle_probing_timer(void *ptr)
         ile = list_item_next(ile);
       }
     }
+#else /* RPL_PROBING_STALE_INTERFACES_ONLY == 1 */
+    /* Send probe, e.g. unicast DIO or DIS */
+    LOG_DBG("Setting the UIPBUF_ATTR_FLAGS_ALL_INTERFACES flag\n");
+    uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES);
+    RPL_PROBING_SEND_FUNC(instance, target_ipaddr);
+#endif /* RPL_PROBING_STALE_INTERFACES_ONLY == 1 */
   }
 
   /* Schedule next probing */

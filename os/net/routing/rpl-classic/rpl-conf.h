@@ -367,6 +367,17 @@
 #endif
 
 /*
+ * Either send probes only to the stale interfaces of the probing
+ * target (set to 1, = default setting), or send probes accross all
+ * interfaces of the probing target
+ */
+#ifdef RPL_CONF_PROBING_STALE_INTERFACES_ONLY
+#define RPL_PROBING_STALE_INTERFACES_ONLY RPL_CONF_PROBING_STALE_INTERFACES_ONLY
+#else
+#define RPL_PROBING_STALE_INTERFACES_ONLY 1
+#endif
+
+/*
  * Interval of DIS transmission
  */
 #ifdef  RPL_CONF_DIS_INTERVAL

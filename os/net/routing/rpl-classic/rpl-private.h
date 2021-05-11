@@ -302,6 +302,13 @@ typedef enum {
   RPL_RESET_DEFER_TRUE,
 } rpl_reset_defer_t;
 
+/* Indicates what kind of parent we wish to retrieve */
+typedef enum {
+  RPL_PARENT_FRESHNESS_UNSPECIFIED,
+  RPL_PARENT_FRESHNESS_ALL_INTERFACES,
+  RPL_PARENT_FRESHNESS_ANY_INTERFACE,
+} rpl_parent_freshness_t;
+
 /*---------------------------------------------------------------------------*/
 /* RPL macros. */
 

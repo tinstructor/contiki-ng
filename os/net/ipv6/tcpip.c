@@ -728,6 +728,10 @@ tcpip_ipv6_output(void)
 send_packet:
   if(nbr) {
     linkaddr = uip_ds6_nbr_get_ll(nbr);
+    /* TODO check if this is appropriate when using the entire twofaced stack and
+       link-stats modifications but in conjunction with RPL-lite instead of classic.
+       For now, assume it isn't */
+#if ROUTING_CONF_RPL_CLASSIC == 1
     if(!uipbuf_is_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES) &&
        !uipbuf_is_attr_flag(UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID)) {
       const struct link_stats *stats = link_stats_from_lladdr((linkaddr_t *)linkaddr);
@@ -738,6 +742,7 @@ send_packet:
         uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, stats->pref_if_id);
       }
     }
+#endif
   } else {
     linkaddr = NULL;
   }

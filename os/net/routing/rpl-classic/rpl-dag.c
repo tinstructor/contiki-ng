@@ -111,14 +111,13 @@ rpl_print_neighbor_list(void)
     while(p != NULL) {
       const struct link_stats *stats = rpl_get_parent_link_stats(p);
       uip_ipaddr_t *parent_addr = rpl_parent_get_ipaddr(p);
-      LOG_DBG("RPL: nbr %02x %5u, %5u => %5u -- %2u %c%c (last tx %u min ago)\n",
+      LOG_DBG("RPL: nbr %02x %5u, %5u => %5u -- %c%c (last tx %u min ago)\n",
           parent_addr != NULL ? parent_addr->u8[15] : 0x0,
           p->rank,
           rpl_get_parent_link_metric(p),
           rpl_rank_via_parent(p),
-          /* TODO devise another mechanism to display freshness */
-          stats != NULL ? stats->freshness : 0,
-          rpl_parent_is_fresh(p) ? 'f' : ' ',
+          /* TODO print freshness of least recently updated interface of p (%2u formatter) */
+          rpl_parent_is_fresh(p) ? 'f' : (rpl_parent_is_stale(p) ? 's' : 'u'),
           p == default_instance->current_dag->preferred_parent ? 'p' : ' ',
           stats != NULL ? (unsigned)((clock_now - stats->last_tx_time) / (60 * CLOCK_SECOND)) : -1u
       );
@@ -233,6 +232,7 @@ rpl_get_parent_link_stats(rpl_parent_t *p)
   return link_stats_from_lladdr(lladdr);
 }
 /*---------------------------------------------------------------------------*/
+/* True if all of p's interfaces have fresh statistics, false otherwise. */
 int
 rpl_parent_is_fresh(rpl_parent_t *p)
 {
@@ -240,18 +240,34 @@ rpl_parent_is_fresh(rpl_parent_t *p)
   if(stats == NULL) {
     return 0;
   }
-  /* Return not fresh when none of p's interfaces are fresh, but return
-     fresh if any of its interfaces are fresh to maintain backward compatibility */
-  uint8_t is_not_fresh = 1;
   struct interface_list_entry *ile;
   ile = list_head(stats->interface_list);
   while(ile != NULL) {
-    is_not_fresh = (is_not_fresh && !link_stats_interface_is_fresh(ile));
+    if(!link_stats_interface_is_fresh(ile)) {
+      return 0;
+    }
     ile = list_item_next(ile);
   }
-  return !is_not_fresh;
-  /* TODO remove following if new freshness mechanism works */
-  // return link_stats_is_fresh(stats);
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
+/* True if none of p's interfaces has fresh statistics, false otherwise. */
+int 
+rpl_parent_is_stale(rpl_parent_t *p)
+{
+  const struct link_stats *stats = rpl_get_parent_link_stats(p);
+  if(stats == NULL) {
+    return 1;
+  }
+  struct interface_list_entry *ile;
+  ile = list_head(stats->interface_list);
+  while(ile != NULL) {
+    if(link_stats_interface_is_fresh(ile)) {
+      return 0;
+    }
+    ile = list_item_next(ile);
+  }
+  return 1;
 }
 /*---------------------------------------------------------------------------*/
 int
@@ -267,7 +283,7 @@ rpl_parent_is_reachable(rpl_parent_t *p) {
     }
 #endif /* UIP_ND6_SEND_NS */
     /* If we don't have fresh link information, assume the parent is reachable. */
-    return !rpl_parent_is_fresh(p) || p->dag->instance->of->parent_has_usable_link(p);
+    return rpl_parent_is_stale(p) || p->dag->instance->of->parent_has_usable_link(p);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -995,7 +1011,7 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
 }
 /*---------------------------------------------------------------------------*/
 static rpl_parent_t *
-best_parent(rpl_dag_t *dag, int fresh_only)
+best_parent(rpl_dag_t *dag, rpl_parent_freshness_t freshness_type)
 {
   rpl_parent_t *p;
   rpl_of_t *of;
@@ -1017,9 +1033,23 @@ best_parent(rpl_dag_t *dag, int fresh_only)
       continue;
     }
 
-    if(fresh_only && !rpl_parent_is_fresh(p)) {
-      /* Filter out non-fresh parents if fresh_only is set */
-      continue;
+    switch(freshness_type) {
+    case RPL_PARENT_FRESHNESS_ALL_INTERFACES:
+      if(!rpl_parent_is_fresh(p)) {
+        /* We only want parents with all-fresh interfaces so we filter out
+           all parents of which at least 1 interface is stale */
+        continue;
+      }
+      break;
+    case RPL_PARENT_FRESHNESS_ANY_INTERFACE:
+      if(rpl_parent_is_stale(p)) {
+        /* We want all parents for which at least 1 interface is fresh
+           so we filter out all parents with all-stale interfaces */
+        continue;
+      }
+      break;
+    default:
+      break;
     }
 
 #if UIP_ND6_SEND_NS
@@ -1043,26 +1073,40 @@ rpl_parent_t *
 rpl_select_parent(rpl_dag_t *dag)
 {
   /* Look for best parent (regardless of freshness) */
-  rpl_parent_t *best = best_parent(dag, 0);
+  rpl_parent_t *best = best_parent(dag, RPL_PARENT_FRESHNESS_UNSPECIFIED);
 
   if(best != NULL) {
 #if RPL_WITH_PROBING
-    /* TODO fix problem with freshness */
+    /* If all interfaces of best are fresh we can immediately set it
+       as the preferred parent and unschedule any urgent probings */
     if(rpl_parent_is_fresh(best)) {
       rpl_set_preferred_parent(dag, best);
       /* Unschedule any already scheduled urgent probing */
       dag->instance->urgent_probing_target = NULL;
     } else {
-      /* The best is not fresh. Look for the best fresh now. */
-      rpl_parent_t *best_fresh = best_parent(dag, 1);
-      if(best_fresh == NULL) {
-        /* No fresh parent around, use best (non-fresh) */
-        rpl_set_preferred_parent(dag, best);
+      /* Not all interfaces of best are fresh, so we look for the best
+         parent with all-fresh interfaces */
+      rpl_parent_t *best_all_fresh = best_parent(dag, RPL_PARENT_FRESHNESS_ALL_INTERFACES);
+      if(best_all_fresh == NULL) {
+        /* We didn't find any parent with all-fresh interfaces, so we
+           look for the best parent of which at least 1 interface is
+           fresh */
+        rpl_parent_t *best_part_fresh = best_parent(dag, RPL_PARENT_FRESHNESS_ANY_INTERFACE);
+        if(best_part_fresh == NULL) {
+          /* We didn't find any parent with at least 1 fresh interface,
+             so we simply set the best (stale) parent as preferred */
+          rpl_set_preferred_parent(dag, best);
+        } else {
+          /* We found the best parent with at least 1 fresh interface,
+             so we set it as the preferred parent */
+          rpl_set_preferred_parent(dag, best_part_fresh);
+        }
       } else {
-        /* Use best fresh */
-        rpl_set_preferred_parent(dag, best_fresh);
+        /* Use best parent with all-fresh interfaces */
+        rpl_set_preferred_parent(dag, best_all_fresh);
       }
-      /* Probe the best parent shortly in order to get a fresh estimate */
+      /* Probe the best parent shortly in order to get a fresh estimate
+         for all of its non-fresh interfaces */
       dag->instance->urgent_probing_target = best;
       rpl_schedule_probing_now(dag->instance);
     }

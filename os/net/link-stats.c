@@ -544,26 +544,18 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
   }
 
   /* Update last timestamp and freshness */
-  /* FIXME this is problematic when running multi-rf because freshness should then be interface-scope instead of
-     neighbor-scope. The problem with all of this is that stats->last_tx_time and stats->freshness apply to an entire
-     neighbor (represented by the link-stats table entry in which they're stored) instead of just on interface to said
-     neighbor and hence, these values are updated each time a unicast packet is sent (if status was MAC_TX_OK or, if
-     link-stats table entry already existed, MAC_TX_NOACK) regardless of the interface over which it was sent. However,
-     since selection of the probing target relies on these values and, in turn, probes are the primary way to keep the
-     inferred metrics of all interfaces of a parent up to date (since probes are unicast over each interface), it
-     could happen that the inferred metrics of a parent's non-preferred interfaces are hardly ever updated because the
-     freshness mechanism indicates that we have recently transmitted a (unicast) packet to said parent and thus the
-     metric for said parent would theoretically be up to date. While this is accurate for the legacy implementation of
-     the link-stats module, since most packets sent to a parent (or any other neighbor for that matter) are only sent
-     over its preferred interface, freshness of a neighbor('s metrics) is no longer guaranteed this way (at least not
-     for all interfaces). This problem is worst for neighbors to which we send the most packets, which means that it
-     is mostly problematic for the preferred parent */
+  /* TODO move freshness mechanism to interface list entries altogether.
+     We should however keep the parameter such that rpl-lite may still
+     function as it should */
   stats->last_tx_time = clock_time();
   stats->freshness = MIN(stats->freshness + numtx, FRESHNESS_MAX);
   /* NOTE I propose to do the following instead: */
   if(ile != NULL) {
     ile->last_tx_time = clock_time();
     ile->freshness = MIN(ile->freshness + numtx, FRESHNESS_MAX);
+    LOG_DBG("Freshness for interface with ID = %d of ", ile->if_id);
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(" set to %2u\n", ile->freshness);
   }
 
 #if LINK_STATS_PACKET_COUNTERS
@@ -746,10 +738,14 @@ periodic(void *ptr)
   ctimer_reset(&periodic_timer);
   for(stats = nbr_table_head(link_stats); stats != NULL; stats = nbr_table_next(link_stats, stats)) {
     stats->freshness >>= 1;
+    const linkaddr_t *lladdr = link_stats_get_lladdr(stats);
     /* Do the same with the freshness counter of each ile */
     struct interface_list_entry *ile;
     for(ile = list_head(stats->interface_list); ile != NULL; ile = list_item_next(ile)) {
       ile->freshness >>= 1;
+      LOG_DBG("Freshness for interface with ID = %d of ", ile->if_id);
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_(" aged to %2u\n", ile->freshness);
     }
   }
 
