@@ -268,7 +268,7 @@ update_metric_container(rpl_instance_t *instance)
       break;
     /* TODO add case for yet to be defined metric container */
     default:
-      LOG_WARN("MRHOF, non-supported MC %u\n", instance->mc.type);
+      LOG_WARN("DRiPLOF, non-supported MC %u\n", instance->mc.type);
       break;
   }
 }
