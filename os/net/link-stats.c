@@ -442,6 +442,41 @@ guess_lql_from_rssi(int status)
   return 0;
 }
 /*---------------------------------------------------------------------------*/
+uint16_t
+get_interface_etx(const linkaddr_t *lladdr, uint8_t if_id, int status, int numtx)
+{
+  struct link_stats *stats;
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  if(stats == NULL) {
+    LOG_DBG("Could not find link stats table entry for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(", returning ETX of 0xffff for interface with ID = %d\n", if_id);
+    return 0xffff;
+  }
+  struct interface_list_entry *ile;
+  ile = interface_list_entry_from_id(stats, if_id);
+  if(ile == NULL) {
+    LOG_DBG("Could not find interface list entry for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(" and interface ID = %d, returning ETX of 0xffff\n", if_id);
+    return 0xffff;
+  }
+  /* TODO continue here */
+#if LINK_STATS_PACKET_COUNTERS
+  /* Update paket counters */
+  stats->cnt_current.num_packets_tx += numtx;
+  if(status == MAC_TX_OK) {
+    stats->cnt_current.num_packets_acked++;
+  }
+#endif
+  /* Add penalty in case of no-ACK */
+  if(status == MAC_TX_NOACK) {
+    numtx += ETX_NOACK_PENALTY;
+  }
+  /* TODO continue here */
+  return 0xffff;
+}
+/*---------------------------------------------------------------------------*/
 /* Packet sent callback. Updates stats for transmissions to lladdr */
 void
 link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
