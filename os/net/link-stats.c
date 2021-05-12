@@ -461,15 +461,20 @@ guess_interface_lql_from_rssi(const struct interface_list_entry *ile, int status
 }
 /*---------------------------------------------------------------------------*/
 uint16_t
-get_interface_etx(const struct interface_list_entry *ile, int status, int numtx, link_stats_metric_init_flag_t mi_flag)
+get_interface_etx(const struct interface_list_entry *ile, int status, int numtx,
+                  link_stats_metric_init_flag_t mi_flag)
 {
   if(ile == NULL) {
     return 0xffff;
   }
-  if(status != MAC_TX_OK && status != MAC_TX_NOACK) {
-    /* Do not penalize ETX when collisions / tx errors occur */
+  if((status != MAC_TX_OK && status != MAC_TX_NOACK) ||
+     (status == MAC_TX_OK && numtx == 0 && mi_flag == LINK_STATS_METRIC_INIT_FLAG_FALSE)) {
     return ile->inferred_metric;
   }
+  
+  /* REVIEW what happens when numtx == 0 in other cases? Make sure this
+     is handled appropriately! */
+
   if(status == MAC_TX_NOACK) {
     /* Penalize ETX when tx was not acked */
     numtx += ETX_NOACK_PENALTY;
@@ -562,7 +567,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
     uint16_t old_metric = ile->inferred_metric;
-    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, status);
+    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, status, numtx, LINK_STATS_METRIC_INIT_FLAG_FALSE);
     LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
             old_metric,
@@ -598,7 +603,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
       if(ile != NULL) {
         ile->if_id = if_id;
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
-        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, status);
+        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, status, numtx, LINK_STATS_METRIC_INIT_FLAG_TRUE);
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d (metric = %d) to interface list of ", if_id, ile->inferred_metric);
         LOG_DBG_LLADDR(lladdr);
@@ -622,7 +627,6 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
      function as it should */
   stats->last_tx_time = clock_time();
   stats->freshness = MIN(stats->freshness + numtx, FRESHNESS_MAX);
-  /* NOTE I propose to do the following instead: */
   if(ile != NULL) {
     ile->last_tx_time = clock_time();
     ile->freshness = MIN(ile->freshness + numtx, FRESHNESS_MAX);
@@ -713,7 +717,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
     uint16_t old_metric = ile->inferred_metric;
-    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, MAC_TX_OK);
+    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, MAC_TX_OK, 0, LINK_STATS_METRIC_INIT_FLAG_FALSE);
     LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
             old_metric,
@@ -750,7 +754,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
         ile->rssi = packet_rssi;
         ile->if_id = if_id;
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
-        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, MAC_TX_OK);
+        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, MAC_TX_OK, 0, LINK_STATS_METRIC_INIT_FLAG_TRUE);
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d (metric = %d) to interface list of ", if_id, ile->inferred_metric);
         LOG_DBG_LLADDR(lladdr);
