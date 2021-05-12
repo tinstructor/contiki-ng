@@ -107,7 +107,7 @@
 #ifdef LINK_STATS_CONF_INFERRED_METRIC_FUNC
 #define LINK_STATS_INFERRED_METRIC_FUNC LINK_STATS_CONF_INFERRED_METRIC_FUNC
 #else /* LINK_STATS_CONF_INFERRED_METRIC_FUNC */
-#define LINK_STATS_INFERRED_METRIC_FUNC( ile, status )  guess_interface_lql_from_rssi(ile, status)
+#define LINK_STATS_INFERRED_METRIC_FUNC( ile, status, numtx, mi_flag )  guess_interface_lql_from_rssi(ile, status)
 #endif /* LINK_STATS_INFERRED_METRIC_FUNC */
 
 /* The default weight assigned to a neighboring interface */
