@@ -107,7 +107,7 @@
 #ifdef LINK_STATS_CONF_INFERRED_METRIC_FUNC
 #define LINK_STATS_INFERRED_METRIC_FUNC LINK_STATS_CONF_INFERRED_METRIC_FUNC
 #else /* LINK_STATS_CONF_INFERRED_METRIC_FUNC */
-#define LINK_STATS_INFERRED_METRIC_FUNC( status ) guess_lql_from_rssi(status)
+#define LINK_STATS_INFERRED_METRIC_FUNC( ile, status )  guess_interface_lql_from_rssi(ile, status)
 #endif /* LINK_STATS_INFERRED_METRIC_FUNC */
 
 /* The default weight assigned to a neighboring interface */
@@ -136,6 +136,11 @@ typedef enum {
   LINK_STATS_WIFSEL_FLAG_FALSE,
   LINK_STATS_WIFSEL_FLAG_TRUE
 } link_stats_wifsel_flag_t;
+
+typedef enum {
+  LINK_STATS_METRIC_INIT_FLAG_FALSE,
+  LINK_STATS_METRIC_INIT_FLAG_TRUE
+} link_stats_metric_init_flag_t;
 
 /* All statistics of a given link */
 struct link_stats {
@@ -173,6 +178,11 @@ struct interface_list_entry {
   uint8_t weight;                       /* The weight associated with a neighboring interface */
   clock_time_t last_tx_time;            /* Last tx timestamp for this interface */
   uint8_t freshness;                    /* Freshness of the statistics of this interface */
+  int16_t rssi;                         /* RSSI (received signal strength) */
+#if LINK_STATS_ETX_FROM_PACKET_COUNT
+  uint8_t tx_count;                     /* Tx count, used for ETX calculation */
+  uint8_t ack_count;                    /* ACK count, used for ETX calculation */
+#endif /* LINK_STATS_ETX_FROM_PACKET_COUNT */
 };
 
 /* Modify the wifsel flag to indicate wether or not preferred interface

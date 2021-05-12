@@ -397,6 +397,7 @@ link_stats_interface_is_fresh(const struct interface_list_entry *ile)
 }
 /*---------------------------------------------------------------------------*/
 #if LINK_STATS_INIT_ETX_FROM_RSSI
+#define ETX_INIT_MAX 3
 uint16_t
 guess_etx_from_rssi(const struct link_stats *stats)
 {
@@ -411,9 +412,26 @@ guess_etx_from_rssi(const struct link_stats *stats)
        * etx = ETX_DIVOSOR / ((bounded_rssi - RSSI_LOW) / RSSI_DIFF)
        * etx = (RSSI_DIFF * ETX_DIVOSOR) / (bounded_rssi - RSSI_LOW)
        * */
-#define ETX_INIT_MAX 3
       uint16_t etx;
       int16_t bounded_rssi = stats->rssi;
+      bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
+      bounded_rssi = MAX(bounded_rssi, RSSI_LOW + 1);
+      etx = RSSI_DIFF * ETX_DIVISOR / (bounded_rssi - RSSI_LOW);
+      return MIN(etx, ETX_INIT_MAX * ETX_DIVISOR);
+    }
+  }
+  return 0xffff;
+}
+/*---------------------------------------------------------------------------*/
+uint16_t
+guess_interface_etx_from_rssi(const struct interface_list_entry *ile)
+{
+  if(ile != NULL) {
+    if(ile->rssi == 0) {
+      return ETX_DEFAULT * ETX_DIVISOR;
+    } else {
+      uint16_t etx;
+      int16_t bounded_rssi = ile->rssi;
       bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
       bounded_rssi = MAX(bounded_rssi, RSSI_LOW + 1);
       etx = RSSI_DIFF * ETX_DIVISOR / (bounded_rssi - RSSI_LOW);
@@ -428,53 +446,75 @@ guess_etx_from_rssi(const struct link_stats *stats)
    that currently still resides in the packet buffer or return 0 if the
    given status != MAC_TX_OK. */
 uint16_t
-guess_lql_from_rssi(int status)
+guess_interface_lql_from_rssi(const struct interface_list_entry *ile, int status)
 {
-  if(status == MAC_TX_OK) {
+  if(ile != NULL && status == MAC_TX_OK) {
     uint16_t lql;
-    int16_t bounded_rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
+    int16_t bounded_rssi = (ile->rssi == 0) ? packetbuf_attr(PACKETBUF_ATTR_RSSI) : ile->rssi;
     bounded_rssi = MIN(bounded_rssi, RSSI_HIGH);
     bounded_rssi = MAX(bounded_rssi, RSSI_LOW + 1);
     lql = 7 - ((((bounded_rssi - RSSI_LOW) * 6) + RSSI_DIFF / 2) / RSSI_DIFF);
-    LOG_DBG("RSSI mapped to LQL = %d\n", lql);
+    LOG_DBG("RSSI mapped to LQL = %d for interface with ID = %d\n", lql, ile->if_id);
     return lql;
   }
   return 0;
 }
 /*---------------------------------------------------------------------------*/
 uint16_t
-get_interface_etx(const linkaddr_t *lladdr, uint8_t if_id, int status, int numtx)
+get_interface_etx(const struct interface_list_entry *ile, int status, int numtx, link_stats_metric_init_flag_t mi_flag)
 {
-  struct link_stats *stats;
-  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
-  if(stats == NULL) {
-    LOG_DBG("Could not find link stats table entry for ");
-    LOG_DBG_LLADDR(lladdr);
-    LOG_DBG_(", returning ETX of 0xffff for interface with ID = %d\n", if_id);
-    return 0xffff;
-  }
-  struct interface_list_entry *ile;
-  ile = interface_list_entry_from_id(stats, if_id);
   if(ile == NULL) {
-    LOG_DBG("Could not find interface list entry for ");
-    LOG_DBG_LLADDR(lladdr);
-    LOG_DBG_(" and interface ID = %d, returning ETX of 0xffff\n", if_id);
     return 0xffff;
   }
-  /* TODO continue here */
-#if LINK_STATS_PACKET_COUNTERS
-  /* Update paket counters */
-  stats->cnt_current.num_packets_tx += numtx;
-  if(status == MAC_TX_OK) {
-    stats->cnt_current.num_packets_acked++;
+  if(status != MAC_TX_OK && status != MAC_TX_NOACK) {
+    /* Do not penalize ETX when collisions / tx errors occur */
+    return ile->inferred_metric;
   }
-#endif
-  /* Add penalty in case of no-ACK */
   if(status == MAC_TX_NOACK) {
+    /* Penalize ETX when tx was not acked */
     numtx += ETX_NOACK_PENALTY;
   }
-  /* TODO continue here */
-  return 0xffff;
+
+#if LINK_STATS_ETX_FROM_PACKET_COUNT
+  /* Compute ETX from packet and ACK count */
+  /* Halve both counters after TX_COUNT_MAX */
+  if(ile->tx_count + numtx > TX_COUNT_MAX) {
+    ile->tx_count /= 2;
+    ile->ack_count /= 2;
+  }
+  /* Update tx_count and ack_count */
+  ile->tx_count += numtx;
+  if(status == MAC_TX_OK) {
+    ile->ack_count++;
+  }
+  /* Compute ETX */
+  if(ile->ack_count > 0) {
+    return ((uint16_t)ile->tx_count * ETX_DIVISOR) / ile->ack_count;
+  } else {
+    return (uint16_t)MAX(ETX_NOACK_PENALTY, ile->tx_count) * ETX_DIVISOR;
+  }
+#else /* LINK_STATS_ETX_FROM_PACKET_COUNT */
+  /* Compute ETX using an EWMA */
+  uint16_t packet_etx;
+  uint8_t ewma_alpha;
+  uint16_t stored_etx;
+/* Init etx here if needed */
+  if(mi_flag == LINK_STATS_METRIC_INIT_FLAG_TRUE) {
+#if LINK_STATS_INIT_ETX_FROM_RSSI
+    stored_etx = guess_interface_etx_from_rssi(ile);
+#else /* LINK_STATS_INIT_ETX_FROM_RSSI */
+    stored_etx = ETX_DEFAULT * ETX_DIVISOR;
+#endif /* LINK_STATS_INIT_ETX_FROM_RSSI */
+  } else {
+    stored_etx = ile->inferred_metric;
+  }
+  /* ETX used for this update */
+  packet_etx = numtx * ETX_DIVISOR;
+  /* ETX alpha used for this update */
+  ewma_alpha = link_stats_interface_is_fresh(ile) ? EWMA_ALPHA : EWMA_BOOTSTRAP_ALPHA;
+  /* Compute EWMA and update ETX */
+  return ((uint32_t)stored_etx * (EWMA_SCALE - ewma_alpha) + (uint32_t)packet_etx * ewma_alpha) / EWMA_SCALE;
+#endif
 }
 /*---------------------------------------------------------------------------*/
 /* Packet sent callback. Updates stats for transmissions to lladdr */
@@ -522,8 +562,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
     uint16_t old_metric = ile->inferred_metric;
-    /* Set inferred metric to worse than threshold if no ACK was received */
-    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(status);
+    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, status);
     LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
             old_metric,
@@ -558,9 +597,8 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
       ile = memb_alloc(&interface_memb);
       if(ile != NULL) {
         ile->if_id = if_id;
-        /* Set inferred metric to worse than threshold if no ACK was received */
-        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(status);
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
+        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, status);
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d (metric = %d) to interface list of ", if_id, ile->inferred_metric);
         LOG_DBG_LLADDR(lladdr);
@@ -675,7 +713,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
     uint16_t old_metric = ile->inferred_metric;
-    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(MAC_TX_OK);
+    ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, MAC_TX_OK);
     LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
             old_metric,
@@ -709,9 +747,10 @@ link_stats_input_callback(const linkaddr_t *lladdr)
       /* Create new ile and add to interface list */
       ile = memb_alloc(&interface_memb);
       if(ile != NULL) {
+        ile->rssi = packet_rssi;
         ile->if_id = if_id;
-        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(MAC_TX_OK);
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
+        ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, MAC_TX_OK);
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d (metric = %d) to interface list of ", if_id, ile->inferred_metric);
         LOG_DBG_LLADDR(lladdr);
@@ -732,6 +771,10 @@ link_stats_input_callback(const linkaddr_t *lladdr)
   /* Update RSSI EWMA */
   stats->rssi = ((int32_t)stats->rssi * (EWMA_SCALE - EWMA_ALPHA) +
       (int32_t)packet_rssi * EWMA_ALPHA) / EWMA_SCALE;
+  if(ile != NULL) {
+    ile->rssi = ((int32_t)ile->rssi * (EWMA_SCALE - EWMA_ALPHA) +
+        (int32_t)packet_rssi * EWMA_ALPHA) / EWMA_SCALE;
+  }
 
 #if LINK_STATS_PACKET_COUNTERS
   stats->cnt_current.num_packets_rx++;
