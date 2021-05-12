@@ -50,6 +50,10 @@
 #endif /* MAC_CONF_WITH_CSMA */
 #define REMOTE_DUAL_RF_ENABLED 1
 #define LINK_STATS_CONF_NUM_INTERFACES_PER_NEIGHBOR 2U
+// #define LINK_STATS_CONF_METRIC_THRESHOLD            0x7FFFU /* TODO find appropriate threshold for ETX*/
+// #define LINK_STATS_CONF_METRIC_PLACEHOLDER          0xFFFFU
+// #define LINK_STATS_WORSE_THAN_THRESH( x )           ((x)>LINK_STATS_METRIC_THRESHOLD)
+// #define LINK_STATS_CONF_INFERRED_METRIC_FUNC( ile, status, numtx, mi_flag ) get_interface_etx(ile, status, numtx, mi_flag)
 #endif /* NETSTACK_CONF_RADIO */
 
 #if MAC_CONF_WITH_TWOFACED
