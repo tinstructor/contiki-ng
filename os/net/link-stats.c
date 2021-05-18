@@ -464,19 +464,31 @@ uint16_t
 get_interface_etx(const struct interface_list_entry *ile, int status, int numtx,
                   link_stats_metric_init_flag_t mi_flag)
 {
-  if(ile == NULL) {
+  if((ile == NULL) || (status != MAC_TX_OK && numtx == 0)) {
+    /* Numtx can only == 0 when this function is called upon receiving a packet */
     return 0xffff;
   }
+
   if((status != MAC_TX_OK && status != MAC_TX_NOACK) ||
-     (status == MAC_TX_OK && numtx == 0 && mi_flag == LINK_STATS_METRIC_INIT_FLAG_FALSE)) {
+     (numtx == 0 && mi_flag == LINK_STATS_METRIC_INIT_FLAG_FALSE)) {
+    /* We don't penalize ETX when collisions / transmission errors occur and we also
+       return the stored value when numtx == 0 (meaning this function was called when
+       receiving a packet) and ETX should not be initialized */
     return ile->inferred_metric;
   }
-  
-  /* REVIEW what happens when numtx == 0 in other cases? Make sure this
-     is handled appropriately! */
+
+  if(numtx == 0 && mi_flag == LINK_STATS_METRIC_INIT_FLAG_TRUE) {
+    /* Numtx can only == 0 when this function is called upon receiving a packet. Hence,
+       we shall return an init value when the corresponding flag is set to true. */
+#if LINK_STATS_INIT_ETX_FROM_RSSI
+    return guess_interface_etx_from_rssi(ile);
+#else /* LINK_STATS_INIT_ETX_FROM_RSSI */
+    return ETX_DEFAULT * ETX_DIVISOR;
+#endif /* LINK_STATS_INIT_ETX_FROM_RSSI */
+  }
 
   if(status == MAC_TX_NOACK) {
-    /* Penalize ETX when tx was not acked */
+    /* Penalize ETX if transmission was not acknowledged */
     numtx += ETX_NOACK_PENALTY;
   }
 
@@ -717,6 +729,11 @@ link_stats_input_callback(const linkaddr_t *lladdr)
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
     uint16_t old_metric = ile->inferred_metric;
+    /* NOTE the following function call is metric-agnostic and e.g., when the metric is ETX it
+       shall (presumably) simply return the ETX value already stored in the inferred metric parameter
+       of the given ile. However, since the function is configurable, we should still call it here
+       because it may return some other metric which is updated upon receiving a packet (as opposed
+       to ETX, which is only updated when transmitting) */
     ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, MAC_TX_OK, 0, LINK_STATS_METRIC_INIT_FLAG_FALSE);
     LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
