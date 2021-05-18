@@ -85,7 +85,11 @@
 #error "Metric threshold must be greater than 0"
 #endif /* LINK_STATS_CONF_METRIC_THRESHOLD > 0U */
 #else /* LINK_STATS_CONF_METRIC_THRESHOLD */
+#ifdef LINK_STATS_CONF_WITH_ETX
+#define LINK_STATS_METRIC_THRESHOLD               0x0300U
+#else /* LINK_STATS_CONF_WITH_ETX */
 #define LINK_STATS_METRIC_THRESHOLD               1U
+#endif /* LINK_STATS_CONF_WITH_ETX */
 #endif /* LINK_STATS_METRIC_THRESHOLD */
 
 /* The metric placeholder used in normalization when an inferred
@@ -93,21 +97,33 @@
 #ifdef LINK_STATS_CONF_METRIC_PLACEHOLDER
 #define LINK_STATS_METRIC_PLACEHOLDER LINK_STATS_CONF_METRIC_PLACEHOLDER
 #else /* LINK_STATS_CONF_METRIC_PLACEHOLDER */
+#ifdef LINK_STATS_CONF_WITH_ETX
+#define LINK_STATS_METRIC_PLACEHOLDER             0x0400U
+#else /* LINK_STATS_CONF_WITH_ETX */
 #define LINK_STATS_METRIC_PLACEHOLDER             7U
+#endif /* LINK_STATS_CONF_WITH_ETX */
 #endif /* LINK_STATS_METRIC_PLACEHOLDER */
 
 /* Define what it means for x to be worse than the metric threshold */
 #ifdef LINK_STATS_CONF_WORSE_THAN_THRESH
 #define LINK_STATS_WORSE_THAN_THRESH LINK_STATS_CONF_WORSE_THAN_THRESH
 #else /* LINK_STATS_CONF_WORSE_THAN_THRESH */
+#ifdef LINK_STATS_CONF_WITH_ETX
+#define LINK_STATS_WORSE_THAN_THRESH( x )         ((x)>LINK_STATS_METRIC_THRESHOLD)
+#else /* LINK_STATS_CONF_WITH_ETX */
 #define LINK_STATS_WORSE_THAN_THRESH( x )         ((x)<LINK_STATS_METRIC_THRESHOLD)
+#endif /* LINK_STATS_CONF_WITH_ETX */
 #endif /* LINK_STATS_WORSE_THAN_THRESH */
 
 /* Function used to retrieve inferred metric */
 #ifdef LINK_STATS_CONF_INFERRED_METRIC_FUNC
 #define LINK_STATS_INFERRED_METRIC_FUNC LINK_STATS_CONF_INFERRED_METRIC_FUNC
 #else /* LINK_STATS_CONF_INFERRED_METRIC_FUNC */
+#ifdef LINK_STATS_CONF_WITH_ETX
+#define LINK_STATS_INFERRED_METRIC_FUNC( ile, status, numtx, mi_flag )  get_interface_etx(ile, status, numtx, mi_flag)
+#else /* LINK_STATS_CONF_WITH_ETX */
 #define LINK_STATS_INFERRED_METRIC_FUNC( ile, status, numtx, mi_flag )  guess_interface_lql_from_rssi(ile, status)
+#endif /* LINK_STATS_CONF_WITH_ETX */
 #endif /* LINK_STATS_INFERRED_METRIC_FUNC */
 
 /* The default weight assigned to a neighboring interface */

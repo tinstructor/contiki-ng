@@ -50,10 +50,7 @@
 #endif /* MAC_CONF_WITH_CSMA */
 #define REMOTE_DUAL_RF_ENABLED 1
 #define LINK_STATS_CONF_NUM_INTERFACES_PER_NEIGHBOR 2U
-// #define LINK_STATS_CONF_METRIC_THRESHOLD            0x7FFFU /* TODO find appropriate threshold for ETX*/
-// #define LINK_STATS_CONF_METRIC_PLACEHOLDER          0xFFFFU
-// #define LINK_STATS_WORSE_THAN_THRESH( x )           ((x)>LINK_STATS_METRIC_THRESHOLD)
-// #define LINK_STATS_CONF_INFERRED_METRIC_FUNC( ile, status, numtx, mi_flag ) get_interface_etx(ile, status, numtx, mi_flag)
+#define LINK_STATS_CONF_WITH_ETX
 #endif /* NETSTACK_CONF_RADIO */
 
 #if MAC_CONF_WITH_TWOFACED
@@ -78,7 +75,7 @@
  * support a given OF. The OFs a node (both root and non-root) supports
  * are configured through the RPL_CONF_SUPPORTED_OFS parameter.
  */
-#define RPL_CONF_OF_OCP RPL_OCP_POOF
+#define RPL_CONF_OF_OCP RPL_OCP_DRIPLOF
 
 /*
  * The RPL_CONF_SUPPORTED_OFS parameter configures the OFs supported by
@@ -87,7 +84,7 @@
  * this set as indicated by the OCP in the DODAG Configuration option
  * attached to a DIO.
  */
-#define RPL_CONF_SUPPORTED_OFS { &rpl_poof, &rpl_driplof }
+#define RPL_CONF_SUPPORTED_OFS { &rpl_driplof, &rpl_poof }
 
 /*
  * Although the PO OF and DRiPL OF can both operate with multiple RPL
