@@ -37,6 +37,20 @@
 #include "lib/list.h"
 #include "dev/radio.h"
 
+/* Configure the usage of ETX as the per-interface inferred metric */
+#ifdef LINK_STATS_CONF_INTERFACES_WITH_ETX
+#define LINK_STATS_INTERFACES_WITH_ETX LINK_STATS_CONF_INTERFACES_WITH_ETX
+#else /* LINK_STATS_CONF_INTERFACES_WITH_ETX */
+#define LINK_STATS_INTERFACES_WITH_ETX 0
+#endif /* LINK_STATS_INTERFACES_WITH_ETX */
+
+/* Configure the usage of interface weights */
+#ifdef LINK_STATS_CONF_WITH_WEIGHTS
+#define LINK_STATS_WITH_WEIGHTS LINK_STATS_CONF_WITH_WEIGHTS
+#else /* LINK_STATS_CONF_WITH_WEIGHTS */
+#define LINK_STATS_WITH_WEIGHTS 0
+#endif /* LINK_STATS_WITH_WEIGHTS */
+
 /* ETX fixed point divisor. 128 is the value used by RPL (RFC 6551 and RFC 6719) */
 #ifdef LINK_STATS_CONF_ETX_DIVISOR
 #define LINK_STATS_ETX_DIVISOR LINK_STATS_CONF_ETX_DIVISOR
@@ -85,11 +99,11 @@
 #error "Metric threshold must be greater than 0"
 #endif /* LINK_STATS_CONF_METRIC_THRESHOLD > 0U */
 #else /* LINK_STATS_CONF_METRIC_THRESHOLD */
-#ifdef LINK_STATS_CONF_WITH_ETX
-#define LINK_STATS_METRIC_THRESHOLD               0x0300U
-#else /* LINK_STATS_CONF_WITH_ETX */
+#if LINK_STATS_INTERFACES_WITH_ETX
+#define LINK_STATS_METRIC_THRESHOLD               (6U * LINK_STATS_ETX_DIVISOR)
+#else /* LINK_STATS_INTERFACES_WITH_ETX */
 #define LINK_STATS_METRIC_THRESHOLD               1U
-#endif /* LINK_STATS_CONF_WITH_ETX */
+#endif /* LINK_STATS_INTERFACES_WITH_ETX */
 #endif /* LINK_STATS_METRIC_THRESHOLD */
 
 /* The metric placeholder used in normalization when an inferred
@@ -97,33 +111,33 @@
 #ifdef LINK_STATS_CONF_METRIC_PLACEHOLDER
 #define LINK_STATS_METRIC_PLACEHOLDER LINK_STATS_CONF_METRIC_PLACEHOLDER
 #else /* LINK_STATS_CONF_METRIC_PLACEHOLDER */
-#ifdef LINK_STATS_CONF_WITH_ETX
-#define LINK_STATS_METRIC_PLACEHOLDER             0x0400U
-#else /* LINK_STATS_CONF_WITH_ETX */
+#if LINK_STATS_INTERFACES_WITH_ETX
+#define LINK_STATS_METRIC_PLACEHOLDER             (8U * LINK_STATS_ETX_DIVISOR)
+#else /* LINK_STATS_INTERFACES_WITH_ETX */
 #define LINK_STATS_METRIC_PLACEHOLDER             7U
-#endif /* LINK_STATS_CONF_WITH_ETX */
+#endif /* LINK_STATS_INTERFACES_WITH_ETX */
 #endif /* LINK_STATS_METRIC_PLACEHOLDER */
 
 /* Define what it means for x to be worse than the metric threshold */
 #ifdef LINK_STATS_CONF_WORSE_THAN_THRESH
 #define LINK_STATS_WORSE_THAN_THRESH LINK_STATS_CONF_WORSE_THAN_THRESH
 #else /* LINK_STATS_CONF_WORSE_THAN_THRESH */
-#ifdef LINK_STATS_CONF_WITH_ETX
+#if LINK_STATS_INTERFACES_WITH_ETX
 #define LINK_STATS_WORSE_THAN_THRESH( x )         ((x)>LINK_STATS_METRIC_THRESHOLD)
-#else /* LINK_STATS_CONF_WITH_ETX */
+#else /* LINK_STATS_INTERFACES_WITH_ETX */
 #define LINK_STATS_WORSE_THAN_THRESH( x )         ((x)<LINK_STATS_METRIC_THRESHOLD)
-#endif /* LINK_STATS_CONF_WITH_ETX */
+#endif /* LINK_STATS_INTERFACES_WITH_ETX */
 #endif /* LINK_STATS_WORSE_THAN_THRESH */
 
 /* Function used to retrieve inferred metric */
 #ifdef LINK_STATS_CONF_INFERRED_METRIC_FUNC
 #define LINK_STATS_INFERRED_METRIC_FUNC LINK_STATS_CONF_INFERRED_METRIC_FUNC
 #else /* LINK_STATS_CONF_INFERRED_METRIC_FUNC */
-#ifdef LINK_STATS_CONF_WITH_ETX
+#if LINK_STATS_INTERFACES_WITH_ETX
 #define LINK_STATS_INFERRED_METRIC_FUNC( ile, status, numtx, mi_flag )  get_interface_etx(ile, status, numtx, mi_flag)
-#else /* LINK_STATS_CONF_WITH_ETX */
+#else /* LINK_STATS_INTERFACES_WITH_ETX */
 #define LINK_STATS_INFERRED_METRIC_FUNC( ile, status, numtx, mi_flag )  guess_interface_lql_from_rssi(ile, status)
-#endif /* LINK_STATS_CONF_WITH_ETX */
+#endif /* LINK_STATS_INTERFACES_WITH_ETX */
 #endif /* LINK_STATS_INFERRED_METRIC_FUNC */
 
 /* The default weight assigned to a neighboring interface */
@@ -176,7 +190,9 @@ struct link_stats {
 
   uint16_t normalized_metric;           /* Weighted average metric accross interfaces */
   uint8_t pref_if_id;                   /* ID of the preferred interface towards a neighbor */
+#if LINK_STATS_WITH_WEIGHTS
   link_stats_wifsel_flag_t wifsel_flag; /* Flag indicating if preferred interface selection is weighted */
+#endif
   LIST_STRUCT(interface_list);          /* List of interfaces and metrics + flags */
 };
 
@@ -191,7 +207,9 @@ struct interface_list_entry {
   uint8_t if_id;                        /* Identifier of the interface */
   uint16_t inferred_metric;             /* Inferred metric of physical link */
   link_stats_defer_flag_t defer_flag;   /* The weighted averaging defer flag */
+#if LINK_STATS_WITH_WEIGHTS
   uint8_t weight;                       /* The weight associated with a neighboring interface */
+#endif
   clock_time_t last_tx_time;            /* Last tx timestamp for this interface */
   uint8_t freshness;                    /* Freshness of the statistics of this interface */
   int16_t rssi;                         /* RSSI (received signal strength) */

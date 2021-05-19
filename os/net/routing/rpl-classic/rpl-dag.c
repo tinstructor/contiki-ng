@@ -339,6 +339,7 @@ void
 rpl_recalculate_interface_weights(void)
 {
 #if RPL_WEIGHTED_INTERFACES
+  LOG_DBG("Recalculating interface weights\n");
   uint16_t ntp = num_tx_preferred;
   LOG_DBG("Transmitted %u packets to preferred parent in current RPL_IF_WEIGHTS_WINDOW\n", ntp);
   /* We now know how many packets we have successfully transmitted towards
@@ -368,6 +369,7 @@ rpl_recalculate_interface_weights(void)
       double exponent = (density * (double)data_rate) / 8197.7;
       double precise_weight = pow(2.0, exponent); /* Approaches 255 for density * data_rate = 65535 */
       weight = (uint8_t)(precise_weight + 0.5);
+      LOG_DBG("Setting the weight of all neighboring interfaces with ID = %d to %d\n", if_id, weight);
       link_stats_modify_weights(if_id, weight);
     }
     /* TODO it makes no sense to re-select the preferred interfaces if there's

@@ -102,6 +102,7 @@ interface_list_entry_from_id(struct link_stats *stats, uint8_t if_id)
 int
 link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_flag_t value)
 {
+#if LINK_STATS_WITH_WEIGHTS
   struct link_stats *stats;
   stats = nbr_table_get_from_lladdr(link_stats, lladdr);
   if(stats == NULL) {
@@ -115,6 +116,9 @@ link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_flag_t
   LOG_DBG_LLADDR(lladdr);
   LOG_DBG_(" modified to %d\n", stats->wifsel_flag);
   return 1;
+#else /* LINK_STATS_WITH_WEIGHTS */
+  return 0;
+#endif /* LINK_STATS_WITH_WEIGHTS */
 }
 /*---------------------------------------------------------------------------*/
 /* Modify the weight associated with a neighboring interface by
@@ -123,6 +127,7 @@ link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_flag_t
 int
 link_stats_modify_weight(const linkaddr_t *lladdr, uint8_t if_id, uint8_t weight)
 {
+#if LINK_STATS_WITH_WEIGHTS
   if(weight == 0) {
     LOG_DBG("Setting a weight of 0 is prohibited, aborting weight modification\n");
     return 0;
@@ -148,6 +153,9 @@ link_stats_modify_weight(const linkaddr_t *lladdr, uint8_t if_id, uint8_t weight
   LOG_DBG_LLADDR(lladdr);
   LOG_DBG_(" changed to %d\n", weight);
   return 1;
+#else /* LINK_STATS_WITH_WEIGHTS */
+  return 0;
+#endif /* LINK_STATS_WITH_WEIGHTS */
 }
 /*---------------------------------------------------------------------------*/
 /* Modify the weight for all neighbors to which a connection with
@@ -155,6 +163,7 @@ link_stats_modify_weight(const linkaddr_t *lladdr, uint8_t if_id, uint8_t weight
 int
 link_stats_modify_weights(uint8_t if_id, uint8_t weight)
 {
+#if LINK_STATS_WITH_WEIGHTS
   if(weight == 0) {
     LOG_DBG("Setting a weight of 0 is prohibited, aborting weight modification\n");
     return 0;
@@ -167,6 +176,9 @@ link_stats_modify_weights(uint8_t if_id, uint8_t weight)
     stats = nbr_table_next(link_stats, stats);
   }
   return 1;
+#else /* LINK_STATS_WITH_WEIGHTS */
+  return 0;
+#endif /* LINK_STATS_WITH_WEIGHTS */
 }
 /*---------------------------------------------------------------------------*/
 /* Select the preferred interface of the neighbor corresponding
@@ -182,6 +194,7 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
     LOG_DBG_(", aborting preferred interface selection\n");
     return 0;
   }
+#if LINK_STATS_WITH_WEIGHTS
   if(stats->wifsel_flag) {
     LOG_DBG("Preferred interface selection is weight-based for ");
     LOG_DBG_LLADDR(lladdr);
@@ -191,6 +204,7 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
   }
+#endif /* LINK_STATS_WITH_WEIGHTS */
   struct interface_list_entry *ile, *pref_ile;
   pref_ile = list_head(stats->interface_list);
   ile = list_item_next(pref_ile);
@@ -215,6 +229,7 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
         pref_if_metric = pref_ile->inferred_metric;
         if_metric = ile->inferred_metric;
       }
+#if LINK_STATS_WITH_WEIGHTS
       /* Divide by weights if wifsel flag is set */
       if(stats->wifsel_flag) {
         /* Increase precision to 4 decimal points */
@@ -227,6 +242,7 @@ link_stats_select_pref_interface(const linkaddr_t *lladdr)
         pref_if_metric = (pref_if_metric + pref_if_weight / 2) / pref_if_weight;
         if_metric = (if_metric + if_weight / 2) / if_weight;
       }
+#endif /* LINK_STATS_WITH_WEIGHTS */
       /* If metric of next interface is better than metric of pref if, new pref if */
       pref_ile = (if_metric < pref_if_metric) ? ile : pref_ile;
     } else if(LINK_STATS_WORSE_THAN_THRESH(pref_ile->inferred_metric)) {
@@ -280,11 +296,16 @@ link_stats_update_norm_metric(const linkaddr_t *lladdr)
   uint16_t denominator = 0;
   while(ile != NULL) {
     uint32_t inferred_metric;
-    uint8_t weight;
     inferred_metric = LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : ile->inferred_metric;
+#if LINK_STATS_WITH_WEIGHTS
+    uint8_t weight;
     weight = ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
     numerator += (inferred_metric * weight);
     denominator += weight;
+#else
+    numerator += inferred_metric;
+    denominator++;
+#endif
     num_if++;
     ile = list_item_next(ile);
   }
@@ -295,8 +316,13 @@ link_stats_update_norm_metric(const linkaddr_t *lladdr)
     return 0;
   }
   uint8_t num_if_left = LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR - num_if;
+#if LINK_STATS_WITH_WEIGHTS
   numerator += (num_if_left * LINK_STATS_METRIC_PLACEHOLDER * LINK_STATS_DEFAULT_WEIGHT);
   denominator += (num_if_left * LINK_STATS_DEFAULT_WEIGHT);
+#else
+  numerator += (num_if_left * LINK_STATS_METRIC_PLACEHOLDER);
+  denominator += num_if_left;
+#endif
   /* Never divide by zero or the universe might implode */
   denominator = denominator ? denominator : 1;
   /* Integer division but rounded to nearest integer */
@@ -423,6 +449,7 @@ guess_etx_from_rssi(const struct link_stats *stats)
   return 0xffff;
 }
 /*---------------------------------------------------------------------------*/
+#if LINK_STATS_INTERFACES_WITH_ETX
 uint16_t
 guess_interface_etx_from_rssi(const struct interface_list_entry *ile)
 {
@@ -440,8 +467,10 @@ guess_interface_etx_from_rssi(const struct interface_list_entry *ile)
   }
   return 0xffff;
 }
+#endif /* LINK_STATS_INTERFACES_WITH_ETX */
 #endif /* LINK_STATS_INIT_ETX_FROM_RSSI */
 /*---------------------------------------------------------------------------*/
+#if LINK_STATS_INTERFACES_WITH_ETX != 1
 /* Guess the link-quality level [1-7] from the RSSI of a received packet 
    that currently still resides in the packet buffer or return 0 if the
    given status != MAC_TX_OK. */
@@ -460,6 +489,7 @@ guess_interface_lql_from_rssi(const struct interface_list_entry *ile, int status
   return 0;
 }
 /*---------------------------------------------------------------------------*/
+#else
 uint16_t
 get_interface_etx(const struct interface_list_entry *ile, int status, int numtx,
                   link_stats_metric_init_flag_t mi_flag)
@@ -533,6 +563,7 @@ get_interface_etx(const struct interface_list_entry *ile, int status, int numtx,
   return ((uint32_t)stored_etx * (EWMA_SCALE - ewma_alpha) + (uint32_t)packet_etx * ewma_alpha) / EWMA_SCALE;
 #endif
 }
+#endif /* LINK_STATS_INTERFACES_WITH_ETX */
 /*---------------------------------------------------------------------------*/
 /* Packet sent callback. Updates stats for transmissions to lladdr */
 void
@@ -614,7 +645,9 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
       ile = memb_alloc(&interface_memb);
       if(ile != NULL) {
         ile->if_id = if_id;
+#if LINK_STATS_WITH_WEIGHTS
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
+#endif
         ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, status, numtx, LINK_STATS_METRIC_INIT_FLAG_TRUE);
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d (metric = %d) to interface list of ", if_id, ile->inferred_metric);
@@ -634,9 +667,6 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
   }
 
   /* Update last timestamp and freshness */
-  /* TODO move freshness mechanism to interface list entries altogether.
-     We should however keep the parameter such that rpl-lite may still
-     function as it should */
   stats->last_tx_time = clock_time();
   stats->freshness = MIN(stats->freshness + numtx, FRESHNESS_MAX);
   if(ile != NULL) {
@@ -770,7 +800,9 @@ link_stats_input_callback(const linkaddr_t *lladdr)
       if(ile != NULL) {
         ile->rssi = packet_rssi;
         ile->if_id = if_id;
+#if LINK_STATS_WITH_WEIGHTS
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
+#endif
         ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, MAC_TX_OK, 0, LINK_STATS_METRIC_INIT_FLAG_TRUE);
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d (metric = %d) to interface list of ", if_id, ile->inferred_metric);

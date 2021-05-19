@@ -56,11 +56,11 @@
 #ifdef RPL_POOF_CONF_STEP_OF_RANK
 #define STEP_OF_RANK        RPL_POOF_CONF_STEP_OF_RANK
 #else /* RPL_POOF_CONF_STEP_OF_RANK */
-#ifdef LINK_STATS_CONF_WITH_ETX
+#if LINK_STATS_INTERFACES_WITH_ETX
 #define STEP_OF_RANK(p)     (((3 * parent_link_metric(p)) / LINK_STATS_ETX_DIVISOR) - 2)
-#else /* LINK_STATS_CONF_WITH_ETX */
+#else /* LINK_STATS_INTERFACES_WITH_ETX */
 #define STEP_OF_RANK(p)     parent_link_metric(p)
-#endif /* LINK_STATS_CONF_WITH_ETX */
+#endif /* LINK_STATS_INTERFACES_WITH_ETX */
 #endif /* RPL_POOF_CONF_STEP_OF_RANK */
 
 /*---------------------------------------------------------------------------*/
