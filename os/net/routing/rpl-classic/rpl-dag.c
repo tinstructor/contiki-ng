@@ -339,6 +339,13 @@ void
 rpl_recalculate_interface_weights(void)
 {
 #if RPL_WEIGHTED_INTERFACES
+#if RPL_MAX_INSTANCES == 1
+  /* Abort execution if we are root because weights are useless in that case anyway */
+  if(default_instance != NULL && default_instance->current_dag != NULL &&
+     default_instance->current_dag->rank == ROOT_RANK(default_instance)) {
+    return;
+  }
+#endif
   LOG_DBG("Recalculating interface weights\n");
   uint16_t ntp = num_tx_preferred;
   LOG_DBG("Transmitted %u packets to preferred parent in current RPL_IF_WEIGHTS_WINDOW\n", ntp);
@@ -1826,6 +1833,7 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
     if(dio->rank != RPL_INFINITE_RANK) {
       instance->dio_counter++;
     }
+    LOG_DBG("DIO processing terminated because we are root\n");
     return;
   }
 

@@ -234,7 +234,7 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
           LOG_DBG("Attempting tx on interface with ID = %d\n", if_id);
         }
         tx_res = NETSTACK_RADIO.transmit(packetbuf_totlen());
-        RTIMER_BUSYWAIT(RTIMER_SECOND / 210);
+        RTIMER_BUSYWAIT(RTIMER_SECOND / 200);
         switch(tx_res) {
         case RADIO_TX_OK:
           if(is_broadcast) {
@@ -243,10 +243,8 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
             /* Check for ack */
 
             /* Wait for max TWOFACED_MAC_ACK_WAIT_TIME */
-            /* REVIEW should we not check for NETSTACK_RADIO.receiving_packet()
-               instead? In the very worst case we could even check whether the
-               channel is clear with NETSTACK_RADIO.channel_clear() */
-            RTIMER_BUSYWAIT_UNTIL(NETSTACK_RADIO.pending_packet(),
+            /* REVIEW check if this is better than waiting for NETSTACK_RADIO.pending_packet() */
+            RTIMER_BUSYWAIT_UNTIL(NETSTACK_RADIO.receiving_packet(),
                                   TWOFACED_MAC_ACK_WAIT_TIME);
 
             ret = MAC_TX_NOACK;

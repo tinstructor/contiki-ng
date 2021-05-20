@@ -96,6 +96,45 @@
  */
 #define RPL_CONF_MAX_INSTANCES  1
 
+/*
+ * When the per-interface inferred metric is only updated upon transmitting
+ * a unicast packet towards a neighboring interface (as is the case with ETX),
+ * we must force the use of DIS probes instead of DIO probes and make sure that
+ * we send a DIS probe to all interfaces of a probing target, regardless of the
+ * fact they're stale or not. This ensures that when a child probes a parent,
+ * not only is IT able to update the inferred metric for all interfaces of said
+ * parent, said parent may then also obtain an inferred metric update for all
+ * interfaces towards said child. If, on the other hand, the child would only
+ * probe the stale interfaces of its parent with a tx-only inferred metric,
+ * then a situation could (and is likely to) occur wherein a child and parent
+ * consider a different (but mutually available) interface type to be preferred.
+ * This may result in the child probing a parent's interface which the parent
+ * itself considers as preferred for the child and presumably (is likely to)
+ * have up to date inferred metric information for, while another non-preferred
+ * interface from the perspective of the parent (i.e. towards its child) is never
+ * updated because it is not used for unicast transmission by the parent towards
+ * the given child, nor is it probed because the child considers said interface
+ * as preferred for unicast transmissions towards its parent and it is not likely
+ * to ever become stale from the child's perspective. When not using a tx-only
+ * inferred metric such as LQL, it is not required to send probes (of any kind)
+ * to non-stale interfaces because the fact that they're not stale means that
+ * the parent has sufficiently recently acknowledged a unicast transmission
+ * from its child and thus both the child and its parent have an up-to-date
+ * inferred metric for the given interface type. Even when a child and parent
+ * consider a different (but mutually available) interface type to be preferred,
+ * this still works. What's more it's not required to use DIS probes for 
+ * non-tx-only metrics either, since they're also updated upon reception of a
+ * packet. As opposed to a single-interface scenario, a parent is required to
+ * have up to date metrics on all the interfaces of its children such that
+ * it may choose a preferred interface for transmissions to said children.
+ */
+#if LINK_STATS_CONF_INTERFACES_WITH_ETX && (LINK_STATS_CONF_NUM_INTERFACES_PER_NEIGHBOR > 1)
+#define RPL_CONF_PROBING_SEND_FUNC(instance, addr)  dis_output((addr))
+#define RPL_CONF_PROBING_STALE_INTERFACES_ONLY      0
+#elif LINK_STATS_CONF_NUM_INTERFACES_PER_NEIGHBOR == 1
+#define RPL_CONF_PROBING_STALE_INTERFACES_ONLY      0
+#endif
+
 #define LOG_CONF_LEVEL_APP      LOG_LEVEL_INFO
 #define LOG_CONF_LEVEL_RPL      LOG_LEVEL_DBG
 #define LOG_CONF_LEVEL_TCPIP    LOG_LEVEL_NONE
