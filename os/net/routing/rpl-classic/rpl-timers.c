@@ -111,7 +111,10 @@ handle_periodic_timer(void *ptr)
 static void
 handle_interface_weights_timer(void *ptr)
 {
+#if RPL_WEIGHTED_INTERFACES
   rpl_recalculate_interface_weights();
+  rpl_set_interface_weights(NULL);
+#endif
   num_tx_preferred = 0;
   ctimer_reset(&interface_weights_timer);
 }

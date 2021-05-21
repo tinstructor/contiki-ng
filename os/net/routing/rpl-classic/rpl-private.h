@@ -313,6 +313,13 @@ typedef enum {
   RPL_PARENT_FRESHNESS_ANY_INTERFACE,
 } rpl_parent_freshness_t;
 
+/* A type of collection containing interface IDs together with their weight */
+typedef struct {
+  uint8_t if_id_list[RADIO_MAX_INTERFACES];
+  uint8_t weights[RADIO_MAX_INTERFACES];
+  uint8_t size;
+} rpl_ifw_collection_t;
+
 /*---------------------------------------------------------------------------*/
 /* RPL macros. */
 
@@ -366,6 +373,7 @@ void rpl_move_parent(rpl_dag_t *dag_src, rpl_dag_t *dag_dst, rpl_parent_t *paren
 rpl_parent_t *rpl_select_parent(rpl_dag_t *dag);
 rpl_dag_t *rpl_select_dag(rpl_instance_t *instance,rpl_parent_t *parent);
 void rpl_recalculate_ranks(void);
+int rpl_set_interface_weights(rpl_parent_t *p);
 void rpl_recalculate_interface_weights(void);
 
 /* RPL routing table functions. */

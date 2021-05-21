@@ -94,7 +94,11 @@ NBR_TABLE_GLOBAL(rpl_parent_t, rpl_parents);
 /* Allocate instance table. */
 rpl_instance_t instance_table[RPL_MAX_INSTANCES];
 rpl_instance_t *default_instance;
-
+/*---------------------------------------------------------------------------*/
+/* A collection of interface IDs together with their weight */
+#if RPL_WEIGHTED_INTERFACES
+static rpl_ifw_collection_t rpl_ifw_collection  = { .size = 0 };
+#endif
 /*---------------------------------------------------------------------------*/
 void
 rpl_print_neighbor_list(void)
@@ -343,6 +347,77 @@ rpl_exec_norm_metric_logic(rpl_reset_defer_t reset_defer)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* Set the interface weights of the given parent or of all neighbors
+   (not just parents) if the supplied parent pointer == NULL. */
+int
+rpl_set_interface_weights(rpl_parent_t *p)
+{
+#if RPL_WEIGHTED_INTERFACES
+#if RPL_MAX_INSTANCES == 1
+  /* Abort execution if we are root because weights are useless in that case anyway */
+  if(default_instance != NULL && default_instance->current_dag != NULL &&
+     default_instance->current_dag->rank == ROOT_RANK(default_instance)) {
+    LOG_DBG("Not setting interface weights because we are root!\n");
+    return 0;
+  }
+#endif
+  if(p != NULL) {
+    const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
+    if(lladdr == NULL) {
+      return 0;
+    }
+    LOG_DBG("Attempting weight modification for %u interfaces of ", rpl_ifw_collection.size);
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_("\n");
+    for(uint8_t i = 0; i < rpl_ifw_collection.size; i++) {
+      uint8_t if_id = rpl_ifw_collection.if_id_list[i];
+      uint8_t weight = rpl_ifw_collection.weights[i];
+      link_stats_modify_weight(lladdr, if_id, weight);
+    }
+  } else {
+    for(uint8_t i = 0; i < rpl_ifw_collection.size; i++) {
+      uint8_t if_id = rpl_ifw_collection.if_id_list[i];
+      uint8_t weight = rpl_ifw_collection.weights[i];
+      LOG_DBG("Setting the weight of all neighboring interfaces with ID = %d to %d\n", if_id, weight);
+      link_stats_modify_weights(if_id, weight);
+    }
+  }
+  return 1;
+#else
+  return 0;
+#endif
+}
+/*---------------------------------------------------------------------------*/
+#if RPL_WEIGHTED_INTERFACES
+static void
+update_interface_weight(uint8_t if_id, uint8_t weight)
+{
+  /* Look for an existing entry in rpl_ifw_collection */
+  for(uint8_t i = 0; i < rpl_ifw_collection.size; i++) {
+    if(rpl_ifw_collection.if_id_list[i] == if_id) {
+      LOG_DBG("Found ID = %d in RPL interface weight collection, updating weight to %d (previously %d)\n",
+              if_id, weight, rpl_ifw_collection.weights[i]);
+      /* REVIEW we could either make traffic density a moving average or better yet
+         since we're implies that we have stored a previous weight value, we might
+         as well use an EWMA filter to calculate and assign a new weight */
+      rpl_ifw_collection.weights[i] = weight;
+      return;
+    }
+  }
+  /* If no entry exists, create one (if possible) */
+  if(rpl_ifw_collection.size < RADIO_MAX_INTERFACES) {
+    rpl_ifw_collection.if_id_list[rpl_ifw_collection.size] = if_id;
+    rpl_ifw_collection.weights[rpl_ifw_collection.size] = weight;
+    rpl_ifw_collection.size++;
+    LOG_DBG("Added new entry to RPL interface weight collection for ID = %d with weight %d\n",
+            if_id, weight);
+    return;
+  }
+  LOG_DBG("Failed adding new entry to RPL interface weight collection for ID = %d, too many entries\n",
+          if_id);
+}
+#endif
+/*---------------------------------------------------------------------------*/
 void
 rpl_recalculate_interface_weights(void)
 {
@@ -351,6 +426,7 @@ rpl_recalculate_interface_weights(void)
   /* Abort execution if we are root because weights are useless in that case anyway */
   if(default_instance != NULL && default_instance->current_dag != NULL &&
      default_instance->current_dag->rank == ROOT_RANK(default_instance)) {
+    LOG_DBG("Not recalculating interface weights because we are root!\n");
     return;
   }
 #endif
@@ -384,8 +460,7 @@ rpl_recalculate_interface_weights(void)
       double exponent = (density * (double)data_rate) / 8197.7;
       double precise_weight = pow(2.0, exponent); /* Approaches 255 for density * data_rate = 65535 */
       weight = (uint8_t)(precise_weight + 0.5);
-      LOG_DBG("Setting the weight of all neighboring interfaces with ID = %d to %d\n", if_id, weight);
-      link_stats_modify_weights(if_id, weight);
+      update_interface_weight(if_id, weight);
     }
     /* TODO it makes no sense to re-select the preferred interfaces if there's
        been no change in weight for any interface type. However, there's currently
@@ -878,6 +953,21 @@ rpl_add_parent(rpl_dag_t *dag, rpl_dio_t *dio, uip_ipaddr_t *addr)
 #if RPL_WITH_MC
       memcpy(&p->mc, &dio->mc, sizeof(p->mc));
 #endif /* RPL_WITH_MC */
+#if RPL_WEIGHTED_INTERFACES
+      /* Set the interface weights of the newly added parent here. If the parent
+         is added prior to the first call to rpl_recalculate_interface_weights()
+         this function will simply return without modifying any weights (because
+         there aren't any yet). Otherwise, calling rpl_set_interface_weights()
+         with a non-NULL parent pointer argument will cause all interfaces of
+         the parent for which a weight was previously calculated to be modified
+         in their respective ile. If we then call link_stats_update_norm_metric(),
+         the normalized metric shall be calculated using weights (if enabled).
+         This is OK since the normalized metric is only used to select the preferred
+         parent and so if p is immediately removed from the rpl_parents_table
+         after adding it, the normalized metric value can be whatever. Put
+         differently, it doesn't matter if we set the weights here */
+      rpl_set_interface_weights(p);
+#endif /* RPL_WEIGHTED_INTERFACES */
       link_stats_reset_defer_flags((const linkaddr_t *)lladdr);
       link_stats_update_norm_metric((const linkaddr_t *)lladdr);
     }
@@ -1422,6 +1512,19 @@ rpl_join_instance(uip_ipaddr_t *from, rpl_dio_t *dio)
     default_instance = instance;
   }
 
+#if RPL_WEIGHTED_INTERFACES
+  const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
+  /* Set the wifsel flag if the parent is a candidate parent in the current DAG
+     of the default instance. For now, this functionality is limited to the default
+     instance because the link-stats module would otherwise need to keep a link_stats
+     table for every instance. */
+  if(lladdr != NULL) {
+    link_stats_wifsel_flag_t wifsel_flag;
+    wifsel_flag = (p->dag == default_instance->current_dag) ? LINK_STATS_WIFSEL_FLAG_TRUE : LINK_STATS_WIFSEL_FLAG_FALSE;
+    link_stats_modify_wifsel_flag(lladdr, wifsel_flag);
+  }
+#endif
+
   LOG_INFO("Joined DAG with instance ID %u, rank %hu, DAG ID ",
          dio->instance_id, dag->rank);
   LOG_INFO_6ADDR(&dag->dag_id);
@@ -1712,6 +1815,12 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
     if(default_instance != NULL) {
       link_stats_wifsel_flag_t wifsel_flag;
       wifsel_flag = (p->dag == default_instance->current_dag) ? LINK_STATS_WIFSEL_FLAG_TRUE : LINK_STATS_WIFSEL_FLAG_FALSE;
+      /* Calling this function here means that the wifsel flag is not only updated when
+         a new parent is added, but periodically (for each parent with an update flag set)
+         too. This is the case because rpl_process_parent_event() ultimately decides whether
+         a newly added parent can stay in the rpl_parents table or is kicked out immediately
+         after being added (upon receiving a DIO). Setting the actual weights can be done in
+         rpl_add_parent() */
       link_stats_modify_wifsel_flag(lladdr, wifsel_flag);
     }
   }
