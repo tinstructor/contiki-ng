@@ -111,16 +111,24 @@ rpl_print_neighbor_list(void)
     while(p != NULL) {
       const struct link_stats *stats = rpl_get_parent_link_stats(p);
       uip_ipaddr_t *parent_addr = rpl_parent_get_ipaddr(p);
-      LOG_DBG("RPL: nbr %02x %5u, %5u => %5u -- %c%c (last tx %u min ago)\n",
-          parent_addr != NULL ? parent_addr->u8[15] : 0x0,
+      LOG_DBG("RPL: nbr ");
+      LOG_DBG_6ADDR(parent_addr);
+      LOG_DBG_(" %5u, %5u => %5u -- %c%c",
           p->rank,
           rpl_get_parent_link_metric(p),
           rpl_rank_via_parent(p),
-          /* TODO print freshness of least recently updated interface of p (%2u formatter) */
           rpl_parent_is_fresh(p) ? 'f' : (rpl_parent_is_stale(p) ? 's' : 'u'),
-          p == default_instance->current_dag->preferred_parent ? 'p' : ' ',
-          stats != NULL ? (unsigned)((clock_now - stats->last_tx_time) / (60 * CLOCK_SECOND)) : -1u
+          p == default_instance->current_dag->preferred_parent ? 'p' : ' '
       );
+      if(stats != NULL) {
+        struct interface_list_entry *ile;
+        ile = list_head(stats->interface_list);
+        while(ile != NULL) {
+          LOG_DBG_(" (ID: %u, fcnt: %2u, ltx: %u)", ile->if_id, ile->freshness, (unsigned)((clock_now - ile->last_tx_time) / CLOCK_SECOND));
+          ile = list_item_next(ile);
+        }
+      }
+      LOG_DBG_("\n");
       p = nbr_table_next(rpl_parents, p);
     }
     LOG_DBG("RPL: end of list\n");
