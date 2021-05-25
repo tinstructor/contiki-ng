@@ -567,6 +567,7 @@ should_refresh_routes(rpl_instance_t *instance, rpl_dio_t *dio, rpl_parent_t *p)
 static int
 acceptable_rank(rpl_dag_t *dag, rpl_rank_t rank)
 {
+  /* See RFC6550 Section 6.7.6. */
   /* See RFC6550 Section 8.2.2.4. */
   return rank != RPL_INFINITE_RANK &&
     ((dag->instance->max_rankinc == 0) ||
@@ -1082,6 +1083,11 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
 
   if(!acceptable_rank(best_dag, best_dag->rank)) {
     LOG_WARN("New rank unacceptable!\n");
+    /* FIXME how can we be certain that the preferred parent is the parent that caused
+       best_dag->rank (i.e., the outcome of rpl_rank_via_dag(best_dag)) to become un-
+       acceptable? For example, with MRHOF, the rank computed for the preferred parent
+       is not neccessarily equal to the the rank we're supposed to advertise, which is
+       rpl_rank_via_dag(best_dag) */
     rpl_set_preferred_parent(instance->current_dag, NULL);
     if(RPL_IS_STORING(instance) && last_parent != NULL) {
       /* Send a No-Path DAO to the removed preferred parent. */
@@ -1769,6 +1775,44 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
     rpl_remove_routes_by_nexthop(rpl_parent_get_ipaddr(p), p->dag);
   }
 
+  /* FIXME acceptable_rank() only checks whether the supplied rank complies to rule 3
+     of RFC6550 Section 8.2.2.4., meaning that it must either be greater than the lowest
+     rank this node has afvertised with the current DODAG version + DAGMaxRankIncrease,
+     or equal to infinity. However, this is not adequate according to RFC6550 Section
+     8.2.2.4., i.e., one must also make sure to never advertise a rank <= the rank advertised
+     by any parent set member within the current DODAG version. */
+  /* FIXME it is no longer correct to supply rpl_rank_via_parent(p) to acceptable_rank()
+     since we now want to know whether the act of adding p to the parent set (or p being
+     member of the parent set in general) results in an advertised rank (i.e., the outcome
+     of rpl_rank_via_dag()) that does not comply with rule 3 of RFC6550 Section 8.2.2.4.
+     However, this rank is not necessarily equal to rpl_rank_via_parent(p). Nonetheless,
+     we can't just supply rpl_rank_via_dag() either because if acceptable_rank() would then
+     return false, we couldn't be sure that p is the parent that caused the rank to be
+     unnacceptable and thus we can't simply remove p */
+  /* NOTE supplying rpl_rank_via_parent(p) is only accurate when using OF0 because then
+     the outcome of rpl_rank_via_dag() is equal to rpl_rank_via_parent() for the preferred
+     parent and hence we should not add p to the parent set if rpl_rank_via_parent(p) is
+     not acceptable because it may become preferred at some point, causing the advertised
+     rank to violate rule 3 of RFC6550 Section 8.2.2.4. For MRHOF, rpl_rank_via_dag() is
+     not always equal to rpl_rank_via_parent() for the preferred parent. More specifically,
+     with MRHOF, the rank must be set to the max of 3 following values:
+
+     1. The rank computed for the path through the preferred parent.
+     2. The highest rank advertised by any of its parent set members
+        (this is NOT the same as the computed rank for the path 
+        through said node), rounded to the next higher integral rank.
+     3. The largest computed rank among paths through the parent set,
+        minus MaxRankIncrease.
+        
+     Thus, because of 2) and 3), a parent p may cause the advertised rank to become unacceptable
+     even if it is not the preferred parent!*/
+  /* TODO check if it is possible to simply call acceptable_rank() and pass the values
+     according to 2) and 3) if the OF requires this, that is. */
+  /* NOTE presumably, it should be adequate to take the max value of rpl_rank_via_parent(p),
+     and p->rank rounded to the next higher integer rank and check if it is acceptable */
+  /* NOTE when you think about it, rpl_rank_via_parent(p) is always equal to or greater than
+     p->rank rounded to the next higher integer rank and rpl_rank_via_parent(p) - MaxRankIncrease
+     and so we don't need any additional checks except for the first FIXME statement */
   if(!acceptable_rank(p->dag, rpl_rank_via_parent(p))) {
     /* The candidate parent is no longer valid: the rank increase resulting
        from the choice of it as a parent would be too high. */
