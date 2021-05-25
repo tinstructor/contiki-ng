@@ -398,7 +398,7 @@ update_interface_weight(uint8_t if_id, uint8_t weight)
       LOG_DBG("Found ID = %d in RPL interface weight collection, updating weight to %d (previously %d)\n",
               if_id, weight, rpl_ifw_collection.weights[i]);
       /* REVIEW we could either make traffic density a moving average or better yet
-         since we're implies that we have stored a previous weight value, we might
+         since we're here implies that we have stored a previous weight value, we might
          as well use an EWMA filter to calculate and assign a new weight */
       rpl_ifw_collection.weights[i] = weight;
       return;
@@ -1214,6 +1214,9 @@ rpl_select_parent(rpl_dag_t *dag)
       }
       /* Probe the best parent shortly in order to get a fresh estimate
          for all of its non-fresh interfaces */
+      /* REVIEW does it make sense to always set best as an urgent probing target
+         here or should we set best_part_fresh as the urgent probing target in case
+         we chose it as preferred parent instead of best? */
       dag->instance->urgent_probing_target = best;
       rpl_schedule_probing_now(dag->instance);
     }
