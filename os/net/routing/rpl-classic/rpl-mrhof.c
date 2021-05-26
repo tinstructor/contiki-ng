@@ -330,7 +330,7 @@ update_metric_container(rpl_instance_t *instance)
 #endif /* RPL_WITH_MC */
 /*---------------------------------------------------------------------------*/
 static rpl_rank_t
-rank_via_dag(rpl_dag_t *dag)
+rank_via_dag(rpl_dag_t *dag, linkaddr_t *blame)
 {
   /* The rank must be set to the max of 3 following values:
      1. The rank computed for the path through the preferred parent.
@@ -345,16 +345,26 @@ rank_via_dag(rpl_dag_t *dag)
   rpl_rank_t min_hoprankinc = dag->instance->min_hoprankinc;
   rpl_rank_t max_rankinc = dag->instance->max_rankinc;
   rpl_rank_t rank = rank_via_parent(dag->preferred_parent);
+  const linkaddr_t *lladdr = rpl_get_parent_lladdr(dag->preferred_parent);
   rpl_parent_t *p;
   p = nbr_table_head(rpl_parents);
   while(p != NULL) {
     if(p->dag != NULL && p->dag == dag) {
       rpl_rank_t next_higher_rank = min_hoprankinc * (1 + (p->rank / min_hoprankinc));
-      rank = (next_higher_rank > rank) ? next_higher_rank : rank;
+      if(next_higher_rank > rank) {
+        rank = next_higher_rank;
+        lladdr = rpl_get_parent_lladdr(p);
+      }
       rpl_rank_t parent_rank = rank_via_parent(p);
-      rank = ((parent_rank - max_rankinc) > rank) ? (parent_rank - max_rankinc) : rank;
+      if((parent_rank - max_rankinc) > rank) {
+        rank = parent_rank - max_rankinc;
+        lladdr = rpl_get_parent_lladdr(p);
+      }
     }
     p = nbr_table_next(rpl_parents, p);
+  }
+  if(blame != NULL) {
+    *blame = *lladdr;
   }
   return rank;
 }

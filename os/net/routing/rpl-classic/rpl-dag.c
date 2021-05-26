@@ -204,16 +204,21 @@ rpl_rank_via_parent(rpl_parent_t *p)
   return RPL_INFINITE_RANK;
 }
 /*---------------------------------------------------------------------------*/
-/* Retrieve the rank to be advertised in DIO messages for the given DAG */
+/* Retrieve the rank to be advertised in DIO messages for the given DAG. The
+   value of blame is set to the linkaddr of the parent responsible for the
+   returned rank (if blame != NULL). */
 rpl_rank_t
-rpl_rank_via_dag(rpl_dag_t *dag)
+rpl_rank_via_dag(rpl_dag_t *dag, linkaddr_t *blame)
 {
   if(dag != NULL) {
     rpl_instance_t *instance = dag->instance;
     if(instance != NULL && instance->of != NULL) {
       if(instance->of->rank_via_dag != NULL) {
-        return instance->of->rank_via_dag(dag);
+        return instance->of->rank_via_dag(dag, blame);
       } else if(instance->of->rank_via_parent != NULL && dag->preferred_parent != NULL) {
+        if(blame != NULL) {
+          *blame = *rpl_get_parent_lladdr(dag->preferred_parent);
+        }
         return instance->of->rank_via_parent(dag->preferred_parent);
       }
     }
@@ -1074,7 +1079,8 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
 
   instance->of->update_metric_container(instance);
   /* Update the DAG rank. */
-  best_dag->rank = rpl_rank_via_dag(best_dag);
+  linkaddr_t blame;
+  best_dag->rank = rpl_rank_via_dag(best_dag, &blame);
   if(last_parent == NULL || best_dag->rank < best_dag->min_rank) {
     /* This is a slight departure from RFC6550: if we had no preferred parent before,
      * reset min_rank. This helps recovering from temporary bad link conditions. */
@@ -1084,10 +1090,13 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
   if(!acceptable_rank(best_dag, best_dag->rank)) {
     LOG_WARN("New rank unacceptable!\n");
     /* FIXME how can we be certain that the preferred parent is the parent that caused
-       best_dag->rank (i.e., the outcome of rpl_rank_via_dag(best_dag)) to become un-
+       best_dag->rank (i.e., the outcome of rpl_rank_via_dag(best_dag, blame)) to become un-
        acceptable? For example, with MRHOF, the rank computed for the preferred parent
        is not neccessarily equal to the the rank we're supposed to advertise, which is
-       rpl_rank_via_dag(best_dag) */
+       rpl_rank_via_dag(best_dag, blame). The parent responsible for the rank is available
+       via blame. */
+    // if(linkaddr_cmp(&blame, rpl_get_parent_lladdr(instance->current_dag->preferred_parent))) { 
+    // }
     rpl_set_preferred_parent(instance->current_dag, NULL);
     if(RPL_IS_STORING(instance) && last_parent != NULL) {
       /* Send a No-Path DAO to the removed preferred parent. */
@@ -1228,12 +1237,12 @@ rpl_select_parent(rpl_dag_t *dag)
     }
 #else /* RPL_WITH_PROBING */
     rpl_set_preferred_parent(dag, best);
-    dag->rank = rpl_rank_via_dag(dag);
+    dag->rank = rpl_rank_via_dag(dag, NULL);
 #endif /* RPL_WITH_PROBING */
   } else {
     rpl_set_preferred_parent(dag, NULL);
   }
-  dag->rank = rpl_rank_via_dag(dag);
+  dag->rank = rpl_rank_via_dag(dag, NULL);
   return dag->preferred_parent;
 }
 /*---------------------------------------------------------------------------*/
@@ -1741,7 +1750,9 @@ rpl_recalculate_ranks(void)
   while(p != NULL) {
     if(p->dag != NULL && p->dag->instance && (p->flags & RPL_PARENT_FLAG_UPDATED)) {
       p->flags &= ~RPL_PARENT_FLAG_UPDATED;
-      LOG_DBG("rpl_process_parent_event recalculate_ranks\n");
+      LOG_DBG("rpl_process_parent_event recalculate_ranks because ");
+      LOG_DBG_LLADDR(rpl_get_parent_lladdr(p));
+      LOG_DBG_(" was updated\n");
       /* We don't need to update the parent's normalized metric and defer flags
          because at this point that should have already been handled prior to
          setting the parent's RPL_PARENT_FLAG_UPDATED flag */
@@ -1775,47 +1786,39 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
     rpl_remove_routes_by_nexthop(rpl_parent_get_ipaddr(p), p->dag);
   }
 
-  /* FIXME acceptable_rank() only checks whether the supplied rank complies to rule 3
+  /* Calling acceptable_rank() only checks whether the supplied rank complies to rule 3
      of RFC6550 Section 8.2.2.4., meaning that it must either be greater than the lowest
      rank this node has afvertised with the current DODAG version + DAGMaxRankIncrease,
      or equal to infinity. However, this is not adequate according to RFC6550 Section
      8.2.2.4., i.e., one must also make sure to never advertise a rank <= the rank advertised
      by any parent set member within the current DODAG version. */
-  /* FIXME it is no longer correct to supply rpl_rank_via_parent(p) to acceptable_rank()
-     since we now want to know whether the act of adding p to the parent set (or p being
-     member of the parent set in general) results in an advertised rank (i.e., the outcome
-     of rpl_rank_via_dag()) that does not comply with rule 3 of RFC6550 Section 8.2.2.4.
-     However, this rank is not necessarily equal to rpl_rank_via_parent(p). Nonetheless,
-     we can't just supply rpl_rank_via_dag() either because if acceptable_rank() would then
-     return false, we couldn't be sure that p is the parent that caused the rank to be
-     unnacceptable and thus we can't simply remove p */
-  /* NOTE supplying rpl_rank_via_parent(p) is only accurate when using OF0 because then
-     the outcome of rpl_rank_via_dag() is equal to rpl_rank_via_parent() for the preferred
-     parent and hence we should not add p to the parent set if rpl_rank_via_parent(p) is
-     not acceptable because it may become preferred at some point, causing the advertised
-     rank to violate rule 3 of RFC6550 Section 8.2.2.4. For MRHOF, rpl_rank_via_dag() is
-     not always equal to rpl_rank_via_parent() for the preferred parent. More specifically,
-     with MRHOF, the rank must be set to the max of 3 following values:
-
-     1. The rank computed for the path through the preferred parent.
-     2. The highest rank advertised by any of its parent set members
-        (this is NOT the same as the computed rank for the path 
-        through said node), rounded to the next higher integral rank.
-     3. The largest computed rank among paths through the parent set,
-        minus MaxRankIncrease.
-        
-     Thus, because of 2) and 3), a parent p may cause the advertised rank to become unacceptable
-     even if it is not the preferred parent!*/
-  /* TODO check if it is possible to simply call acceptable_rank() and pass the values
-     according to 2) and 3) if the OF requires this, that is. */
-  /* NOTE presumably, it should be adequate to take the max value of rpl_rank_via_parent(p),
-     and p->rank rounded to the next higher integer rank and check if it is acceptable */
-  /* NOTE when you think about it, rpl_rank_via_parent(p) is always equal to or greater than
-     p->rank rounded to the next higher integer rank and rpl_rank_via_parent(p) - MaxRankIncrease
-     and so we don't need any additional checks except for the first FIXME statement */
-  if(!acceptable_rank(p->dag, rpl_rank_via_parent(p))) {
-    /* The candidate parent is no longer valid: the rank increase resulting
-       from the choice of it as a parent would be too high. */
+  if(instance->current_dag->rank <= p->rank) {
+    /* We're currently advertising a rank lesser than or equal to the
+       the rank advertised by our parent set member p. This is a direct
+       violation of rule 1 of RFC6550 Section 8.2.2.4. and so we must
+       remove p from the parent set at once */
+    /* TODO make sure this branch complies with rule 4 of RFC6550 Section 8.2.2.4.,
+       i.e., a node MAY, at any time, choose to join a different DODAG within a RPL
+       Instance. Such a join has no Rank restrictions, unless that different DODAG
+       is a DODAG Version of which this node has previously been a member; in which
+       case, rule 3 of RFC6550 Section 8.2.2.4. must be observed! */
+    LOG_WARN("Parent ");
+    LOG_WARN_6ADDR(rpl_parent_get_ipaddr(p));
+    LOG_WARN_(" advertises a rank (%u) >= our own advertised rank (%u), which is illegal!\n",
+              (unsigned)p->rank, (unsigned)instance->current_dag->rank);
+    rpl_remove_parent(p);
+    /* TODO determine if returning 0 is appropriate here */
+    return 0;
+  } else if(!acceptable_rank(p->dag, rpl_rank_via_parent(p))) {
+    /* The candidate parent is no longer valid: the max possible rank increase
+       resulting from the choice of it as a parent (meaning it may thereafter
+       become the preferred parent too) would be too high according to rule
+       3 of RFC6550 Section 8.2.2.4. For OF0-based OFs the rank via the preferred
+       parent is also the advertised rank and so if the rank via p is not acceptable
+       it should not be in the parent set because it may become preferred at some
+       point. For MRHOF-based OFs, the rank via p is the highest rank we may ever
+       advertise for which p is to blame and so if it is not acceptable, it is
+       probably a safe bet to not have p as a member of the parent set. */
     LOG_WARN("Unacceptable rank %u (Current min %u, MaxRankInc %u)\n", (unsigned)p->rank,
         p->dag->min_rank, p->dag->instance->max_rankinc);
     rpl_nullify_parent(p);
@@ -2053,6 +2056,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
   /* Make sure the normalized metrics of all parents are up to date and
      follow the complete logic, including resetting the defer flags of
      all parents */
+  /* TODO find out if it is appropriate to do this here even when the DIO
+     received came from a "parent" that shall later be determined to have
+     an innapropriate advertised rank (see rpl_process_parent_event()) */
   rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
 
   /* Parent info has been updated, trigger rank recalculation */

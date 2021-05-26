@@ -221,7 +221,7 @@ struct rpl_of {
   rpl_parent_t *(*best_parent)(rpl_parent_t *, rpl_parent_t *);
   rpl_dag_t *(*best_dag)(rpl_dag_t *, rpl_dag_t *);
   void (*update_metric_container)( rpl_instance_t *);
-  rpl_rank_t (*rank_via_dag)(rpl_dag_t *);
+  rpl_rank_t (*rank_via_dag)(rpl_dag_t *, linkaddr_t *);
   rpl_ocp_t ocp;
 };
 typedef struct rpl_of rpl_of_t;
@@ -296,7 +296,7 @@ int rpl_parent_is_stale(rpl_parent_t *p);
 int rpl_parent_is_reachable(rpl_parent_t *p);
 uint16_t rpl_get_parent_link_metric(rpl_parent_t *p);
 rpl_rank_t rpl_rank_via_parent(rpl_parent_t *p);
-rpl_rank_t rpl_rank_via_dag(rpl_dag_t *dag);
+rpl_rank_t rpl_rank_via_dag(rpl_dag_t *dag, linkaddr_t *blame);
 const linkaddr_t *rpl_get_parent_lladdr(rpl_parent_t *p);
 uip_ipaddr_t *rpl_parent_get_ipaddr(rpl_parent_t *nbr);
 rpl_parent_t *rpl_get_parent(const uip_lladdr_t *addr);

@@ -193,9 +193,12 @@ update_metric_container(rpl_instance_t *instance)
 }
 /*---------------------------------------------------------------------------*/
 static rpl_rank_t
-rank_via_dag(rpl_dag_t *dag)
+rank_via_dag(rpl_dag_t *dag, linkaddr_t *blame)
 {
   if(dag != NULL && dag->preferred_parent != NULL) {
+    if(blame != NULL) {
+      *blame = *rpl_get_parent_lladdr(dag->preferred_parent);
+    }
     return rank_via_parent(dag->preferred_parent);
   }
   return RPL_INFINITE_RANK;
