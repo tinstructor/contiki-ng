@@ -202,9 +202,11 @@ send_one_packet(struct neighbor_queue *n, struct packet_queue *q)
          sending with auto ack. */
       ret = MAC_TX_COLLISION;
     } else {
-      radio_result_t foo = NETSTACK_RADIO.transmit(packetbuf_totlen());
+      radio_result_t tx_res = NETSTACK_RADIO.transmit(packetbuf_totlen());
+#if CONTIKI_TARGET_ZOUL
       RTIMER_BUSYWAIT(RTIMER_SECOND / 200);
-      switch(foo) {
+#endif
+      switch(tx_res) {
       case RADIO_TX_OK:
         if(is_broadcast) {
           ret = MAC_TX_OK;
@@ -212,7 +214,7 @@ send_one_packet(struct neighbor_queue *n, struct packet_queue *q)
           /* Check for ack */
 
           /* Wait for max CSMA_ACK_WAIT_TIME */
-          RTIMER_BUSYWAIT_UNTIL(NETSTACK_RADIO.pending_packet(), CSMA_ACK_WAIT_TIME);
+          RTIMER_BUSYWAIT_UNTIL(NETSTACK_RADIO.receiving_packet(), CSMA_ACK_WAIT_TIME);
 
           ret = MAC_TX_NOACK;
           if(NETSTACK_RADIO.receiving_packet() ||
