@@ -6,8 +6,11 @@ BOARDS_ONLY = firefly firefly-reva remote-reva remote-revb
 
 CONTIKI = ../..
 
-MAKE_MAC = MAKE_MAC_CSMA
-# MAKE_MAC = MAKE_MAC_TWOFACED
+ifneq ($(TARGET),cooja)
+  MAKE_MAC = MAKE_MAC_TWOFACED
+else
+  MAKE_MAC = MAKE_MAC_CSMA
+endif
 MAKE_NET = MAKE_NET_IPV6
 MAKE_ROUTING = MAKE_ROUTING_RPL_CLASSIC
 
