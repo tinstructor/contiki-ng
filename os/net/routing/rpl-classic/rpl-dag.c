@@ -1781,30 +1781,55 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
     LOG_WARN_("\n");
     rpl_remove_routes_by_nexthop(rpl_parent_get_ipaddr(p), p->dag);
   }
-
+  
+  /* NOTE prior to my RFC compliant implementation of MRHOF, the advertised rank depended
+     solely on the rank computed for the path through the preferred parent and thus if
+     the rank of a parent was not acceptable, it was sufficient to make sure that it was
+     no longer preferred by nullifying it in order to prevent oneself from advertising
+     an unacceptable rank. However, if (with the current implementation) we keep a parent
+     with too high a rank in the parent set (whilst still making sure it's not preferred)
+     it could happen that our advertised rank becomes too high because the advertised rank
+     (for MRHOF-based OFs) is the maximum of the 3 following values:
+     1. The rank computed for the path through the preferred parent.
+     2. The highest rank advertised by any of its parent set members
+        (this is NOT the same as the computed rank for the path 
+        through said node), rounded to the next higher integral rank.
+     3. The largest computed rank among paths through the parent set,
+        minus MaxRankIncrease. */
   /* Calling acceptable_rank() only checks whether the supplied rank complies to rule 3
      of RFC6550 Section 8.2.2.4., meaning that it must either be greater than the lowest
      rank this node has afvertised with the current DODAG version + DAGMaxRankIncrease,
      or equal to infinity. However, this is not adequate according to RFC6550 Section
-     8.2.2.4., i.e., one must also make sure to never advertise a rank <= the rank advertised
-     by any parent set member within the current DODAG version. */
-  if(instance->current_dag->rank <= p->rank) {
+     8.2.2.4., that is, one MUST also make sure to NOT advertise a rank <= the rank
+     advertised by any parent set member within the same DODAG version. */
+  if(p->dag->rank <= p->rank) {
     /* We're currently advertising a rank lesser than or equal to the
        the rank advertised by our parent set member p. This is a direct
        violation of rule 1 of RFC6550 Section 8.2.2.4. and so we must
-       remove p from the parent set at once */
+       remove p from the parent set at once. However, if p is part of
+       a different dag than the one we're currently part of, we should
+       not remove it from the parent set because it might still advertise
+       an appropriate rank within our current dag at some point in the
+       future and, besides, keeping p when it belongs to another dag is
+       not harmfull to us anyway because rank_via_dag() only takes into
+       account the parents that are part of the supplied dag argument. */
     /* TODO make sure this branch complies with rule 4 of RFC6550 Section 8.2.2.4.,
-       i.e., a node MAY, at any time, choose to join a different DODAG within a RPL
-       Instance. Such a join has no Rank restrictions, unless that different DODAG
+       i.e., a node MAY, at any time, choose to join a different DODAG within an
+       instance. Such a join has no rank restrictions, unless that "different" DODAG
        is a DODAG Version of which this node has previously been a member; in which
        case, rule 3 of RFC6550 Section 8.2.2.4. must be observed! */
     LOG_WARN("Parent ");
     LOG_WARN_6ADDR(rpl_parent_get_ipaddr(p));
     LOG_WARN_(" advertises a rank (%u) >= our own advertised rank (%u), which is illegal!\n",
-              (unsigned)p->rank, (unsigned)instance->current_dag->rank);
-    rpl_remove_parent(p);
-    /* TODO determine if returning 0 is appropriate here */
-    return 0;
+              (unsigned)p->rank, (unsigned)p->dag->rank);
+    instance->current_dag == p->dag ? rpl_remove_parent(p) : rpl_nullify_parent(p);
+    if(p != instance->current_dag->preferred_parent) {
+      /* TODO determine if returning 0 is appropriate here */
+      return 0;
+    } else {
+      /* TODO determine if not instantly returning 0 is appropriate here */
+      return_value = 0;
+    }
   } else if(!acceptable_rank(p->dag, rpl_rank_via_parent(p))) {
     /* The candidate parent is no longer valid: the max possible rank increase
        resulting from the choice of it as a parent (meaning it may thereafter
@@ -1817,12 +1842,12 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
        probably a safe bet to not have p as a member of the parent set. */
     LOG_WARN("Unacceptable rank %u (Current min %u, MaxRankInc %u)\n", (unsigned)p->rank,
         p->dag->min_rank, p->dag->instance->max_rankinc);
-    rpl_nullify_parent(p);
+    instance->current_dag == p->dag ? rpl_remove_parent(p) : rpl_nullify_parent(p);
     if(p != instance->current_dag->preferred_parent) {
+      /* TODO determine if returning 0 is appropriate here */
       return 0;
     } else {
-      /* The call to rpl_nullify_parent would have set p->dag->preferred_parent to NULL
-         and thus this branch can only be entered if instance->current_dag != p->dag */
+      /* TODO determine if not instantly returning 0 is appropriate here */
       return_value = 0;
     }
   }
