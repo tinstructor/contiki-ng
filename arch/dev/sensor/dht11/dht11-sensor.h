@@ -1,16 +1,16 @@
 /*
- * Copyright (c) 2017, George Oikonomou - http://www.spd.gr
+ * Copyright (C) 2021 Yago Fontoura do Rosario <yago.rosario@hotmail.com.br>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- *
  * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
+ *
  * 3. Neither the name of the copyright holder nor the names of its
  *    contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
@@ -29,54 +29,82 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /*---------------------------------------------------------------------------*/
+
 /**
- * \addtogroup arm
- *
- * Arm Cortex-M implementation of mutexes using the LDREX, STREX and DMB
- * instructions.
- *
- * @{
+ * \file
+ *      DHT 11 sensor header file
+ * \author
+ *      Yago Fontoura do Rosario <yago.rosario@hotmail.com.br
  */
-/*---------------------------------------------------------------------------*/
-#ifndef MUTEX_CORTEX_H_
-#define MUTEX_CORTEX_H_
-/*---------------------------------------------------------------------------*/
-#include "contiki.h"
 
-#ifdef CMSIS_CONF_HEADER_PATH
-#include CMSIS_CONF_HEADER_PATH
-#endif
+/**
+ * \addtogroup dht11-sensor
+ * @{
+ *
+ * DHT 11 Sensor
+ */
 
-#include <stdint.h>
-#include <stdbool.h>
-/*---------------------------------------------------------------------------*/
-#define mutex_try_lock(m) mutex_cortex_try_lock(m)
-#define mutex_unlock(m)   mutex_cortex_unlock(m)
-/*---------------------------------------------------------------------------*/
-#define MUTEX_CONF_HAS_MUTEX_T 1
-typedef uint8_t mutex_t;
-/*---------------------------------------------------------------------------*/
-static inline bool
-mutex_cortex_try_lock(volatile mutex_t *mutex)
-{
-  do {
-    if(__LDREXB(mutex) != 0) {
-      return false;
-    }
-  } while(__STREXB(1, mutex) != 0);
+#ifndef DHT11_SENSOR_H_
+#define DHT11_SENSOR_H_
 
-  __DMB();
+#include "sensors.h"
 
-  return true;
-}
-/*---------------------------------------------------------------------------*/
-static inline void
-mutex_cortex_unlock(volatile mutex_t *mutex)
-{
-  __DMB();
-  *mutex = 0;
-}
-/*---------------------------------------------------------------------------*/
-#endif /* MUTEX_CORTEX_H_ */
-/*---------------------------------------------------------------------------*/
+extern const struct sensors_sensor dht11_sensor;
+
+/**
+ * @brief DHT11 Configuration type for GPIO Port
+ *
+ */
+#define DHT11_CONFIGURE_GPIO_PORT   (0)
+
+/**
+ * @brief DHT11 Configuration type for GPIO Pin
+ *
+ */
+#define DHT11_CONFIGURE_GPIO_PIN    (1)
+
+/**
+ * @brief DHT11 value type for humidity integer part
+ *
+ */
+#define DHT11_VALUE_HUMIDITY_INTEGER       (0)
+
+/**
+ * @brief DHT11 value type for humidity decimal part
+ *
+ */
+#define DHT11_VALUE_HUMIDITY_DECIMAL       (1)
+
+/**
+ * @brief DHT11 value type for temperature integer part
+ *
+ */
+#define DHT11_VALUE_TEMPERATURE_INTEGER    (2)
+
+/**
+ * @brief DHT11 value type for temperature decimal part
+ *
+ */
+#define DHT11_VALUE_TEMPERATURE_DECIMAL    (3)
+
+/**
+ * @brief DHT11 status okay
+ *
+ */
+#define DHT11_STATUS_OKAY               (0)
+
+/**
+ * @brief DHT11 status timeout
+ *
+ */
+#define DHT11_STATUS_TIMEOUT            (1)
+
+/**
+ * @brief DHT11 status checksum failed
+ *
+ */
+#define DHT11_STATUS_CHECKSUM_FAILED    (2)
+
+#endif /* DHT11_SENSOR_H_ */
+
 /** @} */

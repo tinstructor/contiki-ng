@@ -1,16 +1,16 @@
 /*
- * Copyright (c) 2017, George Oikonomou - http://www.spd.gr
+ * Copyright (C) 2021 Yago Fontoura do Rosario <yago.rosario@hotmail.com.br>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- *
  * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
+ *
  * 3. Neither the name of the copyright holder nor the names of its
  *    contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
@@ -29,54 +29,75 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /*---------------------------------------------------------------------------*/
+
 /**
- * \addtogroup arm
- *
- * Arm Cortex-M implementation of mutexes using the LDREX, STREX and DMB
- * instructions.
- *
- * @{
+ * \file
+ *      DHT 11 sensor example
+ * \author
+ *      Yago Fontoura do Rosario <yago.rosario@hotmail.com.br
  */
-/*---------------------------------------------------------------------------*/
-#ifndef MUTEX_CORTEX_H_
-#define MUTEX_CORTEX_H_
-/*---------------------------------------------------------------------------*/
+
 #include "contiki.h"
 
-#ifdef CMSIS_CONF_HEADER_PATH
-#include CMSIS_CONF_HEADER_PATH
-#endif
+#include <stdio.h>
 
-#include <stdint.h>
-#include <stdbool.h>
+#include "dht11-sensor.h"
 /*---------------------------------------------------------------------------*/
-#define mutex_try_lock(m) mutex_cortex_try_lock(m)
-#define mutex_unlock(m)   mutex_cortex_unlock(m)
+PROCESS(dht11_process, "DHT 11 process");
+AUTOSTART_PROCESSES(&dht11_process);
 /*---------------------------------------------------------------------------*/
-#define MUTEX_CONF_HAS_MUTEX_T 1
-typedef uint8_t mutex_t;
+#define DHT11_GPIO_PORT (1)
+#define DHT11_GPIO_PIN  (12)
 /*---------------------------------------------------------------------------*/
-static inline bool
-mutex_cortex_try_lock(volatile mutex_t *mutex)
+PROCESS_THREAD(dht11_process, ev, data)
 {
-  do {
-    if(__LDREXB(mutex) != 0) {
-      return false;
+  static struct etimer timer;
+
+  PROCESS_BEGIN();
+
+  dht11_sensor.configure(DHT11_CONFIGURE_GPIO_PORT, DHT11_GPIO_PORT);
+  dht11_sensor.configure(DHT11_CONFIGURE_GPIO_PIN, DHT11_GPIO_PIN);
+  dht11_sensor.configure(SENSORS_HW_INIT, 0);
+
+  /* Wait one second for the DHT11 sensor to be ready */
+  etimer_set(&timer, CLOCK_SECOND * 1);
+
+  /* Wait for the periodic timer to expire */
+  PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+
+  /* Setup a periodic timer that expires after 5 seconds. */
+  etimer_set(&timer, CLOCK_SECOND * 5);
+  while(1) {
+    /*
+     * Request a fresh read
+     */
+    SENSORS_ACTIVATE(dht11_sensor);
+
+    printf("%ld ", clock_time());
+    switch(dht11_sensor.status(0)) {
+    case DHT11_STATUS_OKAY:
+      printf("Humidity %d.%d %% ",
+             dht11_sensor.value(DHT11_VALUE_HUMIDITY_INTEGER),
+             dht11_sensor.value(DHT11_VALUE_HUMIDITY_DECIMAL));
+      printf("Temperature = %d.%d *C\n",
+             dht11_sensor.value(DHT11_VALUE_TEMPERATURE_INTEGER),
+             dht11_sensor.value(DHT11_VALUE_TEMPERATURE_DECIMAL));
+      break;
+    case DHT11_STATUS_CHECKSUM_FAILED:
+      printf("Check sum failed\n");
+      break;
+    case DHT11_STATUS_TIMEOUT:
+      printf("Reading timed out\n");
+      break;
+    default:
+      break;
     }
-  } while(__STREXB(1, mutex) != 0);
 
-  __DMB();
+    /* Wait for the periodic timer to expire and then restart the timer. */
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+    etimer_reset(&timer);
+  }
 
-  return true;
+  PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
-static inline void
-mutex_cortex_unlock(volatile mutex_t *mutex)
-{
-  __DMB();
-  *mutex = 0;
-}
-/*---------------------------------------------------------------------------*/
-#endif /* MUTEX_CORTEX_H_ */
-/*---------------------------------------------------------------------------*/
-/** @} */
