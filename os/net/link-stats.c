@@ -759,7 +759,7 @@ link_stats_input_callback(const linkaddr_t *lladdr)
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
     uint16_t old_metric = ile->inferred_metric;
-    /* NOTE the following function call is metric-agnostic and e.g., when the metric is ETX it
+    /* The following function call is metric-agnostic and e.g., when the metric is ETX it
        shall (presumably) simply return the ETX value already stored in the inferred metric parameter
        of the given ile. However, since the function is configurable, we should still call it here
        because it may return some other metric which is updated upon receiving a packet (as opposed

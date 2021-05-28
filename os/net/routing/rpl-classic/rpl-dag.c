@@ -1830,12 +1830,6 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
         through said node), rounded to the next higher integral rank.
      3. The largest computed rank among paths through the parent set,
         minus MaxRankIncrease. */
-  /* Calling acceptable_rank() only checks whether the supplied rank complies to rule 3
-     of RFC6550 Section 8.2.2.4., meaning that it must either be greater than the lowest
-     rank this node has afvertised with the current DODAG version + DAGMaxRankIncrease,
-     or equal to infinity. However, this is not adequate according to RFC6550 Section
-     8.2.2.4., that is, one MUST also make sure to NOT advertise a rank <= the rank
-     advertised by any parent set member within the same DODAG version. */
   if(p->dag->rank <= p->rank) {
     /* We're currently advertising a rank lesser than or equal to the
        the rank advertised by our parent set member p. This is a direct
@@ -1860,14 +1854,12 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
     LOG_WARN_6ADDR(rpl_parent_get_ipaddr(p));
     LOG_WARN_(" advertises a rank (%u) >= our own advertised rank (%u), which is illegal!\n",
               (unsigned)p->rank, (unsigned)p->dag->rank);
-    instance->current_dag == p->dag ? rpl_remove_parent(p) : rpl_nullify_parent(p);
-    if(p != instance->current_dag->preferred_parent) {
-      /* TODO determine if returning 0 is appropriate here */
+    /* TODO describe what happens */
+    if(p->dag->joined) {
+      rpl_remove_parent(p);
       return 0;
-    } else {
-      /* TODO determine if not instantly returning 0 is appropriate here */
-      return_value = 0;
     }
+    return_value = 0;
   } else if(!acceptable_rank(p->dag, rpl_rank_via_parent(p))) {
     /* The candidate parent is no longer valid: the max possible rank increase
        resulting from the choice of it as a parent (meaning it may thereafter
@@ -1880,14 +1872,12 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
        probably a safe bet to not have p as a member of the parent set. */
     LOG_WARN("Unacceptable rank %u (Current min %u, MaxRankInc %u)\n", (unsigned)p->rank,
         p->dag->min_rank, p->dag->instance->max_rankinc);
-    instance->current_dag == p->dag ? rpl_remove_parent(p) : rpl_nullify_parent(p);
-    if(p != instance->current_dag->preferred_parent) {
-      /* TODO determine if returning 0 is appropriate here */
+    /* Same remarks as before */
+    if(p->dag->joined) {
+      rpl_remove_parent(p);
       return 0;
-    } else {
-      /* TODO determine if not instantly returning 0 is appropriate here */
-      return_value = 0;
     }
+    return_value = 0;
   }
 
   if(rpl_select_dag(instance, p) == NULL) {

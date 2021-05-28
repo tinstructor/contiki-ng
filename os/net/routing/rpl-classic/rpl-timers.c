@@ -523,18 +523,6 @@ handle_probing_timer(void *ptr)
       );
 
 #if RPL_PROBING_STALE_INTERFACES_ONLY == 1
-    /* TODO debate if this actually still makes sense as opposed to probing
-       across all interfaces. Before I reworked the freshness mechanism, a
-       probe was sent to the target regardless of its freshness because
-       (even though selection of the target depended -- and still depends --
-       on its freshness) selection of the target was not the responsibility
-       of this function (and it still isn't). Hence, I wonder whether we
-       should even bother to check interface freshness here because it seems
-       innapropriate to me and may even cause the network to be less responsive
-       because nodes and their interfaces are probed less often (which, on the
-       other hand, has the benefit of limiting the amount of overhead induced
-       by the fact that we now have more interfaces). For now, we shall leave
-       this choice up to the implementer by means of a macro */
     /* Instead of just blanket sending a probe over all interfaces, only 
        probe the interfaces of a parent that are not considered fresh */
     if(stats != NULL) {
