@@ -393,19 +393,25 @@ rpl_set_interface_weights(rpl_parent_t *p)
 }
 /*---------------------------------------------------------------------------*/
 #if RPL_WEIGHTED_INTERFACES
-static void
+/* Set the stored interface weight for all interfaces with the supplied id to the
+   supplied weight. Returns 1 if weight was updated and 0 otherwise. */
+static uint8_t
 update_interface_weight(uint8_t if_id, uint8_t weight)
 {
   /* Look for an existing entry in rpl_ifw_collection */
   for(uint8_t i = 0; i < rpl_ifw_collection.size; i++) {
     if(rpl_ifw_collection.if_id_list[i] == if_id) {
-      LOG_DBG("Found ID = %d in RPL interface weight collection, updating weight to %d (previously %d)\n",
-              if_id, weight, rpl_ifw_collection.weights[i]);
-      /* REVIEW we could either make traffic density a moving average or better yet
-         since we're here implies that we have stored a previous weight value, we might
-         as well use an EWMA filter to calculate and assign a new weight */
-      rpl_ifw_collection.weights[i] = weight;
-      return;
+      LOG_DBG("Found ID = %d in RPL interface weight collection,", if_id);
+      if(rpl_ifw_collection.weights[i] != weight) {
+        LOG_DBG_(" updating weight to %d (previously %d)\n", weight, rpl_ifw_collection.weights[i]);
+        /* REVIEW we could either make traffic density a moving average or better yet
+          since we're here implies that we have stored a previous weight value, we might
+          as well use an EWMA filter to calculate and assign a new weight */
+        rpl_ifw_collection.weights[i] = weight;
+        return 1;
+      }
+      LOG_DBG_(" not updating weight because still %d\n", weight);
+      return 0;
     }
   }
   /* If no entry exists, create one (if possible) */
@@ -415,10 +421,11 @@ update_interface_weight(uint8_t if_id, uint8_t weight)
     rpl_ifw_collection.size++;
     LOG_DBG("Added new entry to RPL interface weight collection for ID = %d with weight %d\n",
             if_id, weight);
-    return;
+    return 1;
   }
   LOG_DBG("Failed adding new entry to RPL interface weight collection for ID = %d, too many entries\n",
           if_id);
+  return 0;
 }
 #endif
 /*---------------------------------------------------------------------------*/
@@ -453,6 +460,7 @@ rpl_recalculate_interface_weights(void)
       LOG_DBG("Size of if_id collection exceeds RADIO_MAX_INTERFACES. Aborting weight recalculation.\n");
       return;
     }
+    uint8_t weights_updated = 0;
     for(uint8_t i = 0; i < if_id_collection.size; i++) {
       /* At this point we assume each if_id appears at most once in
          the if_id_collection's if_id_list. However, we won't check this
@@ -464,12 +472,11 @@ rpl_recalculate_interface_weights(void)
       double exponent = (density * (double)data_rate) / 8197.7;
       double precise_weight = pow(2.0, exponent); /* Approaches 255 for density * data_rate = 65535 */
       weight = (uint8_t)(precise_weight + 0.5);
-      update_interface_weight(if_id, weight);
+      weights_updated |= update_interface_weight(if_id, weight);
     }
-    /* TODO it makes no sense to re-select the preferred interfaces if there's
-       been no change in weight for any interface type. However, there's currently
-       no way of telling whether any weight has changed or not */
-    link_stats_select_pref_interfaces();
+    if(weights_updated) {
+      link_stats_select_pref_interfaces();
+    }
   } else {
     LOG_DBG("Could not retrieve if_id collection from radio driver. Aborting weight recalculation.\n");
     return;
@@ -1035,10 +1042,18 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
   if(instance->current_dag->rank != ROOT_RANK(instance)) {
     /* Select a new preferred parent. This causes the rank to be recomputed
        for all parents before comparing said computed ranks and choosing the
-       best candidate as the new preferred parent */
+       best candidate as the new preferred parent, that is, for the dag of
+       which the supplied parent p is part. Note that p->dag does not always
+       equal instance->current_dag. */
     rpl_select_parent(p->dag);
   }
 
+  /* Iterate through the dag_table of the supplied instance (first RPL_MAX_DAG_PER_INSTANCE
+     positions in dag_table only) and if a dag is used, has a preferred parent and the
+     rank we advertise in said dag is not RPL_INFINITE_RANK, then we either set best_dag
+     to said dag if best_dag is NULL, or we compare the dag to the one currently stored
+     in best_dag and overwrite best_dag if the dag in the current iteration is better (as
+     determined by the OF). */
   best_dag = NULL;
   for(dag = &instance->dag_table[0], end = dag + RPL_MAX_DAG_PER_INSTANCE; dag < end; ++dag) {
     if(dag->used && dag->preferred_parent != NULL && dag->preferred_parent->rank != RPL_INFINITE_RANK) {
@@ -1051,10 +1066,17 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
   }
 
   if(best_dag == NULL) {
-    /* No parent found: the calling function handle this problem. */
+    /* This could happen if we have not yet added any dag in the supplied instance or
+       if we have done so but none of the added dags has a preferred parent or if we
+       advertise RPL_INFINITE_RANK in all added dags of the supplied instance. The most
+       likely scenario is that none of the dags has a preferred parent. In any case,
+       the calling function should handle this problem and we simply return NULL. */
     return NULL;
   }
 
+  /* The best dag for the supplied instance, as determined by the OF, does not equal
+     the dag of the supplied instance we're currently part of and so we must join
+     best_dag instead. */
   if(instance->current_dag != best_dag) {
     /* Remove routes installed by DAOs. */
     if(RPL_IS_STORING(instance)) {
@@ -1078,6 +1100,13 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
 
   instance->of->update_metric_container(instance);
   /* Update the DAG rank. */
+  /* Previously best_dag->rank was simply set to rpl_rank_via_parent(best_dag->preferred_parent).
+     However, this was not accurate for all OFs. Hence, rpl rpl_rank_via_dag() and a per-OF
+     rank_via_dag() function were introduced to allow each OF to return any rank calculated
+     from the parents that are part of the supplied dag. For OF0-based OFs, this doesn't change
+     much, as they simply return the rank computed for the path through the preferred parent
+     of the supplied dag (which is identical to previous behavior). However, for MRHOF-based
+     OFs this means that we can now comply with RFC 6719 Section 3.3. */
   linkaddr_t blame;
   best_dag->rank = rpl_rank_via_dag(best_dag, &blame);
   if(last_parent == NULL || best_dag->rank < best_dag->min_rank) {
@@ -1094,7 +1123,7 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
        is not neccessarily equal to the the rank we're supposed to advertise, which is
        rpl_rank_via_dag(best_dag, blame). The parent responsible for the rank is available
        via blame. */
-    // if(linkaddr_cmp(&blame, rpl_get_parent_lladdr(instance->current_dag->preferred_parent))) { 
+    // if(linkaddr_cmp(&blame, rpl_get_parent_lladdr(best_dag->preferred_parent))) { 
     // }
     rpl_set_preferred_parent(instance->current_dag, NULL);
     if(RPL_IS_STORING(instance) && last_parent != NULL) {
@@ -1105,6 +1134,10 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
   }
 
   if(best_dag->preferred_parent != last_parent) {
+    /* Our preferred parent could only have changed if we changed dags or if we didn't because
+       p->dag was already best_dag but rpl_select_parent(p->dag) did result in a new parent
+       becoming preferred. Remember that best_dag always has a preferred parent because otherwise
+       we would have already returned NULL */
     rpl_set_default_route(instance, rpl_parent_get_ipaddr(best_dag->preferred_parent));
     LOG_INFO("Changed preferred parent, rank changed from %u to %u\n",
            (unsigned)old_rank, best_dag->rank);
@@ -1125,6 +1158,7 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
       rpl_print_neighbor_list();
     }
   } else if(best_dag->rank != old_rank) {
+    /* At this point we know that TODO */
     LOG_DBG("RPL: Preferred parent update, rank changed from %u to %u\n",
            (unsigned)old_rank, best_dag->rank);
   }
@@ -1782,7 +1816,7 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
     rpl_remove_routes_by_nexthop(rpl_parent_get_ipaddr(p), p->dag);
   }
   
-  /* NOTE prior to my RFC compliant implementation of MRHOF, the advertised rank depended
+  /* Prior to my RFC compliant implementation of MRHOF, the advertised rank depended
      solely on the rank computed for the path through the preferred parent and thus if
      the rank of a parent was not acceptable, it was sufficient to make sure that it was
      no longer preferred by nullifying it in order to prevent oneself from advertising
@@ -1813,11 +1847,15 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
        future and, besides, keeping p when it belongs to another dag is
        not harmfull to us anyway because rank_via_dag() only takes into
        account the parents that are part of the supplied dag argument. */
-    /* TODO make sure this branch complies with rule 4 of RFC6550 Section 8.2.2.4.,
-       i.e., a node MAY, at any time, choose to join a different DODAG within an
-       instance. Such a join has no rank restrictions, unless that "different" DODAG
-       is a DODAG Version of which this node has previously been a member; in which
-       case, rule 3 of RFC6550 Section 8.2.2.4. must be observed! */
+    /* This branch complies with rule 4 of RFC6550 Section 8.2.2.4., i.e., a node MAY,
+       at any time, choose to join a different DODAG within an instance. Such a join
+       has no rank restrictions, unless that "different" DODAG is a DODAG Version of
+       which this node has previously been a member; in which case, rule 3 of RFC6550
+       Section 8.2.2.4. must be observed! More specifically, if we haven't previously
+       been part of p->dag, then p->dag->rank shall be RPL_INFINITE_RANK and thus the
+       branch condition is never true unless p advertises RPL_INFINITE_RANK, in which
+       case RFC 6550 Section 8.2.2.5. states that a node MUST NOT have any nodes with
+       a rank of RPL_INFINITE_RANK in its parent set anyway. */
     LOG_WARN("Parent ");
     LOG_WARN_6ADDR(rpl_parent_get_ipaddr(p));
     LOG_WARN_(" advertises a rank (%u) >= our own advertised rank (%u), which is illegal!\n",

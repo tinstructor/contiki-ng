@@ -139,6 +139,8 @@
 
 #else /* CONTIKI_TARGET_COOJA == 0 */
 #define RPL_CONF_PROBING_STALE_INTERFACES_ONLY      0
+// #define RPL_CONF_OF_OCP                             RPL_OCP_OF0
+// #define RPL_CONF_SUPPORTED_OFS                      { &rpl_of0 }
 #endif /* CONTIKI_TARGET_COOJA == 0 */
 
 #define LOG_CONF_LEVEL_APP      LOG_LEVEL_INFO
