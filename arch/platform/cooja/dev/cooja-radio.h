@@ -63,14 +63,6 @@ extern const struct radio_driver cooja_radio_driver;
 void
 radio_set_channel(int channel);
 
-#if COOJA_WITH_TWOFACED
-/**
- * Set twofaced radio channel.
- */
-void
-radio_set_channel_twofaced(int channel);
-#endif
-
 /**
  * Set transmission power of transceiver.
  *
@@ -97,5 +89,38 @@ radio_signal_strength_current(void);
 int
 radio_LQI(void);
 
+#if COOJA_WITH_TWOFACED
+/**
+ * Set twofaced radio channel.
+ */
+void
+radio_set_channel_twofaced(int channel);
+
+/**
+ * Set transmission power of twofaced transceiver.
+ *
+ * \param p The power of the twofaced transceiver, between 1 and 100.
+ */
+void
+radio_set_txpower_twofaced(unsigned char p);
+
+/**
+ * The signal strength of the last received packet on the twofaced transceiver.
+ */
+int
+radio_signal_strength_last_twofaced(void);
+
+/**
+ * This current signal strength on the twofaced transceiver.
+ */
+int
+radio_signal_strength_current_twofaced(void);
+
+/**
+ * Link quality indicator of last received packet on the twofaced transceiver.
+ */
+int
+radio_LQI_twofaced(void);
+#endif
 
 #endif /* COOJA_RADIO_H_ */

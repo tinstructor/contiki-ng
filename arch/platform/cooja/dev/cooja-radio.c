@@ -141,22 +141,11 @@ radio_set_channel(int channel)
   simRadioChannel = channel;
 }
 /*---------------------------------------------------------------------------*/
-#if COOJA_WITH_TWOFACED
-void
-radio_set_channel_twofaced(int channel)
-{
-  simRadioChannelTwofaced = channel;
-}
-#endif
-/*---------------------------------------------------------------------------*/
 void
 radio_set_txpower(unsigned char power)
 {
   /* 1 - 100: Number indicating output power */
   simPower = power;
-#if COOJA_WITH_TWOFACED
-  simPowerTwofaced = power;
-#endif
 }
 /*---------------------------------------------------------------------------*/
 int
@@ -176,6 +165,39 @@ radio_LQI(void)
 {
   return simLQI;
 }
+/*---------------------------------------------------------------------------*/
+#if COOJA_WITH_TWOFACED
+void
+radio_set_channel_twofaced(int channel)
+{
+  simRadioChannelTwofaced = channel;
+}
+/*---------------------------------------------------------------------------*/
+void
+radio_set_txpower_twofaced(unsigned char power)
+{
+  /* 1 - 100: Number indicating output power */
+  simPowerTwofaced = power;
+}
+/*---------------------------------------------------------------------------*/
+int
+radio_signal_strength_last_twofaced(void)
+{
+  return simLastSignalStrengthTwofaced;
+}
+/*---------------------------------------------------------------------------*/
+int
+radio_signal_strength_current_twofaced(void)
+{
+  return simSignalStrengthTwofaced;
+}
+/*---------------------------------------------------------------------------*/
+int
+radio_LQI_twofaced(void)
+{
+  return simLQITwofaced;
+}
+#endif
 /*---------------------------------------------------------------------------*/
 static int
 radio_on(void)
@@ -453,18 +475,39 @@ get_value(radio_param_t param, radio_value_t *value)
     }
     return RADIO_RESULT_OK;
   case RADIO_PARAM_LAST_RSSI:
+#if COOJA_WITH_TWOFACED
+    // TODO
+#else
     *value = simSignalStrength;
     return RADIO_RESULT_OK;
+#endif
   case RADIO_PARAM_LAST_LINK_QUALITY:
+#if COOJA_WITH_TWOFACED
+    // TODO
+#else
     *value = simLQI;
     return RADIO_RESULT_OK;
+#endif
   case RADIO_PARAM_RSSI:
+#if COOJA_WITH_TWOFACED
+    // TODO
+#else
     /* return a fixed value depending on the channel */
     *value = -90 + simRadioChannel - 11;
     return RADIO_RESULT_OK;
+#endif
   case RADIO_CONST_MAX_PAYLOAD_LEN:
     *value = (radio_value_t)COOJA_RADIO_BUFSIZE;
     return RADIO_RESULT_OK;
+#if COOJA_WITH_TWOFACED
+  // TODO case RADIO_PARAM_CHANNEL:
+  case RADIO_CONST_MULTI_RF:
+    *value = RADIO_MULTI_RF_EN;
+    return RADIO_RESULT_OK;
+  // TODO case RADIO_CONST_INTERFACE_ID:
+  // TODO case RADIO_CONST_DEFAULT_CHANNEL:
+  // TODO case RADIO_CONST_DATA_RATE:
+#endif
   default:
     return RADIO_RESULT_NOT_SUPPORTED;
   }
@@ -501,11 +544,15 @@ set_value(radio_param_t param, radio_value_t value)
     set_send_on_cca((value & RADIO_TX_MODE_SEND_ON_CCA) != 0);
     return RADIO_RESULT_OK;
   case RADIO_PARAM_CHANNEL:
+#if COOJA_WITH_TWOFACED
+    // TODO
+#else
     if(value < 11 || value > 26) {
       return RADIO_RESULT_INVALID_VALUE;
     }
     radio_set_channel(value);
     return RADIO_RESULT_OK;
+#endif
   default:
     return RADIO_RESULT_NOT_SUPPORTED;
   }
