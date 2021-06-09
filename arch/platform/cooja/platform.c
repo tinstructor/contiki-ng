@@ -111,7 +111,12 @@ SIM_INTERFACE_NAME(clock_interface);
 SIM_INTERFACE_NAME(leds_interface);
 SIM_INTERFACE_NAME(cfs_interface);
 SIM_INTERFACE_NAME(eeprom_interface);
+#if COOJA_WITH_TWOFACED
+SIM_INTERFACE_NAME(twofaced_radio_interface);
+SIM_INTERFACES(&vib_interface, &moteid_interface, &rs232_interface, &simlog_interface, &beep_interface, &radio_interface, &twofaced_radio_interface, &button_interface, &pir_interface, &clock_interface, &leds_interface, &cfs_interface, &eeprom_interface);
+#else
 SIM_INTERFACES(&vib_interface, &moteid_interface, &rs232_interface, &simlog_interface, &beep_interface, &radio_interface, &button_interface, &pir_interface, &clock_interface, &leds_interface, &cfs_interface, &eeprom_interface);
+#endif
 /* Example: manually add mote interfaces */
 //SIM_INTERFACE_NAME(dummy_interface);
 //SIM_INTERFACES(..., &dummy_interface);

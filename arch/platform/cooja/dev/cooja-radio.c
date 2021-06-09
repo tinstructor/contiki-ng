@@ -39,6 +39,9 @@
 #include "net/packetbuf.h"
 #include "net/netstack.h"
 #include "sys/energest.h"
+#if COOJA_WITH_TWOFACED
+#include "sys/mutex.h"
+#endif
 
 #include "dev/radio.h"
 #include "dev/cooja-radio.h"
@@ -57,6 +60,12 @@
 #define CCA_SS_THRESHOLD -95
 
 const struct simInterface radio_interface;
+#if COOJA_WITH_TWOFACED
+const struct simInterface twofaced_radio_interface;
+
+/* A lock that prevents changing interfaces when innapropriate */
+static volatile mutex_t rf_lock = MUTEX_STATUS_UNLOCKED;
+#endif
 
 /* COOJA */
 char simReceiving = 0;
@@ -71,6 +80,23 @@ int simLastSignalStrength = -100;
 char simPower = 100;
 int simRadioChannel = 26;
 int simLQI = 105;
+
+
+#if COOJA_WITH_TWOFACED
+/* TWOFACED */
+char simReceivingTwofaced = 0;
+char simInDataBufferTwofaced[COOJA_RADIO_BUFSIZE];
+int simInSizeTwofaced = 0;
+rtimer_clock_t simLastPacketTimestampTwofaced = 0;
+char simOutDataBufferTwofaced[COOJA_RADIO_BUFSIZE];
+int simOutSizeTwofaced = 0;
+char simRadioHWOnTwofaced = 1;
+int simSignalStrengthTwofaced = -100;
+int simLastSignalStrengthTwofaced = -100;
+char simPowerTwofaced = 100;
+int simRadioChannelTwofaced = 5;
+int simLQITwofaced = 105;
+#endif
 
 static const void *pending_data;
 
@@ -112,11 +138,22 @@ radio_set_channel(int channel)
   simRadioChannel = channel;
 }
 /*---------------------------------------------------------------------------*/
+#if COOJA_WITH_TWOFACED
+void
+radio_set_channel_twofaced(int channel)
+{
+  simRadioChannelTwofaced = channel;
+}
+#endif
+/*---------------------------------------------------------------------------*/
 void
 radio_set_txpower(unsigned char power)
 {
   /* 1 - 100: Number indicating output power */
   simPower = power;
+#if COOJA_WITH_TWOFACED
+  simPowerTwofaced = power;
+#endif
 }
 /*---------------------------------------------------------------------------*/
 int
@@ -142,6 +179,9 @@ radio_on(void)
 {
   ENERGEST_ON(ENERGEST_TYPE_LISTEN);
   simRadioHWOn = 1;
+#if COOJA_WITH_TWOFACED
+  simRadioHWOnTwofaced = 1;
+#endif
   return 1;
 }
 /*---------------------------------------------------------------------------*/
@@ -150,12 +190,18 @@ radio_off(void)
 {
   ENERGEST_OFF(ENERGEST_TYPE_LISTEN);
   simRadioHWOn = 0;
+#if COOJA_WITH_TWOFACED
+  simRadioHWOnTwofaced = 0;
+#endif
   return 1;
 }
 /*---------------------------------------------------------------------------*/
 static void
 doInterfaceActionsBeforeTick(void)
 {
+#if COOJA_WITH_TWOFACED
+  // TODO
+#else
   if(!simRadioHWOn) {
     simInSize = 0;
     return;
@@ -168,6 +214,7 @@ doInterfaceActionsBeforeTick(void)
   if(simInSize > 0) {
     process_poll(&cooja_radio_process);
   }
+#endif
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -178,6 +225,9 @@ doInterfaceActionsAfterTick(void)
 static int
 radio_read(void *buf, unsigned short bufsize)
 {
+#if COOJA_WITH_TWOFACED
+  // TODO
+#else
   int tmp = simInSize;
 
   if(simInSize == 0) {
@@ -196,20 +246,28 @@ radio_read(void *buf, unsigned short bufsize)
   }
 
   return tmp;
+#endif
 }
 /*---------------------------------------------------------------------------*/
 static int
 channel_clear(void)
 {
+#if COOJA_WITH_TWOFACED
+  // TODO
+#else
   if(simSignalStrength > CCA_SS_THRESHOLD) {
     return 0;
   }
   return 1;
+#endif
 }
 /*---------------------------------------------------------------------------*/
 static int
 radio_send(const void *payload, unsigned short payload_len)
 {
+#if COOJA_WITH_TWOFACED
+  // TODO
+#else
   int result;
   int radio_was_on = simRadioHWOn;
 
@@ -264,6 +322,7 @@ radio_send(const void *payload, unsigned short payload_len)
 
   simRadioHWOn = radio_was_on;
   return result;
+#endif
 }
 /*---------------------------------------------------------------------------*/
 static int
@@ -289,14 +348,54 @@ transmit_packet(unsigned short len)
 static int
 receiving_packet(void)
 {
+#if COOJA_WITH_TWOFACED
+  // TODO
+#else
   return simReceiving;
+#endif
 }
 /*---------------------------------------------------------------------------*/
 static int
 pending_packet(void)
 {
+#if COOJA_WITH_TWOFACED
+  // TODO
+#else
   return !simReceiving && simInSize > 0;
+#endif
 }
+/*---------------------------------------------------------------------------*/
+#if COOJA_WITH_TWOFACED
+static int
+lock_interface(void)
+{
+  return mutex_try_lock(&rf_lock);
+}
+/*---------------------------------------------------------------------------*/
+static void
+unlock_interface(void)
+{
+  mutex_unlock(&rf_lock);
+}
+/*---------------------------------------------------------------------------*/
+static int
+channel_clear_all(void)
+{
+  return (simSignalStrength <= CCA_SS_THRESHOLD) && (simSignalStrengthTwofaced <= CCA_SS_THRESHOLD);
+}
+/*---------------------------------------------------------------------------*/
+static int
+receiving_packet_all(void)
+{
+  return simReceiving || simReceivingTwofaced;
+}
+/*---------------------------------------------------------------------------*/
+static int
+pending_packet_all(void)
+{
+  return (!simReceiving && simInSize > 0) || (!simReceivingTwofaced && simInSizeTwofaced > 0);
+}
+#endif
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(cooja_radio_process, ev, data)
 {
@@ -443,9 +542,28 @@ const struct radio_driver cooja_radio_driver =
     get_value,
     set_value,
     get_object,
-    set_object
+    set_object,
+#if COOJA_WITH_TWOFACED
+    lock_interface,
+    unlock_interface,
+    channel_clear_all,
+    receiving_packet_all,
+    pending_packet_all,
+#else
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+#endif
+    "cooja_radio_driver"
 };
 /*---------------------------------------------------------------------------*/
 SIM_INTERFACE(radio_interface,
               doInterfaceActionsBeforeTick,
               doInterfaceActionsAfterTick);
+#if COOJA_WITH_TWOFACED
+SIM_INTERFACE(twofaced_radio_interface,
+              doInterfaceActionsBeforeTick,
+              doInterfaceActionsAfterTick);
+#endif

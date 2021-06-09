@@ -48,6 +48,12 @@
 #define COOJA_TRANSMIT_ON_CCA 1
 #endif
 
+#ifdef COOJA_CONF_WITH_TWOFACED
+#define COOJA_WITH_TWOFACED COOJA_CONF_WITH_TWOFACED
+#else
+#define COOJA_WITH_TWOFACED MAC_CONF_WITH_TWOFACED
+#endif
+
 extern const struct radio_driver cooja_radio_driver;
 
 /**
@@ -55,6 +61,14 @@ extern const struct radio_driver cooja_radio_driver;
  */
 void
 radio_set_channel(int channel);
+
+#if COOJA_WITH_TWOFACED
+/**
+ * Set twofaced radio channel.
+ */
+void
+radio_set_channel_twofaced(int channel);
+#endif
 
 /**
  * Set transmission power of transceiver.
