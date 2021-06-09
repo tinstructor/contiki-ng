@@ -279,6 +279,14 @@ enum radio_param_e {
   RADIO_PARAM_LAST_PACKET_TIMESTAMP,
 
   /**
+   * Serves exactly the same purpose as `RADIO_PARAM_LAST_PACKET_TIMESTAMP`, however,
+   * it retrieves the timestamp of the secondary interface (if available / configured).
+   * 
+   * Works only with cooja.
+   */
+  RADIO_PARAM_LAST_PACKET_TIMESTAMP_COOJA_TWOFACED,
+
+  /**
    * For enabling and disabling the SHR search
    *
    * Setting this param to `RADIO_SHR_SEARCH_DIS` will disable SHR search.

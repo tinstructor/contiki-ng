@@ -52,6 +52,7 @@
 #define COOJA_WITH_TWOFACED COOJA_CONF_WITH_TWOFACED
 #else
 #define COOJA_WITH_TWOFACED MAC_CONF_WITH_TWOFACED
+// #define COOJA_WITH_TWOFACED 1
 #endif
 
 extern const struct radio_driver cooja_radio_driver;

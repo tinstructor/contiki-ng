@@ -39,12 +39,13 @@
 #include "net/packetbuf.h"
 #include "net/netstack.h"
 #include "sys/energest.h"
-#if COOJA_WITH_TWOFACED
-#include "sys/mutex.h"
-#endif
 
 #include "dev/radio.h"
 #include "dev/cooja-radio.h"
+
+#if COOJA_WITH_TWOFACED
+#include "sys/mutex.h"
+#endif
 
 /*
  * The maximum number of bytes this driver can accept from the MAC layer for
@@ -65,6 +66,8 @@ const struct simInterface twofaced_radio_interface;
 
 /* A lock that prevents changing interfaces when innapropriate */
 static volatile mutex_t rf_lock = MUTEX_STATUS_UNLOCKED;
+/* A collection of all interface ids */
+static const if_id_collection_t if_id_collection = { {1, 2}, {250, 100}, 2 };
 #endif
 
 /* COOJA */
@@ -517,6 +520,20 @@ get_object(radio_param_t param, void *dest, size_t size)
     }
     *(rtimer_clock_t *)dest = (rtimer_clock_t)simLastPacketTimestamp;
     return RADIO_RESULT_OK;
+#if COOJA_WITH_TWOFACED
+  } else if(param == RADIO_PARAM_LAST_PACKET_TIMESTAMP_COOJA_TWOFACED) {
+    if(size != sizeof(rtimer_clock_t) || !dest) {
+      return RADIO_RESULT_INVALID_VALUE;
+    }
+    *(rtimer_clock_t *)dest = (rtimer_clock_t)simLastPacketTimestampTwofaced;
+    return RADIO_RESULT_OK;
+  } else if(param == RADIO_CONST_INTERFACE_ID_COLLECTION) {
+    if(size == sizeof(if_id_collection_t)) {
+      *(if_id_collection_t *)dest = if_id_collection;
+      return RADIO_RESULT_OK;
+    }
+    return RADIO_RESULT_ERROR;
+#endif
   }
   return RADIO_RESULT_NOT_SUPPORTED;
 }
