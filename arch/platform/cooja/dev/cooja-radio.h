@@ -55,6 +55,32 @@
 // #define COOJA_WITH_TWOFACED 1
 #endif
 
+#if COOJA_WITH_TWOFACED
+#ifdef COOJA_CONF_PRIMARY_IF_ID
+#define COOJA_PRIMARY_IF_ID   COOJA_CONF_PRIMARY_IF_ID
+#else
+#define COOJA_PRIMARY_IF_ID   1
+#endif
+
+#ifdef COOJA_CONF_SECONDARY_IF_ID
+#define COOJA_SECONDARY_IF_ID COOJA_CONF_SECONDARY_IF_ID
+#else
+#define COOJA_SECONDARY_IF_ID 2
+#endif
+
+#ifdef COOJA_CONF_PRIMARY_IF_DR
+#define COOJA_PRIMARY_IF_DR   COOJA_CONF_PRIMARY_IF_DR
+#else
+#define COOJA_PRIMARY_IF_DR   250
+#endif
+
+#ifdef COOJA_CONF_SECONDARY_IF_DR
+#define COOJA_SECONDARY_IF_DR COOJA_CONF_SECONDARY_IF_DR
+#else
+#define COOJA_SECONDARY_IF_DR 100
+#endif
+#endif
+
 extern const struct radio_driver cooja_radio_driver;
 
 /**

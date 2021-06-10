@@ -96,12 +96,19 @@ int simLQITwofaced = 105;
 /* A lock that prevents changing interfaces when innapropriate */
 static volatile mutex_t rf_lock = MUTEX_STATUS_UNLOCKED;
 /* A collection of all interface ids */
-static const if_id_collection_t if_id_collection = { {1, 2}, {250, 100}, 2 };
+static const if_id_collection_t if_id_collection = { {COOJA_PRIMARY_IF_ID, COOJA_SECONDARY_IF_ID},
+                                                     {COOJA_PRIMARY_IF_DR, COOJA_SECONDARY_IF_DR},
+                                                     2 };
 /* The twofaced interface state */
 static uint8_t twofaced_rf_flags = 0x00;
+/* The id of the currently selected interface */
+static uint8_t sel_if_id;
+/* The id of the next interface to be selected */
+static uint8_t next_if_id;
 
 /* The supported twofaced-rf flag bitmasks */
 #define TWOFACED_RF_UPDATE_IF_VIA_ID    0x01
+#define TWOFACED_RF_INITIALIZED         0x02
 #endif
 
 static const void *pending_data;
@@ -206,9 +213,19 @@ static int
 radio_on(void)
 {
   ENERGEST_ON(ENERGEST_TYPE_LISTEN);
-  simRadioHWOn = 1;
 #if COOJA_WITH_TWOFACED
+#if MAC_CONF_WITH_TWOFACED
+  simRadioHWOn = 1;
   simRadioHWOnTwofaced = 1;
+#else
+  if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+    simRadioHWOn = 1;
+  } else {
+    simRadioHWOnTwofaced = 1;
+  }
+#endif
+#else
+  simRadioHWOn = 1;
 #endif
   return 1;
 }
@@ -217,9 +234,19 @@ static int
 radio_off(void)
 {
   ENERGEST_OFF(ENERGEST_TYPE_LISTEN);
-  simRadioHWOn = 0;
 #if COOJA_WITH_TWOFACED
+#if MAC_CONF_WITH_TWOFACED
+  simRadioHWOn = 0;
   simRadioHWOnTwofaced = 0;
+#else
+  if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+    simRadioHWOn = 0;
+  } else {
+    simRadioHWOnTwofaced = 0;
+  }
+#endif
+#else
+  simRadioHWOn = 0;
 #endif
   return 1;
 }
@@ -254,8 +281,45 @@ static int
 radio_read(void *buf, unsigned short bufsize)
 {
 #if COOJA_WITH_TWOFACED
-  /* TODO check which interface is currently preferred and perform a
+  /* Check which interface is currently preferred and perform a
      read operation for that interface only */
+  int tmp;
+  if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+    tmp = simInSize;
+    if(simInSize == 0) {
+      return 0;
+    }
+    if(bufsize < simInSize) {
+      simInSize = 0; /* rx flush */
+      return 0;
+    }
+
+    memcpy(buf, simInDataBuffer, simInSize);
+    simInSize = 0;
+    if(!poll_mode) {
+      packetbuf_set_attr(PACKETBUF_ATTR_RSSI, simSignalStrength);
+      packetbuf_set_attr(PACKETBUF_ATTR_LINK_QUALITY, simLQI);
+      packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, COOJA_PRIMARY_IF_ID);
+    }
+  } else {
+    tmp = simInSizeTwofaced;
+    if(simInSizeTwofaced == 0) {
+      return 0;
+    }
+    if(bufsize < simInSizeTwofaced) {
+      simInSizeTwofaced = 0; /* rx flush */
+      return 0;
+    }
+
+    memcpy(buf, simInDataBufferTwofaced, simInSizeTwofaced);
+    simInSizeTwofaced = 0;
+    if(!poll_mode) {
+      packetbuf_set_attr(PACKETBUF_ATTR_RSSI, simSignalStrengthTwofaced);
+      packetbuf_set_attr(PACKETBUF_ATTR_LINK_QUALITY, simLQITwofaced);
+      packetbuf_set_attr(PACKETBUF_ATTR_INTERFACE_ID, COOJA_SECONDARY_IF_ID);
+    }
+  }
+  return tmp;
 #else
   int tmp = simInSize;
 
@@ -282,7 +346,17 @@ static int
 channel_clear(void)
 {
 #if COOJA_WITH_TWOFACED
-  // TODO
+  if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+    if(simSignalStrength > CCA_SS_THRESHOLD) {
+      return 0;
+    }
+    return 1;
+  } else {
+    if(simSignalStrengthTwofaced > CCA_SS_THRESHOLD) {
+      return 0;
+    }
+    return 1;
+  }
 #else
   if(simSignalStrength > CCA_SS_THRESHOLD) {
     return 0;
@@ -295,7 +369,82 @@ static int
 radio_send(const void *payload, unsigned short payload_len)
 {
 #if COOJA_WITH_TWOFACED
-  // TODO
+  int result;
+  int radio_was_on = (sel_if_id == COOJA_PRIMARY_IF_ID) ? simRadioHWOn : simRadioHWOnTwofaced;
+
+  if(payload_len > COOJA_RADIO_BUFSIZE) {
+    return RADIO_TX_ERR;
+  }
+  if(payload_len == 0) {
+    return RADIO_TX_ERR;
+  }
+
+  if((sel_if_id == COOJA_PRIMARY_IF_ID) && (simOutSize > 0)) {
+    return RADIO_TX_ERR;
+  }
+  if((sel_if_id != COOJA_PRIMARY_IF_ID) && (simOutSizeTwofaced > 0)) {
+    return RADIO_TX_ERR;
+  }
+
+  if(radio_was_on) {
+    ENERGEST_SWITCH(ENERGEST_TYPE_LISTEN, ENERGEST_TYPE_TRANSMIT);
+  } else {
+    /* Turn on radio temporarily */
+    if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+      simRadioHWOn = 1;
+    } else {
+      simRadioHWOnTwofaced = 1;
+    }
+    ENERGEST_ON(ENERGEST_TYPE_TRANSMIT);
+  }
+
+#if COOJA_SIMULATE_TURNAROUND
+  simProcessRunValue = 1;
+  cooja_mt_yield();
+  if(payload_len > 3) {
+    simProcessRunValue = 1;
+    cooja_mt_yield();
+  }
+#endif /* COOJA_SIMULATE_TURNAROUND */
+
+  /* Transmit on CCA */
+  if(COOJA_TRANSMIT_ON_CCA && send_on_cca && !channel_clear()) {
+    result = RADIO_TX_COLLISION;
+  } else {
+    /* Copy packet data to temporary storage */
+    if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+      memcpy(simOutDataBuffer, payload, payload_len);
+      simOutSize = payload_len;
+
+      /* Transmit */
+      while(simOutSize > 0) {
+        cooja_mt_yield();
+      }
+    } else {
+      memcpy(simOutDataBufferTwofaced, payload, payload_len);
+      simOutSizeTwofaced = payload_len;
+
+      /* Transmit */
+      while(simOutSizeTwofaced > 0) {
+        cooja_mt_yield();
+      }
+    }
+
+    result = RADIO_TX_OK;
+  }
+
+  if(radio_was_on) {
+    ENERGEST_SWITCH(ENERGEST_TYPE_TRANSMIT, ENERGEST_TYPE_LISTEN);
+  } else {
+    ENERGEST_OFF(ENERGEST_TYPE_TRANSMIT);
+  }
+
+  if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+    simRadioHWOn = radio_was_on;
+  } else {
+    simRadioHWOnTwofaced = radio_was_on;
+  }
+  return result;
 #else
   int result;
   int radio_was_on = simRadioHWOn;
@@ -357,36 +506,31 @@ radio_send(const void *payload, unsigned short payload_len)
 static int
 prepare_packet(const void *data, unsigned short len)
 {
-#if COOJA_WITH_TWOFACED
-  // TODO
-#else
   if(len > COOJA_RADIO_BUFSIZE) {
     return RADIO_TX_ERR;
   }
   pending_data = data;
   return 0;
-#endif
 }
 /*---------------------------------------------------------------------------*/
 static int
 transmit_packet(unsigned short len)
 {
-#if COOJA_WITH_TWOFACED
-  // TODO
-#else
   int ret = RADIO_TX_ERR;
   if(pending_data != NULL) {
     ret = radio_send(pending_data, len);
   }
   return ret;
-#endif
 }
 /*---------------------------------------------------------------------------*/
 static int
 receiving_packet(void)
 {
 #if COOJA_WITH_TWOFACED
-  // TODO
+  if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+    return simReceiving;
+  }
+  return simReceivingTwofaced;
 #else
   return simReceiving;
 #endif
@@ -396,7 +540,10 @@ static int
 pending_packet(void)
 {
 #if COOJA_WITH_TWOFACED
-  // TODO
+  if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+    return !simReceiving && simInSize > 0;
+  }
+  return !simReceivingTwofaced && simInSizeTwofaced > 0;
 #else
   return !simReceiving && simInSize > 0;
 #endif
@@ -432,6 +579,48 @@ pending_packet_all(void)
 {
   return (!simReceiving && simInSize > 0) || (!simReceivingTwofaced && simInSizeTwofaced > 0);
 }
+/*---------------------------------------------------------------------------*/
+static radio_result_t
+set_if_via_id(uint8_t if_id)
+{
+#if MAC_CONF_WITH_TWOFACED
+  if(lock_interface()) {
+    twofaced_rf_flags &= ~TWOFACED_RF_UPDATE_IF_VIA_ID;
+    
+    if(if_id == sel_if_id) {
+      unlock_interface();
+      return RADIO_RESULT_OK;
+    }
+
+    for(uint8_t i = 0; i < if_id_collection.size; i++) {
+      if(if_id == if_id_collection.if_id_list[i]) {
+          NETSTACK_MAC.off();
+          sel_if_id = if_id_collection.if_id_list[i];
+          NETSTACK_MAC.on();
+          unlock_interface();
+          return RADIO_RESULT_OK;
+        }
+    }
+
+    /* If we've reached this point, there is no interface available with
+       the specified id and so we must unlock the interface change lock
+       and return RADIO_RESULT_INVALID_VALUE */
+    unlock_interface();
+    return RADIO_RESULT_INVALID_VALUE;
+  }
+  /* If we've reached this point, the interface lock is taken and so we
+     must defer changing the selected interface to a later point in time
+     by setting a flag and polling the cooja_radio_process */
+  next_if_id = if_id;
+  twofaced_rf_flags |= TWOFACED_RF_UPDATE_IF_VIA_ID;
+  process_poll(&cooja_radio_process);
+  /* We return RADIO_RESULT_OK because deferring an interface
+     switch doesn't constitute an error */
+  return RADIO_RESULT_OK;
+#else /* MAC_CONF_WITH_TWOFACED */
+  return RADIO_RESULT_ERROR;
+#endif /* MAC_CONF_WITH_TWOFACED */
+}
 #endif
 /*---------------------------------------------------------------------------*/
 static void pollhandler(void);
@@ -452,19 +641,45 @@ pollhandler(void)
 {
   if(!poll_mode) {
     int len;
+#if COOJA_WITH_TWOFACED && MAC_CONF_WITH_TWOFACED
+    if(NETSTACK_MAC.lock_input()) {
+      /* MAC input lock acquired */
+#endif
     packetbuf_clear();
     len = radio_read(packetbuf_dataptr(), PACKETBUF_SIZE);
     if(len > 0) {
       packetbuf_set_datalen(len);
       NETSTACK_MAC.input();
     }
+#if COOJA_WITH_TWOFACED && MAC_CONF_WITH_TWOFACED
+      /* Releasing MAC input lock */
+      NETSTACK_MAC.unlock_input();
+    } else {
+      /* Failed trying MAC input lock, polling process again */
+      process_poll(&cooja_radio_process);
+    }
+#endif
   }
+
+#if COOJA_WITH_TWOFACED
+  if(twofaced_rf_flags & TWOFACED_RF_UPDATE_IF_VIA_ID) {
+    set_if_via_id(next_if_id);
+  }
+#endif
 }
 /*---------------------------------------------------------------------------*/
 static int
 init(void)
 {
+#if COOJA_WITH_TWOFACED
+  if(!(twofaced_rf_flags & TWOFACED_RF_INITIALIZED)) {
+    sel_if_id = if_id_collection.if_id_list[0];
+    twofaced_rf_flags |= TWOFACED_RF_INITIALIZED;
+    process_start(&cooja_radio_process, NULL);
+  }
+#else
   process_start(&cooja_radio_process, NULL);
+#endif
   return 1;
 }
 /*---------------------------------------------------------------------------*/
@@ -492,21 +707,36 @@ get_value(radio_param_t param, radio_value_t *value)
     return RADIO_RESULT_OK;
   case RADIO_PARAM_LAST_RSSI:
 #if COOJA_WITH_TWOFACED
-    // TODO
+    if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+      *value = (radio_value_t)simSignalStrength;
+    } else {
+      *value = (radio_value_t)simSignalStrengthTwofaced;
+    }
+    return RADIO_RESULT_OK;
 #else
     *value = simSignalStrength;
     return RADIO_RESULT_OK;
 #endif
   case RADIO_PARAM_LAST_LINK_QUALITY:
 #if COOJA_WITH_TWOFACED
-    // TODO
+    if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+      *value = (radio_value_t)simLQI;
+    } else {
+      *value = (radio_value_t)simLQITwofaced;
+    }
+    return RADIO_RESULT_OK;
 #else
     *value = simLQI;
     return RADIO_RESULT_OK;
 #endif
   case RADIO_PARAM_RSSI:
 #if COOJA_WITH_TWOFACED
-    // TODO
+    if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+      *value = (radio_value_t)(-90 + simRadioChannel - 11);
+    } else {
+      *value = (radio_value_t)(-90 + simRadioChannelTwofaced);
+    }
+    return RADIO_RESULT_OK;
 #else
     /* return a fixed value depending on the channel */
     *value = -90 + simRadioChannel - 11;
@@ -516,13 +746,26 @@ get_value(radio_param_t param, radio_value_t *value)
     *value = (radio_value_t)COOJA_RADIO_BUFSIZE;
     return RADIO_RESULT_OK;
 #if COOJA_WITH_TWOFACED
-  // TODO case RADIO_PARAM_CHANNEL:
-  case RADIO_CONST_MULTI_RF:
-    *value = RADIO_MULTI_RF_EN;
+  case RADIO_PARAM_CHANNEL:
+    if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+      *value = (radio_value_t)simRadioChannel;
+    } else {
+      *value = (radio_value_t)simRadioChannelTwofaced;
+    }
     return RADIO_RESULT_OK;
-  // TODO case RADIO_CONST_INTERFACE_ID:
-  // TODO case RADIO_CONST_DEFAULT_CHANNEL:
-  // TODO case RADIO_CONST_DATA_RATE:
+  case RADIO_CONST_MULTI_RF:
+    *value = (radio_value_t)RADIO_MULTI_RF_EN;
+    return RADIO_RESULT_OK;
+  case RADIO_CONST_INTERFACE_ID:
+    *value = (radio_value_t)sel_if_id;
+    return RADIO_RESULT_OK;
+  case RADIO_CONST_DATA_RATE:
+    if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+      *value = (radio_value_t)COOJA_PRIMARY_IF_DR;
+    } else {
+      *value = (radio_value_t)COOJA_SECONDARY_IF_DR;
+    }
+    return RADIO_RESULT_OK;
 #endif
   default:
     return RADIO_RESULT_NOT_SUPPORTED;
@@ -561,13 +804,28 @@ set_value(radio_param_t param, radio_value_t value)
     return RADIO_RESULT_OK;
   case RADIO_PARAM_CHANNEL:
 #if COOJA_WITH_TWOFACED
-    // TODO
+    if(sel_if_id == COOJA_PRIMARY_IF_ID) {
+      if(value < 11 || value > 26) {
+        return RADIO_RESULT_INVALID_VALUE;
+      }
+      radio_set_channel(value);
+    } else {
+      if(value < 0 || value > 10) {
+        return RADIO_RESULT_INVALID_VALUE;
+      }
+      radio_set_channel_twofaced(value);
+    }
+    return RADIO_RESULT_OK;
 #else
     if(value < 11 || value > 26) {
       return RADIO_RESULT_INVALID_VALUE;
     }
     radio_set_channel(value);
     return RADIO_RESULT_OK;
+#endif
+#if COOJA_WITH_TWOFACED
+  case RADIO_PARAM_SEL_IF_ID:
+    return set_if_via_id((uint8_t)value);
 #endif
   default:
     return RADIO_RESULT_NOT_SUPPORTED;
