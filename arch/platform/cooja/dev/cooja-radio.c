@@ -255,7 +255,43 @@ static void
 doInterfaceActionsBeforeTick(void)
 {
 #if COOJA_WITH_TWOFACED
-  // TODO
+  if(!simRadioHWOn && !simRadioHWOnTwofaced) {
+    simInSize = 0;
+    simInSizeTwofaced = 0;
+    return;
+  } else if(simRadioHWOn && !simRadioHWOnTwofaced) {
+    if(simReceiving) {
+      simLastSignalStrength = simSignalStrength;
+      return;
+    }
+    if(simInSize > 0) {
+      process_poll(&cooja_radio_process);
+    }
+  } else if(!simRadioHWOn && simRadioHWOnTwofaced) {
+    if(simReceivingTwofaced) {
+      simLastSignalStrengthTwofaced = simSignalStrengthTwofaced;
+      return;
+    }
+    if(simInSizeTwofaced > 0) {
+      process_poll(&cooja_radio_process);
+    }
+  } else { /* simRadioHWOn && simRadioHWOnTwofaced */
+    if(simReceiving && simReceivingTwofaced) {
+      simLastSignalStrength = simSignalStrength;
+      simLastSignalStrengthTwofaced = simSignalStrengthTwofaced;
+      return;
+    } else if(simReceiving) {
+      simLastSignalStrength = simSignalStrength;
+      if(simInSizeTwofaced > 0) {
+        process_poll(&cooja_radio_process);
+      }
+    } else if(simReceivingTwofaced) {
+      simLastSignalStrengthTwofaced = simSignalStrengthTwofaced;
+      if(simInSize > 0) {
+        process_poll(&cooja_radio_process);
+      }
+    }
+  }
 #else
   if(!simRadioHWOn) {
     simInSize = 0;
