@@ -610,6 +610,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_("\n");
     uint16_t old_metric = ile->inferred_metric;
+    // TODO check what we should do with MAC_TX_QUEUE_FULL
     ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, status, numtx, LINK_STATS_METRIC_INIT_FLAG_FALSE);
     LOG_DBG("Updated metric to %d (previously %d) for interface with ID = %d of ",
             ile->inferred_metric,
@@ -648,6 +649,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
 #if LINK_STATS_WITH_WEIGHTS
         ile->weight = LINK_STATS_DEFAULT_WEIGHT;
 #endif
+        // TODO check what we should do with MAC_TX_QUEUE_FULL
         ile->inferred_metric = LINK_STATS_INFERRED_METRIC_FUNC(ile, status, numtx, LINK_STATS_METRIC_INIT_FLAG_TRUE);
         list_add(stats->interface_list, ile);
         LOG_DBG("Added interface with ID = %d (metric = %d) to interface list of ", if_id, ile->inferred_metric);
