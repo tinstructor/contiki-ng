@@ -576,7 +576,7 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
   uint8_t ewma_alpha;
 #endif /* !LINK_STATS_ETX_FROM_PACKET_COUNT */
 
-  if(status != MAC_TX_OK && status != MAC_TX_NOACK) {
+  if(status != MAC_TX_OK && status != MAC_TX_NOACK && status != MAC_TX_QUEUE_FULL) {
     /* Do not penalize the ETX when collisions or transmission errors occur. */
     return;
   }
@@ -664,6 +664,14 @@ link_stats_packet_sent(const linkaddr_t *lladdr, int status, int numtx)
         return;
       }
     }
+  }
+
+  if(status == MAC_TX_QUEUE_FULL) {
+#if LINK_STATS_PACKET_COUNTERS
+    stats->cnt_current.num_queue_drops += 1;
+#endif
+    /* Do not penalize the ETX when the packet is dropped due to a full queue */
+    return;
   }
 
   /* Update last timestamp and freshness */
@@ -846,14 +854,16 @@ print_and_update_counters(void)
 
     struct link_packet_counter *c = &stats->cnt_current;
 
-    LOG_INFO("num packets: tx=%u ack=%u rx=%u to=",
-             c->num_packets_tx, c->num_packets_acked, c->num_packets_rx);
+    LOG_INFO("num packets: tx=%u ack=%u rx=%u queue_drops=%u to=",
+             c->num_packets_tx, c->num_packets_acked,
+             c->num_packets_rx, c->num_queue_drops);
     LOG_INFO_LLADDR(link_stats_get_lladdr(stats));
     LOG_INFO_("\n");
 
     stats->cnt_total.num_packets_tx += stats->cnt_current.num_packets_tx;
     stats->cnt_total.num_packets_acked += stats->cnt_current.num_packets_acked;
     stats->cnt_total.num_packets_rx += stats->cnt_current.num_packets_rx;
+    stats->cnt_total.num_queue_drops += stats->cnt_current.num_queue_drops;
     memset(&stats->cnt_current, 0, sizeof(stats->cnt_current));
   }
 }
