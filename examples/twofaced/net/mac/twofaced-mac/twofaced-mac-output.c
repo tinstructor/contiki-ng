@@ -609,7 +609,7 @@ twofaced_mac_output(mac_callback_t sent_callback, void *ptr)
   } else {
     LOG_WARN("could not allocate neighbor, dropping packet\n");
   }
-  mac_call_sent_callback(sent_callback, ptr, MAC_TX_ERR, 1);
+  mac_call_sent_callback(sent_callback, ptr, MAC_TX_QUEUE_FULL, 1);
 }
 /*---------------------------------------------------------------------------*/
 void
