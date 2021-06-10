@@ -61,14 +61,6 @@
 #define CCA_SS_THRESHOLD -95
 
 const struct simInterface radio_interface;
-#if COOJA_WITH_TWOFACED
-const struct simInterface twofaced_radio_interface;
-
-/* A lock that prevents changing interfaces when innapropriate */
-static volatile mutex_t rf_lock = MUTEX_STATUS_UNLOCKED;
-/* A collection of all interface ids */
-static const if_id_collection_t if_id_collection = { {1, 2}, {250, 100}, 2 };
-#endif
 
 /* COOJA */
 char simReceiving = 0;
@@ -84,8 +76,9 @@ char simPower = 100;
 int simRadioChannel = 26;
 int simLQI = 105;
 
-
 #if COOJA_WITH_TWOFACED
+const struct simInterface twofaced_radio_interface;
+
 /* TWOFACED */
 char simReceivingTwofaced = 0;
 char simInDataBufferTwofaced[COOJA_RADIO_BUFSIZE];
@@ -99,6 +92,16 @@ int simLastSignalStrengthTwofaced = -100;
 char simPowerTwofaced = 100;
 int simRadioChannelTwofaced = 5;
 int simLQITwofaced = 105;
+
+/* A lock that prevents changing interfaces when innapropriate */
+static volatile mutex_t rf_lock = MUTEX_STATUS_UNLOCKED;
+/* A collection of all interface ids */
+static const if_id_collection_t if_id_collection = { {1, 2}, {250, 100}, 2 };
+/* The twofaced interface state */
+static uint8_t twofaced_rf_flags = 0x00;
+
+/* The supported twofaced-rf flag bitmasks */
+#define TWOFACED_RF_UPDATE_IF_VIA_ID    0x01
 #endif
 
 static const void *pending_data;
@@ -251,7 +254,8 @@ static int
 radio_read(void *buf, unsigned short bufsize)
 {
 #if COOJA_WITH_TWOFACED
-  // TODO
+  /* TODO check which interface is currently preferred and perform a
+     read operation for that interface only */
 #else
   int tmp = simInSize;
 
@@ -353,21 +357,29 @@ radio_send(const void *payload, unsigned short payload_len)
 static int
 prepare_packet(const void *data, unsigned short len)
 {
+#if COOJA_WITH_TWOFACED
+  // TODO
+#else
   if(len > COOJA_RADIO_BUFSIZE) {
     return RADIO_TX_ERR;
   }
   pending_data = data;
   return 0;
+#endif
 }
 /*---------------------------------------------------------------------------*/
 static int
 transmit_packet(unsigned short len)
 {
+#if COOJA_WITH_TWOFACED
+  // TODO
+#else
   int ret = RADIO_TX_ERR;
   if(pending_data != NULL) {
     ret = radio_send(pending_data, len);
   }
   return ret;
+#endif
 }
 /*---------------------------------------------------------------------------*/
 static int
@@ -422,18 +434,24 @@ pending_packet_all(void)
 }
 #endif
 /*---------------------------------------------------------------------------*/
+static void pollhandler(void);
+/*---------------------------------------------------------------------------*/
 PROCESS_THREAD(cooja_radio_process, ev, data)
 {
-  int len;
+  PROCESS_POLLHANDLER(pollhandler());
 
   PROCESS_BEGIN();
 
-  while(1) {
-    PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_POLL);
-    if(poll_mode) {
-      continue;
-    }
+  PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_EXIT);
 
+  PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
+static void
+pollhandler(void)
+{
+  if(!poll_mode) {
+    int len;
     packetbuf_clear();
     len = radio_read(packetbuf_dataptr(), PACKETBUF_SIZE);
     if(len > 0) {
@@ -441,8 +459,6 @@ PROCESS_THREAD(cooja_radio_process, ev, data)
       NETSTACK_MAC.input();
     }
   }
-
-  PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
 static int
