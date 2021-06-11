@@ -260,6 +260,7 @@ doInterfaceActionsBeforeTick(void)
     simInSizeTwofaced = 0;
     return;
   } else if(simRadioHWOn && !simRadioHWOnTwofaced) {
+    simInSizeTwofaced = 0;
     if(simReceiving) {
       simLastSignalStrength = simSignalStrength;
       return;
@@ -268,6 +269,7 @@ doInterfaceActionsBeforeTick(void)
       process_poll(&cooja_radio_process);
     }
   } else if(!simRadioHWOn && simRadioHWOnTwofaced) {
+    simInSize = 0;
     if(simReceivingTwofaced) {
       simLastSignalStrengthTwofaced = simSignalStrengthTwofaced;
       return;
@@ -276,6 +278,7 @@ doInterfaceActionsBeforeTick(void)
       process_poll(&cooja_radio_process);
     }
   } else { /* simRadioHWOn && simRadioHWOnTwofaced */
+    // FIXME this whole branch is probably bugged too
     if(simReceiving && simReceivingTwofaced) {
       simLastSignalStrength = simSignalStrength;
       simLastSignalStrengthTwofaced = simSignalStrengthTwofaced;
