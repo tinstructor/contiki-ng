@@ -141,6 +141,21 @@ init(void)
     return;
   }
 
+#if TWOFACED_SEND_SOFT_ACK
+  radio_value_t radio_rx_mode;
+
+  /* Disable radio driver's autoack */
+  if(NETSTACK_RADIO.get_value(RADIO_PARAM_RX_MODE, &radio_rx_mode) != RADIO_RESULT_OK) {
+    LOG_WARN("radio does not support getting RADIO_PARAM_RX_MODE\n");
+  } else {
+    /* Unset autoack */
+    radio_rx_mode &= ~RADIO_RX_MODE_AUTOACK;
+    if(NETSTACK_RADIO.set_value(RADIO_PARAM_RX_MODE, radio_rx_mode) != RADIO_RESULT_OK) {
+      LOG_WARN("radio does not support setting RADIO_PARAM_RX_MODE\n");
+    }
+  }
+#endif /* TWOFACED_SEND_SOFT_ACK */
+
   twofaced_mac_output_init();
   /* Turns on all underlying radios when used in conjunction
      with a twofaced_rf_driver (platform-specific) */
@@ -198,6 +213,10 @@ send(mac_callback_t sent_callback, void *ptr)
 static void
 input(void)
 {
+#if TWOFACED_SEND_SOFT_ACK
+  uint8_t ackdata[TWOFACED_MAC_ACK_LEN];
+#endif /* TWOFACED_SEND_SOFT_ACK */
+
   LOG_DBG("Packet received on interface with ID = %d\n",
           packetbuf_attr(PACKETBUF_ATTR_INTERFACE_ID));
   if(packetbuf_datalen() == TWOFACED_MAC_ACK_LEN) {
@@ -224,6 +243,14 @@ input(void)
       mac_sequence_register_seqno();
     }
 
+#if TWOFACED_SEND_SOFT_ACK
+    if(packetbuf_attr(PACKETBUF_ATTR_MAC_ACK)) {
+      ackdata[0] = FRAME802154_ACKFRAME;
+      ackdata[1] = 0;
+      ackdata[2] = ((uint8_t *)packetbuf_hdrptr())[2];
+      NETSTACK_RADIO.send(ackdata, TWOFACED_MAC_ACK_LEN);
+    }
+#endif /* TWOFACED_SEND_SOFT_ACK */
     if(!duplicate) {
       LOG_INFO("received packet from ");
       LOG_INFO_LLADDR(packetbuf_addr(PACKETBUF_ADDR_SENDER));
