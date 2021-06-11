@@ -613,6 +613,7 @@ receiving_packet_all(void)
 static int
 pending_packet_all(void)
 {
+  // FIXME this is bugged
   return (!simReceiving && simInSize > 0) || (!simReceivingTwofaced && simInSizeTwofaced > 0);
 }
 /*---------------------------------------------------------------------------*/

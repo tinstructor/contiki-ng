@@ -222,6 +222,12 @@ send_one_packet(struct neighbor_queue *nq, struct packet_queue *pq)
         /* Currently receiving a packet over air or the radio has
            already received a packet that needs to be read before
            sending with auto ack. */
+        if(NETSTACK_RADIO.receiving_packet_all()) {
+          LOG_DBG("Already receiving a packet on the current / a different interface!\n");
+        }
+        if(!is_broadcast && NETSTACK_RADIO.pending_packet_all()) {
+          LOG_DBG("A non-broacast packet is already pending and needs handling ASAP!\n");
+        }
         ret = MAC_TX_COLLISION;
 
         LOG_DBG("Unlocking RF lock before tx attempt\n");
