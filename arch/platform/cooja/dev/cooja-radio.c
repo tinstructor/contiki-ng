@@ -109,6 +109,8 @@ static uint8_t next_if_id;
 /* The supported twofaced-rf flag bitmasks */
 #define TWOFACED_RF_UPDATE_IF_VIA_ID    0x01
 #define TWOFACED_RF_INITIALIZED         0x02
+#define TWOFACED_RF_PRIMARY_RX          0x04
+#define TWOFACED_RF_SECONDARY_RX        0x08
 #endif
 
 static const void *pending_data;
@@ -266,6 +268,7 @@ doInterfaceActionsBeforeTick(void)
       return;
     }
     if(simInSize > 0) {
+      twofaced_rf_flags |= TWOFACED_RF_PRIMARY_RX;
       process_poll(&cooja_radio_process);
     }
   } else if(!simRadioHWOn && simRadioHWOnTwofaced) {
@@ -275,10 +278,10 @@ doInterfaceActionsBeforeTick(void)
       return;
     }
     if(simInSizeTwofaced > 0) {
+      twofaced_rf_flags |= TWOFACED_RF_SECONDARY_RX;
       process_poll(&cooja_radio_process);
     }
   } else { /* simRadioHWOn && simRadioHWOnTwofaced */
-    // FIXME this whole branch is probably bugged too
     if(simReceiving && simReceivingTwofaced) {
       simLastSignalStrength = simSignalStrength;
       simLastSignalStrengthTwofaced = simSignalStrengthTwofaced;
@@ -286,11 +289,25 @@ doInterfaceActionsBeforeTick(void)
     } else if(simReceiving) {
       simLastSignalStrength = simSignalStrength;
       if(simInSizeTwofaced > 0) {
+        twofaced_rf_flags |= TWOFACED_RF_SECONDARY_RX;
         process_poll(&cooja_radio_process);
       }
     } else if(simReceivingTwofaced) {
       simLastSignalStrengthTwofaced = simSignalStrengthTwofaced;
       if(simInSize > 0) {
+        twofaced_rf_flags |= TWOFACED_RF_PRIMARY_RX;
+        process_poll(&cooja_radio_process);
+      }
+    } else { /* Both on, none receiving */
+      if(simInSize > 0 && simInSizeTwofaced > 0) {
+        twofaced_rf_flags |= TWOFACED_RF_PRIMARY_RX;
+        twofaced_rf_flags |= TWOFACED_RF_SECONDARY_RX;
+        process_poll(&cooja_radio_process);
+      } else if(simInSize > 0) {
+        twofaced_rf_flags |= TWOFACED_RF_PRIMARY_RX;
+        process_poll(&cooja_radio_process);
+      } else if(simInSizeTwofaced > 0) {
+        twofaced_rf_flags |= TWOFACED_RF_SECONDARY_RX;
         process_poll(&cooja_radio_process);
       }
     }
@@ -616,7 +633,6 @@ receiving_packet_all(void)
 static int
 pending_packet_all(void)
 {
-  // FIXME this is bugged
   return (!simReceiving && simInSize > 0) || (!simReceivingTwofaced && simInSizeTwofaced > 0);
 }
 /*---------------------------------------------------------------------------*/
@@ -679,11 +695,28 @@ PROCESS_THREAD(cooja_radio_process, ev, data)
 static void
 pollhandler(void)
 {
+#if COOJA_WITH_TWOFACED
+  /* There's no point in going through this process if none of the simbuffers
+     contain actual packets */
+  if(!poll_mode && (twofaced_rf_flags & TWOFACED_RF_PRIMARY_RX || twofaced_rf_flags & TWOFACED_RF_SECONDARY_RX)) {
+#else
   if(!poll_mode) {
+#endif
     int len;
-#if COOJA_WITH_TWOFACED && MAC_CONF_WITH_TWOFACED
+#if COOJA_WITH_TWOFACED
+#if MAC_CONF_WITH_TWOFACED
     if(NETSTACK_MAC.lock_input()) {
       /* MAC input lock acquired */
+#endif
+      if(lock_interface()) {
+        uint8_t current_if_id = sel_if_id;
+        if(twofaced_rf_flags & TWOFACED_RF_PRIMARY_RX) {
+          twofaced_rf_flags &= ~TWOFACED_RF_PRIMARY_RX;
+          sel_if_id = COOJA_PRIMARY_IF_ID;
+        } else if(twofaced_rf_flags & TWOFACED_RF_SECONDARY_RX) {
+          twofaced_rf_flags &= ~TWOFACED_RF_SECONDARY_RX;
+          sel_if_id = COOJA_SECONDARY_IF_ID;
+        }
 #endif
     packetbuf_clear();
     len = radio_read(packetbuf_dataptr(), PACKETBUF_SIZE);
@@ -691,13 +724,34 @@ pollhandler(void)
       packetbuf_set_datalen(len);
       NETSTACK_MAC.input();
     }
-#if COOJA_WITH_TWOFACED && MAC_CONF_WITH_TWOFACED
-      /* Releasing MAC input lock */
-      NETSTACK_MAC.unlock_input();
+#if COOJA_WITH_TWOFACED
+        /* Resetting previously selected interface */
+        sel_if_id = current_if_id;
+        /* Releasing the selected interface change lock */
+        unlock_interface();
+#if MAC_CONF_WITH_TWOFACED
+        /* Releasing MAC input lock */
+        NETSTACK_MAC.unlock_input();
+#endif
+        /* Poll the process again if there's still a packet waiting in one
+           of the simbuffers */
+        if(twofaced_rf_flags & TWOFACED_RF_PRIMARY_RX || twofaced_rf_flags & TWOFACED_RF_SECONDARY_RX) {
+          process_poll(&cooja_radio_process);
+        }
+      } else {
+#if MAC_CONF_WITH_TWOFACED
+        /* Releasing MAC input lock */
+        NETSTACK_MAC.unlock_input();
+#endif
+        /* Failed trying selected interface change lock, polling process again */
+        process_poll(&cooja_radio_process);
+      }
+#if MAC_CONF_WITH_TWOFACED
     } else {
       /* Failed trying MAC input lock, polling process again */
       process_poll(&cooja_radio_process);
     }
+#endif
 #endif
   }
 
