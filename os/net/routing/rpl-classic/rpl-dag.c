@@ -303,6 +303,25 @@ rpl_parent_is_reachable(rpl_parent_t *p) {
   }
 }
 /*---------------------------------------------------------------------------*/
+/* Reset all defer flags of all parents */
+void
+rpl_reset_defer_flags(void)
+{
+  rpl_parent_t *p;
+
+  p = nbr_table_head(rpl_parents);
+  while(p != NULL) {
+    const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
+    if(lladdr != NULL) {
+      LOG_DBG("Resetting all defer flags for parent ");
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_("\n");
+      link_stats_reset_defer_flags(lladdr);
+    }
+    p = nbr_table_next(rpl_parents, p);
+  }
+}
+/*---------------------------------------------------------------------------*/
 /* Execute the normalized metric update logic for all parents in the rpl_parents 
    global neighbor table. Note that the defer flags are only checked if a parent
    is the preferred parent of the current dag of the default instance. For all other
@@ -2104,11 +2123,18 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
 
   /* Make sure the normalized metrics of all parents are up to date and
      follow the complete logic, including resetting the defer flags of
-     all parents */
-  /* TODO find out if it is appropriate to do this here even when the DIO
-     received came from a "parent" that shall later be determined to have
-     an innapropriate advertised rank (see rpl_process_parent_event()) */
-  rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
+     all parents. However, since rpl_process_parent_event() is also called
+     here to determine if a new parent should stay in the parent set, we
+     should hold off on resetting the defer flags until we're certain
+     the parent can remain in the set. This means that the normalized metric
+     of all non-preferred parents is updated (most commonly) when we receive
+     and process a DIO from any neighbor (parent or not) or when we success-
+     fully transmit a unicast packet to a neighbor. The normalized metric of
+     the preferred parent however is only updated when receiving a DIO from
+     an existing / new parent that stays in the parent set or when we success-
+     fully transmit a unicast packet to a neighbor, and (in both cases) only
+     if its defer flags fulfill the necessary requirements. */
+  rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);
 
   /* Parent info has been updated, trigger rank recalculation */
   p->flags |= RPL_PARENT_FLAG_UPDATED;
@@ -2125,12 +2151,17 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
 #if RPL_WITH_MC
   memcpy(&p->mc, &dio->mc, sizeof(p->mc));
 #endif /* RPL_WITH_MC */
-  /* We don't need to update the parent's normalized metric and defer flags
-     because at this point that has already been handled by the prior call to 
-     rpl_exec_norm_metric_logic() */
+  /* We don't need to update the parent's normalized metric because
+     at this point that has already been handled by the prior call to
+     rpl_exec_norm_metric_logic(). We have not yet reset the defer flags
+     though, as this should only be done when we're certain the given
+     parent remains in the parent set */
   if(rpl_process_parent_event(instance, p) == 0) {
     LOG_WARN("The candidate parent is rejected\n");
     return;
+  } else {
+    LOG_DBG("Candidate parent accepted, resetting defer flags of all parents\n");
+    rpl_reset_defer_flags();
   }
 
   /* We don't use route control, so we can have only one official parent. */

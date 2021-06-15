@@ -375,6 +375,7 @@ rpl_dag_t *rpl_select_dag(rpl_instance_t *instance,rpl_parent_t *parent);
 void rpl_recalculate_ranks(void);
 int rpl_set_interface_weights(rpl_parent_t *p);
 void rpl_recalculate_interface_weights(void);
+void rpl_reset_defer_flags(void);
 
 /* RPL routing table functions. */
 void rpl_remove_routes(rpl_dag_t *dag);
