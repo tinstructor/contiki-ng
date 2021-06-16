@@ -342,21 +342,21 @@ rank_via_dag(rpl_dag_t *dag, linkaddr_t *blame)
   if(dag == NULL || dag->preferred_parent == NULL || dag->instance == NULL) {
     return RPL_INFINITE_RANK;
   }
-  rpl_rank_t min_hoprankinc = dag->instance->min_hoprankinc;
-  rpl_rank_t max_rankinc = dag->instance->max_rankinc;
-  rpl_rank_t rank = rank_via_parent(dag->preferred_parent);
+  uint32_t min_hoprankinc = dag->instance->min_hoprankinc;
+  uint32_t max_rankinc = dag->instance->max_rankinc;
+  uint32_t rank = rank_via_parent(dag->preferred_parent);
   const linkaddr_t *lladdr = rpl_get_parent_lladdr(dag->preferred_parent);
   rpl_parent_t *p;
   p = nbr_table_head(rpl_parents);
   while(p != NULL) {
     if(p->dag != NULL && p->dag == dag) {
-      rpl_rank_t next_higher_rank = min_hoprankinc * (1 + (p->rank / min_hoprankinc));
+      uint32_t next_higher_rank = min_hoprankinc * (1 + ((uint32_t)p->rank / min_hoprankinc));
       if(next_higher_rank > rank) {
         rank = next_higher_rank;
         lladdr = rpl_get_parent_lladdr(p);
       }
-      rpl_rank_t parent_rank = rank_via_parent(p);
-      if((parent_rank - max_rankinc) > rank) {
+      uint32_t parent_rank = rank_via_parent(p);
+      if(max_rankinc <= parent_rank && (parent_rank - max_rankinc) > rank) {
         rank = parent_rank - max_rankinc;
         lladdr = rpl_get_parent_lladdr(p);
       }
@@ -366,7 +366,7 @@ rank_via_dag(rpl_dag_t *dag, linkaddr_t *blame)
   if(blame != NULL) {
     *blame = *lladdr;
   }
-  return rank;
+  return MIN(rank, RPL_INFINITE_RANK);
 }
 /*---------------------------------------------------------------------------*/
 rpl_of_t rpl_mrhof = {
