@@ -117,7 +117,8 @@ rpl_ext_header_hbh_update(uint8_t *ext_buf, int opt_offset)
   }
 
   sender_rank = UIP_HTONS(rpl_opt->senderrank);
-  sender = nbr_table_get_from_lladdr(rpl_parents, packetbuf_addr(PACKETBUF_ADDR_SENDER));
+  const linkaddr_t *slladdr = packetbuf_addr(PACKETBUF_ADDR_SENDER);
+  sender = nbr_table_get_from_lladdr(rpl_parents, slladdr);
 
   if(sender != NULL && (rpl_opt->flags & RPL_HDR_OPT_RANK_ERR)) {
     /* A rank error was signalled, attempt to repair it by updating
@@ -134,10 +135,9 @@ rpl_ext_header_hbh_update(uint8_t *ext_buf, int opt_offset)
        * don't reset any defer flags after running through the metric normalization logic
        * so that if the sender was not preferred (in the current DAG of the default 
        * instance), the actual preferred parent may remain stable.*/
-      const linkaddr_t *lladdr = packetbuf_addr(PACKETBUF_ADDR_SENDER);
       if(default_instance != NULL && default_instance->current_dag != NULL &&
-         sender == default_instance->current_dag->preferred_parent && lladdr != NULL) {
-        link_stats_reset_defer_flags(lladdr);
+         sender == default_instance->current_dag->preferred_parent && slladdr != NULL) {
+        link_stats_reset_defer_flags(slladdr);
       }
       rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);
       rpl_select_dag(instance, sender);
@@ -158,9 +158,19 @@ rpl_ext_header_hbh_update(uint8_t *ext_buf, int opt_offset)
            sender_closer);
     /* Attempt to repair the loop by sending a unicast DIO back to the sender
      * so that it gets a fresh update of our rank. */
+    uip_ipaddr_t *sipaddr;
     if(sender != NULL) {
+      LOG_DBG("Scheduling unicast DIO to parent ");
+      LOG_DBG_6ADDR(rpl_parent_get_ipaddr(sender));
+      LOG_DBG_(" immediately\n");
       instance->unicast_dio_target = sender;
       rpl_schedule_unicast_dio_immediately(instance);
+    } else if((sipaddr = uip_ds6_nbr_ipaddr_from_lladdr((uip_lladdr_t *)slladdr)) != NULL) {
+      LOG_DBG("Scheduling unicast DIO to child ");
+      LOG_DBG_6ADDR(sipaddr);
+      LOG_DBG_(" immediately\n");
+      instance->child_unicast_dio_target = sipaddr;
+      rpl_schedule_child_unicast_dio_immediately(instance);
     }
     if(rpl_opt->flags & RPL_HDR_OPT_RANK_ERR) {
       RPL_STAT(rpl_stats.loop_errors++);

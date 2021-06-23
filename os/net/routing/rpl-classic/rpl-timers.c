@@ -69,9 +69,11 @@ clock_time_t RPL_PROBING_DELAY_FUNC(rpl_dag_t *dag);
 /*---------------------------------------------------------------------------*/
 static struct ctimer periodic_timer;
 static struct ctimer interface_weights_timer;
+static struct ctimer child_unicast_dio_timer;
 
 static void handle_periodic_timer(void *ptr);
 static void handle_interface_weights_timer(void *ptr);
+static void handle_child_unicast_dio_timer(void *ptr);
 static void new_dio_interval(rpl_instance_t *instance);
 static void handle_dio_timer(void *ptr);
 
@@ -388,6 +390,24 @@ handle_unicast_dio_timer(void *ptr)
   if(target_ipaddr != NULL) {
     dio_output(instance, target_ipaddr);
   }
+}
+/*---------------------------------------------------------------------------*/
+static void
+handle_child_unicast_dio_timer(void *ptr)
+{
+  rpl_instance_t *instance = (rpl_instance_t *)ptr;
+  uip_ipaddr_t *target_ipaddr = instance->child_unicast_dio_target;
+
+  if(target_ipaddr != NULL) {
+    dio_output(instance, target_ipaddr);
+  }
+}
+/*---------------------------------------------------------------------------*/
+void
+rpl_schedule_child_unicast_dio_immediately(rpl_instance_t *instance)
+{
+  ctimer_set(&child_unicast_dio_timer, 0,
+                  handle_child_unicast_dio_timer, instance);
 }
 /*---------------------------------------------------------------------------*/
 void

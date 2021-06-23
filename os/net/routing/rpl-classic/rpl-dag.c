@@ -963,6 +963,12 @@ rpl_free_dag(rpl_dag_t *dag)
 rpl_parent_t *
 rpl_add_parent(rpl_dag_t *dag, rpl_dio_t *dio, uip_ipaddr_t *addr)
 {
+  /* REVIEW it could happen that a parent p exists in the rpl_parents table
+     but that p->dag is set to NULL. However, when someone has invoked rpl_find_parent(dag, from)
+     and thereafter invokes find_parent_dag(instance, from) because there was no parent in the
+     given dag, then, if find_parent_dag returns NULL, the caller might erroneously assume that
+     "from" (which is the address of p) is not a member of rpl_parents while in fact it is but
+     p->dag is simply NULL (meaning that it belongs to no dag) */
   rpl_parent_t *p = NULL;
   /* Is the parent known by ds6? Drop this request if not.
    * Typically, the parent is added upon receiving a DIO. */
@@ -1058,7 +1064,7 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
   old_rank = instance->current_dag->rank;
   last_parent = instance->current_dag->preferred_parent;
 
-  if(instance->current_dag->rank != ROOT_RANK(instance)) {
+  if(instance->current_dag->rank != ROOT_RANK(instance) && p != NULL) {
     /* Select a new preferred parent. This causes the rank to be recomputed
        for all parents before comparing said computed ranks and choosing the
        best candidate as the new preferred parent, that is, for the dag of
@@ -1072,10 +1078,13 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
      rank we advertise in said dag is not RPL_INFINITE_RANK, then we either set best_dag
      to said dag if best_dag is NULL, or we compare the dag to the one currently stored
      in best_dag and overwrite best_dag if the dag in the current iteration is better (as
-     determined by the OF). */
+     determined by the OF). Note that many OFs largely base the output of best_dag() on
+     the ranks of the supplied dags and so it must be noted that we're selecting the best
+     dag prior to adjusting the ranks we advertise in said dags (which we only do for the
+     best dag after we've selected it) */
   best_dag = NULL;
   for(dag = &instance->dag_table[0], end = dag + RPL_MAX_DAG_PER_INSTANCE; dag < end; ++dag) {
-    if(dag->used && dag->preferred_parent != NULL && dag->preferred_parent->rank != RPL_INFINITE_RANK) {
+    if(dag->used && dag->preferred_parent != NULL && rpl_rank_via_dag(dag, NULL) != RPL_INFINITE_RANK) {
       if(best_dag == NULL) {
         best_dag = dag;
       } else {
@@ -1115,6 +1124,10 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
     best_dag->joined = 1;
     instance->current_dag->joined = 0;
     instance->current_dag = best_dag;
+  } else {
+    LOG_DBG("DAG ");
+    LOG_DBG_6ADDR(&instance->current_dag->dag_id);
+    LOG_DBG_(" remains preferred\n");
   }
 
   instance->of->update_metric_container(instance);
@@ -1135,20 +1148,15 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
   }
 
   if(!acceptable_rank(best_dag, best_dag->rank)) {
-    LOG_WARN("New rank unacceptable!\n");
-    /* FIXME how can we be certain that the preferred parent is the parent that caused
-       best_dag->rank (i.e., the outcome of rpl_rank_via_dag(best_dag, blame)) to become un-
-       acceptable? For example, with MRHOF, the rank computed for the preferred parent
-       is not neccessarily equal to the the rank we're supposed to advertise, which is
-       rpl_rank_via_dag(best_dag, blame). The parent responsible for the rank is available
-       via blame. */
-    // if(linkaddr_cmp(&blame, rpl_get_parent_lladdr(best_dag->preferred_parent))) { 
-    // }
-    rpl_set_preferred_parent(instance->current_dag, NULL);
-    if(RPL_IS_STORING(instance) && last_parent != NULL) {
-      /* Send a No-Path DAO to the removed preferred parent. */
-      dao_output(last_parent, RPL_ZERO_LIFETIME);
-    }
+    LOG_WARN("New rank (%u) unacceptable!\n", best_dag->rank);
+    /* Prior to my RFC compliant implementation of MRHOF, the advertised rank depended
+       solely on the rank computed for the path through the preferred parent and thus if
+       the rank of a parent was not acceptable, it was sufficient to make sure that it was
+       no longer preferred in order to prevent oneself from advertising an unacceptable
+       rank. However, if (with the current implementation) we keep a parent with too high
+       a rank in the parent set (whilst still making sure it's not preferred) it could
+       happen that our advertised rank becomes too high */
+    rpl_remove_parent(rpl_get_parent((uip_lladdr_t *)&blame));
     return NULL;
   }
 
@@ -1177,9 +1185,12 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
       rpl_print_neighbor_list();
     }
   } else if(best_dag->rank != old_rank) {
-    /* At this point we know that TODO */
     LOG_DBG("RPL: Preferred parent update, rank changed from %u to %u\n",
            (unsigned)old_rank, best_dag->rank);
+  } else if(best_dag->preferred_parent != NULL) {
+    LOG_DBG("RPL: ");
+    LOG_DBG_6ADDR(rpl_parent_get_ipaddr(best_dag->preferred_parent));
+    LOG_DBG_(" remains preferred, rank unchanged (%u)\n", best_dag->rank);
   }
   return best_dag;
 }
@@ -1278,9 +1289,6 @@ rpl_select_parent(rpl_dag_t *dag)
       }
       /* Probe the best parent shortly in order to get a fresh estimate
          for all of its non-fresh interfaces */
-      /* REVIEW does it make sense to always set best as an urgent probing target
-         here or should we set best_part_fresh as the urgent probing target in case
-         we chose it as preferred parent instead of best? */
       dag->instance->urgent_probing_target = best;
       rpl_schedule_probing_now(dag->instance);
     }
@@ -1316,6 +1324,46 @@ rpl_remove_parent(rpl_parent_t *parent)
 
   rpl_nullify_parent(parent);
 
+  /* FIXME maybe it's a good idea to modify the link_stats table entry for the parent
+     to be removed from rpl_parents such that it is more likely to become the probing
+     target if it were to become a parent again in the near future? There is a flaw in
+     this logic, however. In case the parent was removed not because its stored rank was
+     unacceptable but because its normalized metric was too high. Then, when it next
+     advertises a DIO (which is overheard by all its previous children, including us),
+     it can't immediately become parent (let alone preferred parent) again because its
+     stats entry retained its metric (which is only updated by sending unicast probes but
+     those are only sent to parents) unchanged. Hence, this is a catch-22 because the
+     former parent can only have its metrics updated when it is part of the parent set
+     but when it is kicked from the parent set because its metrics were too high it can't
+     enter the parent set again until its metrics are updated and so it will never
+     become a parent again. */
+  /* NOTE one might think at first glance that the aforementioned problem also applies
+     to non-parent neighbors for which we are parents, i.e., our direct children. However,
+     that's not true as our children shall probe us, causing us to keep their metrics up
+     to date (either directly from receiving the probe for rx-based metrics or indirectly
+     when using DIS probes because the metric is tx-based and we can only update the metric
+     by sending a unicast message to a neighbor, e.g., a unicast DIO response to a DIS).
+     Thus, we always have up-to-date link metrics available for our children even though
+     they are not members of the rpl_parents table and can hence never be probed by us,
+     meaning that it is effectively their responsibility to make sure we have updated
+     link metrics for all their interfaces. Hence, because we are likely to advertise
+     a much higher rank than a former parent, our former parent shall virtually never
+     probe us because we are very unlikely to end up in its rpl_parents table and so
+     that's also not a good way to keep the metrics of our former parent up-to-date after
+     it has been removed either. */
+  /* NOTE it may seem tempting to simply remove the link_stats entry corresponding to
+     the parent to be removed or to modify / reset its metrics somehow prior to removal.
+     However, this is not a good idea because in many cases there is probably a legitimate
+     reason why the metrics became so bad and if we improve them (either by removing the
+     stats entry which may then cause a new stats entry with default values, or by manually
+     setting improved metric values), we may inadvertedly cause all sorts of turmoil by wanting
+     to re-add the former parent to rpl_parents only for it to be removed again some time in
+     the near future. Put differently, doing this only helps when a parent went offline briefly,
+     got removed and then came back online, but that's only a small part of all cases. */
+  /* TODO in conclusion, we must find a way to keep the metrics up-to-date of neighbors
+     that are not our parents, nor our children (I realize that all this effort would not
+     have been necessary if Contiki-NG implemented RFC 6775 / RFC 8505 instead of using
+     the non-standard RPL probing mechanism, but I guess that's wishfull thinking). */
   nbr_table_remove(rpl_parents, parent);
 }
 /*---------------------------------------------------------------------------*/
@@ -1630,6 +1678,8 @@ rpl_add_dag(uip_ipaddr_t *from, rpl_dio_t *dio)
   instance = dag->instance;
 
   previous_dag = find_parent_dag(instance, from);
+  /* TODO we might as well change this to the following */
+  // if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL)
   if(previous_dag == NULL) {
     LOG_DBG("Adding ");
     LOG_DBG_6ADDR(from);
@@ -1643,9 +1693,7 @@ rpl_add_dag(uip_ipaddr_t *from, rpl_dio_t *dio)
     LOG_DBG_("succeeded\n");
   } else {
     p = rpl_find_parent(previous_dag, from);
-    if(p != NULL) {
-      rpl_move_parent(previous_dag, dag, p);
-    }
+    rpl_move_parent(previous_dag, dag, p);
   }
   p->rank = dio->rank;
 
@@ -1757,6 +1805,7 @@ rpl_local_repair(rpl_instance_t *instance)
   /* TODO do we need to reset wifsel flags here? */
 #endif
 
+  /* TODO make sure local repairs work with the new rpl_parents logic */
   LOG_INFO("Starting a local instance repair\n");
   for(i = 0; i < RPL_MAX_DAG_PER_INSTANCE; i++) {
     if(instance->dag_table[i].used) {
@@ -1834,52 +1883,8 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
     LOG_WARN_("\n");
     rpl_remove_routes_by_nexthop(rpl_parent_get_ipaddr(p), p->dag);
   }
-  
-  /* Prior to my RFC compliant implementation of MRHOF, the advertised rank depended
-     solely on the rank computed for the path through the preferred parent and thus if
-     the rank of a parent was not acceptable, it was sufficient to make sure that it was
-     no longer preferred by nullifying it in order to prevent oneself from advertising
-     an unacceptable rank. However, if (with the current implementation) we keep a parent
-     with too high a rank in the parent set (whilst still making sure it's not preferred)
-     it could happen that our advertised rank becomes too high because the advertised rank
-     (for MRHOF-based OFs) is the maximum of the 3 following values:
-     1. The rank computed for the path through the preferred parent.
-     2. The highest rank advertised by any of its parent set members
-        (this is NOT the same as the computed rank for the path 
-        through said node), rounded to the next higher integral rank.
-     3. The largest computed rank among paths through the parent set,
-        minus MaxRankIncrease. */
-  if(p->dag->rank <= p->rank) {
-    /* We're currently advertising a rank lesser than or equal to the
-       the rank advertised by our parent set member p. This is a direct
-       violation of rule 1 of RFC6550 Section 8.2.2.4. and so we must
-       remove p from the parent set at once. However, if p is part of
-       a different dag than the one we're currently part of, we should
-       not remove it from the parent set because it might still advertise
-       an appropriate rank within our current dag at some point in the
-       future and, besides, keeping p when it belongs to another dag is
-       not harmfull to us anyway because rank_via_dag() only takes into
-       account the parents that are part of the supplied dag argument. */
-    /* This branch complies with rule 4 of RFC6550 Section 8.2.2.4., i.e., a node MAY,
-       at any time, choose to join a different DODAG within an instance. Such a join
-       has no rank restrictions, unless that "different" DODAG is a DODAG Version of
-       which this node has previously been a member; in which case, rule 3 of RFC6550
-       Section 8.2.2.4. must be observed! More specifically, if we haven't previously
-       been part of p->dag, then p->dag->rank shall be RPL_INFINITE_RANK and thus the
-       branch condition is never true unless p advertises RPL_INFINITE_RANK, in which
-       case RFC 6550 Section 8.2.2.5. states that a node MUST NOT have any nodes with
-       a rank of RPL_INFINITE_RANK in its parent set anyway. */
-    LOG_WARN("Parent ");
-    LOG_WARN_6ADDR(rpl_parent_get_ipaddr(p));
-    LOG_WARN_(" advertises a rank (%u) >= our own advertised rank (%u), which is illegal!\n",
-              (unsigned)p->rank, (unsigned)p->dag->rank);
-    /* TODO describe what happens */
-    if(p->dag->joined) {
-      rpl_remove_parent(p);
-      return 0;
-    }
-    return_value = 0;
-  } else if(!acceptable_rank(p->dag, rpl_rank_via_parent(p))) {
+
+  if(!acceptable_rank(p->dag, rpl_rank_via_parent(p))) {
     /* The candidate parent is no longer valid: the max possible rank increase
        resulting from the choice of it as a parent (meaning it may thereafter
        become the preferred parent too) would be too high according to rule
@@ -1889,18 +1894,42 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
        point. For MRHOF-based OFs, the rank via p is the highest rank we may ever
        advertise for which p is to blame and so if it is not acceptable, it is
        probably a safe bet to not have p as a member of the parent set. */
-    LOG_WARN("Unacceptable rank %u (Current min %u, MaxRankInc %u)\n", (unsigned)p->rank,
-        p->dag->min_rank, p->dag->instance->max_rankinc);
-    /* Same remarks as before */
-    if(p->dag->joined) {
-      rpl_remove_parent(p);
-      return 0;
+    LOG_WARN("Stored rank %u of ",(unsigned)p->rank);
+    if(p == p->dag->preferred_parent) {
+      LOG_WARN_("preferred ");
     }
+    LOG_WARN_("parent ");
+    LOG_WARN_6ADDR(rpl_parent_get_ipaddr(p));
+    LOG_WARN_(" may cause unacceptable advertised rank %u in worst case (Current min %u, MaxRankInc %u)\n",
+              (unsigned)rpl_rank_via_parent(p), p->dag->min_rank, p->dag->instance->max_rankinc);
+    rpl_dag_t *parent_dag = p->dag;
+    uint8_t sel_pp = (p->flags & RPL_PARENT_FLAG_SEL_PP);
+    rpl_remove_parent(p);
+    /* REVIEW should we check if we're root? */
+    /* We should only select a preferred parent (and thereby recalulate ranks
+       for all parents in the parent set, i.e., go through the rank computation sub-
+       process) if p was part of the parent set prior to DIO processing (which then
+       resulted in this function being called) as indicated by RPL_PARENT_FLAG_SEL_PP */
+    if(sel_pp && (p = rpl_select_parent(parent_dag)) != NULL) {
+      LOG_DBG("Selected preferred parent ");
+      LOG_DBG_6ADDR(rpl_parent_get_ipaddr(p));
+      LOG_DBG_(" in DAG ");
+      LOG_DBG_6ADDR(&parent_dag->dag_id);
+      LOG_DBG_("\n");
+    }
+    p = NULL;
     return_value = 0;
+  }
+
+  /* Reset p's preferred parent selection flag */
+  if(p != NULL) {
+    p->flags &= ~RPL_PARENT_FLAG_SEL_PP;
   }
 
   if(rpl_select_dag(instance, p) == NULL) {
     if(last_parent != NULL) {
+      /* REVIEW what happens here exactly is unclear. Especially the use of
+         the last_parent variable could use more documentation. */
       /* No suitable parent anymore; trigger a local repair. */
       LOG_ERR("No parents found in any DAG\n");
       rpl_local_repair(instance);
@@ -1960,6 +1989,39 @@ add_nbr_from_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+int 
+rpl_parent_set_is_empty(rpl_dio_t *dio)
+{
+  rpl_dag_t *dag;
+  if((dag = get_dag(dio->instance_id, &dio->dag_id)) == NULL) {
+    LOG_DBG("Could not retrieve DAG ");
+    LOG_DBG_6ADDR(&dio->dag_id);
+    LOG_DBG(", parent set is empty\n");
+    return 1;
+  }
+  rpl_parent_t *p;
+  p = nbr_table_head(rpl_parents);
+  while(p != NULL) {
+    if(p->dag != NULL && dag == p->dag) {
+      if(!lollipop_greater_than(dio->version, dag->version) &&
+         !lollipop_greater_than(dag->version, dio->version)) {
+        /* We found a parent that belongs to the same dag version as 
+           the one indicated by the DIO and so we can return 0 since
+           this means the parent set is not empty */
+        LOG_DBG("Parent set not empty for DAG ");
+        LOG_DBG_6ADDR(&dio->dag_id);
+        LOG_DBG_(" version %u\n", dio->version);
+        return 0;
+      }
+    }
+    p = nbr_table_next(rpl_parents, p);
+  }
+  LOG_DBG("No parents found in DAG ");
+  LOG_DBG_6ADDR(&dio->dag_id);
+  LOG_DBG_(" version %u, parent set empty\n", dio->version);
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
 void
 rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
 {
@@ -1978,17 +2040,30 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
     return;
   }
 
+  /* Retrieve both the dag and the instance to which the DIO belongs */
   dag = get_dag(dio->instance_id, &dio->dag_id);
   instance = rpl_get_instance(dio->instance_id);
 
+  /* If both dag and instance are != NULL we know that the DIO corresponds
+     to a given dag in a given instance of which we've at least already been
+     a part in the past (however, we might currently have joined another dag) */
   if(dag != NULL && instance != NULL) {
     if(lollipop_greater_than(dio->version, dag->version)) {
       if(dag->rank == ROOT_RANK(instance)) {
+        /* We are root (not Groot, you Marvel addict) and we somehow receive a
+           DIO (presumably from our sub-dag) which advertises an innapropriately
+           high dag version. Hence, we should probably start advertising an even
+           higher dag version (assuming we are part of the dag to which the DIO
+           pertains that is). */
         LOG_WARN("Root received inconsistent DIO version number (current: %u, received: %u)\n", dag->version, dio->version);
         dag->version = dio->version;
         RPL_LOLLIPOP_INCREMENT(dag->version);
-        rpl_reset_dio_timer(instance);
       } else {
+        /* Migrate to the new DODAG version */
+        /* We can perform a global repair here regardless of the fact we have currently
+           joined the given dag. That's because a global repair operation operates on the
+           parents of the given dag only and so it should (theoretically) not affect
+           correct operation in another dag */
         LOG_DBG("Global repair\n");
         if(dio->prefix_info.length != 0) {
           if(dio->prefix_info.flags & UIP_ND6_RA_FLAG_AUTONOMOUS) {
@@ -1998,16 +2073,24 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
         }
         global_repair(from, dag, dio);
       }
+      /* REVIEW should we reset the timer in all cases or only when we have
+         currently joined the given dag? */
+      if(dag->joined) {
+        rpl_reset_dio_timer(instance);
+      }
       return;
     }
 
     if(lollipop_greater_than(dag->version, dio->version)) {
-      /* The DIO sender is on an older version of the DAG. */
-      LOG_WARN("old version received => inconsistency detected\n");
+      /* The DIO advertises a smaller DODAG version than the version of
+         said DODAG which we're currently part of, i.e., the DIO sender
+         is part of an older version of the DAG. */
+      LOG_WARN("Old DAG version received => inconsistency detected\n");
       if(dag->joined) {
+        /* We advertise the new DODAG version ASAP */
         rpl_reset_dio_timer(instance);
-        return;
       }
+      return;
     }
   }
 
@@ -2016,7 +2099,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
     if(add_nbr_from_dio(from, dio)) {
       rpl_join_instance(from, dio);
     } else {
-      LOG_WARN("Not joining since could not add parent\n");
+      LOG_WARN("Not joining instance since could not add neighbor ");
+      LOG_WARN_6ADDR(from);
+      LOG_WARN_("\n");
     }
     return;
   }
@@ -2030,7 +2115,11 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
 #if RPL_MAX_DAG_PER_INSTANCE > 1
     LOG_INFO("Adding new DAG to known instance.\n");
     if(!add_nbr_from_dio(from, dio)) {
-      LOG_WARN("Could not add new DAG, could not add parent\n");
+      LOG_WARN("Not adding DAG ");
+      LOG_WARN_6ADDR(&dio->dag_id);
+      LOG_WARN_(" since could not add neighbor ");
+      LOG_WARN_6ADDR(from);
+      LOG_WARN_("\n");
       return;
     }
     dag = rpl_add_dag(from, dio);
@@ -2039,15 +2128,15 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
       return;
     }
 #else /* RPL_MAX_DAG_PER_INSTANCE > 1 */
-    LOG_WARN("Only one instance supported.\n");
+    LOG_WARN("Only one DAG per instance supported.\n");
     return;
 #endif /* RPL_MAX_DAG_PER_INSTANCE > 1 */
   }
 
 
   if(dio->rank < ROOT_RANK(instance)) {
-    LOG_INFO("Ignoring DIO with too low rank: %u\n",
-           (unsigned)dio->rank);
+    LOG_INFO("Ignoring DIO with rank (%u) < root rank (%u)\n",
+             (unsigned)dio->rank, (unsigned)ROOT_RANK(instance));
     return;
   }
 
@@ -2060,7 +2149,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
   }
 
   if(!add_nbr_from_dio(from, dio)) {
-    LOG_WARN("Could not add parent based on DIO\n");
+    LOG_WARN("Could not add neighbor ");
+    LOG_WARN_6ADDR(from);
+    LOG_WARN_(" based on DIO\n");
     return;
   }
 
@@ -2074,94 +2165,216 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
 
   /* The DIO comes from a valid DAG, we can refresh its lifetime */
   dag->lifetime = (1UL << (instance->dio_intmin + instance->dio_intdoubl)) * RPL_DAG_LIFETIME / 1000;
-  LOG_INFO("Set dag ");
+  LOG_INFO("Set DAG ");
   LOG_INFO_6ADDR(&dag->dag_id);
   LOG_INFO_(" lifetime to %ld\n", (long int) dag->lifetime);
 
-  /*
-   * At this point, we know that this DIO pertains to a DAG that
-   * we are already part of. We consider the sender of the DIO to be
-   * a candidate parent, and let rpl_process_parent_event decide
-   * whether to keep it in the set.
-   */
-
-  p = rpl_find_parent(dag, from);
-  if(p == NULL) {
-    previous_dag = find_parent_dag(instance, from);
-    if(previous_dag == NULL) {
-      /* Add the DIO sender as a candidate parent. */
-      p = rpl_add_parent(dag, dio, from);
+  /* If we have reached this point, we know that the version of the DAG advertised
+     in the DIO and our last stored version of that same DAG are identical because
+     otherwise we'd have returned already. */
+  if(!rpl_parent_set_is_empty(dio)) {
+    /* Given the prior statement, if p is part of the given DAG advertised by the DIO,
+       it must be part of our parent set because it could only be part of said DAG if
+       the advertised DAG version corresponded to the stored version. However p might
+       also have previously advertised a different DAG or is a new parent altogether. */
+    p = rpl_find_parent(dag, from);
+    /* REVIEW maybe we should compare with DAG_RANK instead */
+    if(dio->rank < dag->rank) {
+      LOG_DBG("DIO advertises a rank (%u) < DAG rank (%u)\n",
+              (unsigned)dio->rank, (unsigned)dag->rank);
+      /* We now know that the rank advertised in the DIO is smaller than the rank
+         we advertise in the DAG to which the DIO corresponds. */
       if(p == NULL) {
-        LOG_WARN("Failed to add a new parent (");
-        LOG_WARN_6ADDR(from);
-        LOG_WARN_(")\n");
-        return;
+        LOG_DBG("No existing entry found for ");
+        LOG_DBG_6ADDR(from);
+        LOG_DBG_(" in DAG ");
+        LOG_DBG_6ADDR(&dio->dag_id);
+        LOG_DBG_("\n");
+        /* The node from which we received a DIO (corresponding to the given DAG)
+           might have previously advertised membership of a different DAG within
+           the given instance. */
+        previous_dag = find_parent_dag(instance, from);
+        /* TODO we might as well change this to the following */
+        // if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL)
+        if(previous_dag == NULL) {
+          LOG_DBG("No existing entry found for ");
+          LOG_DBG_6ADDR(from);
+          LOG_DBG_(" in any other DAG\n");
+          /* If the node has not previously advertised membership of a different
+             DAG within the given instance, we may add the parent to our rpl_parents
+             table (remember a node may only belong to one DAG per instance). Since
+             we can only reach this point if the DAG version is the same as the DIO
+             version, this means that p will effectively end up in our logical parent
+             set (if addition doesn't fail because of memory issues) */
+          p = rpl_add_parent(dag, dio, from);
+          if(p == NULL) {
+            LOG_WARN("Failed to add a new parent (");
+            LOG_WARN_6ADDR(from);
+            LOG_WARN_(")\n");
+            return;
+          }
+          LOG_INFO("New candidate parent with rank %u: ", (unsigned)p->rank);
+          LOG_INFO_6ADDR(from);
+          LOG_INFO_("\n");
+        } else {
+          LOG_DBG("Existing entry found for ");
+          LOG_DBG_6ADDR(from);
+          LOG_DBG_(" in DAG ");
+          LOG_DBG_6ADDR(&previous_dag->dag_id);
+          LOG_DBG_("(DIO advertises DAG ");
+          LOG_DBG_6ADDR(&dio->dag_id);
+          LOG_DBG_(")\n");
+          /* If p has previously advertised membership of a different DAG we must move
+             it to the DAG it currently advertises. At this point we know that the rank
+             and DAG version conditions in the given (newly advertised) DAG are satisfied
+             and so this is a fairly straightforward operation. */
+          p = rpl_find_parent(previous_dag, from);
+          rpl_move_parent(previous_dag, dag, p);
+        }
+      } else {
+        LOG_DBG("Existing entry found for ");
+        LOG_DBG_6ADDR(from);
+        LOG_DBG_(" in DAG ");
+        LOG_DBG_6ADDR(&dio->dag_id);
+        LOG_DBG_("\n");
+        if(p->rank == dio->rank) {
+          LOG_INFO("Received consistent DIO\n");
+          if(dag->joined) {
+            instance->dio_counter++;
+          }
+        } 
       }
-      LOG_INFO("New candidate parent with rank %u: ", (unsigned)p->rank);
-      LOG_INFO_6ADDR(from);
-      LOG_INFO_("\n");
+      p->rank = dio->rank;
+      rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
+      p->flags |= RPL_PARENT_FLAG_SEL_PP;
     } else {
-      p = rpl_find_parent(previous_dag, from);
-      if(p != NULL) {
+      LOG_DBG("DIO advertises a rank (%u) >= DAG rank (%u)\n",
+              (unsigned)dio->rank, (unsigned)dag->rank);
+      /* The DIO advertises a rank higher than or equal to the rank we advertise in
+         the DAG pertaining to the DIO and so the sender of the DIO must not be part
+         of our parent set. */
+      /* The parent set is not empty. Thus, if we receive a DIO from a node that is
+         not part of the parent set of the DAG advertised by the DIO, we can just ignore
+         it. However, it might be a good idea to move the parent if it has previously 
+         advertised membership of a different DAG within the given instance. This is
+         merely a housekeeping operation because it will thereafter be removed. */
+      if(p == NULL) {
+        previous_dag = find_parent_dag(instance, from);
+        /* TODO we might as well change this to the following */
+        // if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL)
+        if(previous_dag == NULL) {
+          /* The DIO sender is not part of the DAG it currently advertises, nor has it
+             previously advertised membership of a different DAG and so we can simply
+             ignore the DIO altogether. */
+          LOG_DBG("Ignoring DIO from ");
+          LOG_DBG_6ADDR(from);
+          LOG_DBG_("\n");
+          return;
+        }
+        LOG_DBG("Existing entry found for ");
+        LOG_DBG_6ADDR(from);
+        LOG_DBG_(" in DAG ");
+        LOG_DBG_6ADDR(&previous_dag->dag_id);
+        LOG_DBG_("(DIO advertises DAG ");
+        LOG_DBG_6ADDR(&dio->dag_id);
+        LOG_DBG_(")\n");
+        p = rpl_find_parent(previous_dag, from);
         rpl_move_parent(previous_dag, dag, p);
+        LOG_DBG("Candidate parent ");
+        LOG_DBG_6ADDR(from);
+        LOG_DBG_(" was part of another DAG and shall be removed immediately\n");
+      } else {
+        LOG_DBG("Candidate parent ");
+        LOG_DBG_6ADDR(from);
+        LOG_DBG_(" was part of parent set and should be removed soon\n");
+        rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
+        p->flags |= RPL_PARENT_FLAG_SEL_PP;
       }
+      /* The trick here is setting the rank of p to infinity such that it kicked out of
+         the parent set when rpl_process_parent_event() is called. This also ensures that
+         a local repair operation is performed should there be no suitable parents left
+         after kicking p */
+      p->rank = RPL_INFINITE_RANK;
     }
   } else {
-    if(p->rank == dio->rank) {
-      LOG_INFO("Received consistent DIO\n");
-      if(dag->joined) {
-        instance->dio_counter++;
+    /* The parent set corresponding to the DAG version of the given DIO is empty. This
+       might happen when we have previously removed a the last parent from a DAG we were
+       part of already. There's no need to call rpl_find_parent(dag, from) here since
+       we already know the given parent set (corresponding to the information found in
+       the DIO) is empty and so this would always return NULL, meaning the sender of the
+       DIO is not part of the DAG it advertises */
+    /* REVIEW maybe we should compare with DAG_RANK instead */
+    if(dio->rank < dag->rank) {
+      LOG_DBG("DIO advertises a rank (%u) < DAG rank (%u)\n",
+              (unsigned)dio->rank, (unsigned)dag->rank);
+      previous_dag = find_parent_dag(instance, from);
+      /* TODO we might as well change this to the following */
+      // if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL)
+      if(previous_dag == NULL) {
+        p = rpl_add_parent(dag, dio, from);
+        if(p == NULL) {
+          LOG_WARN("Failed to add a new parent (");
+          LOG_WARN_6ADDR(from);
+          LOG_WARN_(")\n");
+          return;
+        }
+        LOG_INFO("New candidate parent with rank %u: ", (unsigned)p->rank);
+        LOG_INFO_6ADDR(from);
+        LOG_INFO_("\n");
+      } else {
+        p = rpl_find_parent(previous_dag, from);
+        rpl_move_parent(previous_dag, dag, p);
       }
+      p->rank = dio->rank;
+      rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
+      p->flags |= RPL_PARENT_FLAG_SEL_PP;
+    } else {
+      LOG_DBG("DIO advertises a rank (%u) >= DAG rank (%u)\n",
+              (unsigned)dio->rank, (unsigned)dag->rank);
+      previous_dag = find_parent_dag(instance, from);
+      if(previous_dag == NULL) {
+        LOG_DBG("Ignoring DIO from ");
+        LOG_DBG_6ADDR(from);
+        LOG_DBG_("\n");
+        return;
+      }
+      LOG_DBG("Existing entry found for ");
+      LOG_DBG_6ADDR(from);
+      LOG_DBG_(" in DAG ");
+      LOG_DBG_6ADDR(&previous_dag->dag_id);
+      LOG_DBG_("(DIO advertises DAG ");
+      LOG_DBG_6ADDR(&dio->dag_id);
+      LOG_DBG_(")\n");
+      p = rpl_find_parent(previous_dag, from);
+      rpl_move_parent(previous_dag, dag, p);
+      LOG_DBG("Not executing normalized metric logic because ");
+      LOG_DBG_6ADDR(from);
+      LOG_DBG_(" was part of another DAG and shall be removed immediately\n");
+      p->rank = RPL_INFINITE_RANK;
     }
   }
-  p->rank = dio->rank;
 
+  /* Instead of checking p->rank we operate on dio->rank because we might have
+     artificially set p->rank to RPL_INFINITE_RANK whereas dio->rank is left
+     untouched */
   if(dio->rank == RPL_INFINITE_RANK && p == dag->preferred_parent) {
     /* Our preferred parent advertised an infinite rank, reset DIO timer */
+    LOG_DBG("Preferred parent ");
+    LOG_DBG_6ADDR(rpl_parent_get_ipaddr(p));
+    LOG_DBG_(" advertises RPL_INFINITE_RANK\n");
     rpl_reset_dio_timer(instance);
   }
-
-  /* Make sure the normalized metrics of all parents are up to date and
-     follow the complete logic, including resetting the defer flags of
-     all parents. However, since rpl_process_parent_event() is also called
-     here to determine if a new parent should stay in the parent set, we
-     should hold off on resetting the defer flags until we're certain
-     the parent can remain in the set. This means that the normalized metric
-     of all non-preferred parents is updated (most commonly) when we receive
-     and process a DIO from any neighbor (parent or not) or when we success-
-     fully transmit a unicast packet to a neighbor. The normalized metric of
-     the preferred parent however is only updated when receiving a DIO from
-     an existing / new parent that stays in the parent set or when we success-
-     fully transmit a unicast packet to a neighbor, and (in both cases) only
-     if its defer flags fulfill the necessary requirements. */
-  rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);
-
-  /* Parent info has been updated, trigger rank recalculation */
-  p->flags |= RPL_PARENT_FLAG_UPDATED;
-
-  LOG_INFO("preferred DAG ");
-  LOG_INFO_6ADDR(&instance->current_dag->dag_id);
-  LOG_INFO_(", rank %u, min_rank %u, ",
-	 instance->current_dag->rank, instance->current_dag->min_rank);
-  LOG_INFO_("parent rank %u, link metric %u\n",
-	 p->rank, rpl_get_parent_link_metric(p));
-
-  /* We have allocated a candidate parent; process the DIO further. */
 
 #if RPL_WITH_MC
   memcpy(&p->mc, &dio->mc, sizeof(p->mc));
 #endif /* RPL_WITH_MC */
-  /* We don't need to update the parent's normalized metric because
-     at this point that has already been handled by the prior call to
-     rpl_exec_norm_metric_logic(). We have not yet reset the defer flags
-     though, as this should only be done when we're certain the given
-     parent remains in the parent set */
+
+  /* Parent info has been updated, trigger rank recalculation */
+  // p->flags |= RPL_PARENT_FLAG_UPDATED;
+  
   if(rpl_process_parent_event(instance, p) == 0) {
     LOG_WARN("The candidate parent is rejected\n");
     return;
-  } else {
-    LOG_DBG("Candidate parent accepted, resetting defer flags of all parents\n");
-    rpl_reset_defer_flags();
   }
 
   /* We don't use route control, so we can have only one official parent. */

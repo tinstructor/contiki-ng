@@ -107,12 +107,14 @@
 #endif /* LINK_STATS_METRIC_THRESHOLD */
 
 /* The metric placeholder used in normalization when an inferred
-   metric is worse than the metric threshold */
+   metric is worse than the metric threshold. When used in conjunction
+   with an MRHOF-based OF, make sure to choose a placeholder value
+   that is worse than the MAX_LINK_METRIC (see RFC 6719 Section 3.1.1.). */
 #ifdef LINK_STATS_CONF_METRIC_PLACEHOLDER
 #define LINK_STATS_METRIC_PLACEHOLDER LINK_STATS_CONF_METRIC_PLACEHOLDER
 #else /* LINK_STATS_CONF_METRIC_PLACEHOLDER */
 #if LINK_STATS_INTERFACES_WITH_ETX
-#define LINK_STATS_METRIC_PLACEHOLDER             (8U * LINK_STATS_ETX_DIVISOR)
+#define LINK_STATS_METRIC_PLACEHOLDER             (10U * LINK_STATS_ETX_DIVISOR)
 #else /* LINK_STATS_INTERFACES_WITH_ETX */
 #define LINK_STATS_METRIC_PLACEHOLDER             7U
 #endif /* LINK_STATS_INTERFACES_WITH_ETX */

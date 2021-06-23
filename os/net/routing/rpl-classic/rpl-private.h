@@ -376,6 +376,7 @@ void rpl_recalculate_ranks(void);
 int rpl_set_interface_weights(rpl_parent_t *p);
 void rpl_recalculate_interface_weights(void);
 void rpl_reset_defer_flags(void);
+int rpl_parent_set_is_empty(rpl_dio_t *dio);
 
 /* RPL routing table functions. */
 void rpl_remove_routes(rpl_dag_t *dag);
@@ -391,6 +392,7 @@ rpl_of_t *rpl_find_of(rpl_ocp_t);
 void rpl_schedule_dao(rpl_instance_t *);
 void rpl_schedule_dao_immediately(rpl_instance_t *);
 void rpl_schedule_unicast_dio_immediately(rpl_instance_t *instance);
+void rpl_schedule_child_unicast_dio_immediately(rpl_instance_t *instance);
 void rpl_cancel_dao(rpl_instance_t *instance);
 void rpl_schedule_probing(rpl_instance_t *instance);
 void rpl_schedule_probing_now(rpl_instance_t *instance);

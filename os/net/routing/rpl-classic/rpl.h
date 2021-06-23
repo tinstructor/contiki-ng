@@ -119,8 +119,9 @@ typedef struct rpl_metric_container rpl_metric_container_t;
 struct rpl_instance;
 struct rpl_dag;
 /*---------------------------------------------------------------------------*/
-#define RPL_PARENT_FLAG_UPDATED           0x1
-#define RPL_PARENT_FLAG_LINK_METRIC_VALID 0x2
+#define RPL_PARENT_FLAG_UPDATED           0x01
+#define RPL_PARENT_FLAG_LINK_METRIC_VALID 0x02
+#define RPL_PARENT_FLAG_SEL_PP            0x04
 
 struct rpl_parent {
   struct rpl_dag *dag;
@@ -271,6 +272,7 @@ struct rpl_instance {
   struct ctimer dao_lifetime_timer;
   struct ctimer unicast_dio_timer;
   rpl_parent_t *unicast_dio_target;
+  uip_ipaddr_t *child_unicast_dio_target;
 #if RPL_WITH_DAO_ACK
   struct ctimer dao_retransmit_timer;
 #endif /* RPL_WITH_DAO_ACK */
