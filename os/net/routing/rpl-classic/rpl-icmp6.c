@@ -740,10 +740,21 @@ dao_input_storing(void)
     parent = rpl_find_parent(dag, &dao_sender_addr);
     /* check if this is a new DAO registration with an "illegal" rank */
     /* if we already route to this node it is likely */
+    /* REVIEW does this mechanism still function properly with parents being removed from
+       the rpl_parents table if they are not suitable parents? */
     if(parent != NULL &&
-       DAG_RANK(parent->rank, instance) < DAG_RANK(dag->rank, instance)) {
-      LOG_WARN("Loop detected when receiving a unicast DAO from a node with a lower rank! (%u < %u)\n",
-             DAG_RANK(parent->rank, instance), DAG_RANK(dag->rank, instance));
+       DAG_RANK(parent->rank, instance) <= DAG_RANK(dag->rank, instance)) {
+       /* According to rule 1 of RFC6550 Section 8.2.2.4. a child node is not allowed
+          to advertise a rank lesser than OR EQUAL TO the rank advertised by any of its parents.
+          Thus, since we receive a DAO from a node we are presumably its parent, and so we might
+          want to check if DAG_RANK(parent->rank, instance) <= DAG_RANK(dag->rank, instance)
+          instead of simply checking "lesser than" */
+      LOG_WARN("Loop detected when receiving unicast DAO from node with rank %u <= DAG rank %u\n",
+               DAG_RANK(parent->rank, instance), DAG_RANK(dag->rank, instance));
+      /* Setting parent->rank to RPL_INFINITE_RANK will cause the parent to be removed from
+         the rpl_parents table (and therefore the parent set) when rpl_process_parent_event
+         is called for said parent at the end of the next periodic timer period (provided
+         we set the RPL_PARENT_FLAG_UPDATED for the parent) */
       parent->rank = RPL_INFINITE_RANK;
       /* Make sure the normalized metrics of all parents are up to date
          Don't defer if the given parent is the preferred parent in the current
@@ -762,17 +773,21 @@ dao_input_storing(void)
       return;
     }
 
-    /* If we get the DAO from our parent, we also have a loop. */
+    /* If we get the DAO from our own preferred parent, we also have a loop. */
     if(parent != NULL && parent == dag->preferred_parent) {
-      LOG_WARN("Loop detected when receiving a unicast DAO from our parent\n");
+      LOG_WARN("Loop detected when receiving a unicast DAO from our preferred parent\n");
+      /* Setting parent->rank to RPL_INFINITE_RANK will cause the parent to be removed from
+         the rpl_parents table (and therefore the parent set) when rpl_process_parent_event
+         is called for said parent at the end of the next periodic timer period (provided
+         we set the RPL_PARENT_FLAG_UPDATED for the parent) */
       parent->rank = RPL_INFINITE_RANK;
-     /* Make sure the normalized metrics of all parents are up to date
-        Don't defer if the given parent is the preferred parent in the current
-        DAG of the default instance so that we may recover from a loop as quickly 
-        as possible. Also, don't reset any defer flags after running through the metric
-        normalization logic so that if the parent was not preferred (in the
-        current DAG of the default instance), the actual preferred parent may 
-        remain stable.*/
+      /* Make sure the normalized metrics of all parents are up to date
+         Don't defer if the given parent is the preferred parent in the current
+         DAG of the default instance so that we may recover from a loop as quickly 
+         as possible. Also, don't reset any defer flags after running through the metric
+         normalization logic so that if the parent was not preferred (in the
+         current DAG of the default instance), the actual preferred parent may 
+         remain stable.*/
       const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
       if(default_instance != NULL && default_instance->current_dag != NULL &&
          parent == default_instance->current_dag->preferred_parent && lladdr != NULL) {

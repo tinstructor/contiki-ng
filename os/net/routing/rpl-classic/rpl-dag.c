@@ -963,12 +963,6 @@ rpl_free_dag(rpl_dag_t *dag)
 rpl_parent_t *
 rpl_add_parent(rpl_dag_t *dag, rpl_dio_t *dio, uip_ipaddr_t *addr)
 {
-  /* REVIEW it could happen that a parent p exists in the rpl_parents table
-     but that p->dag is set to NULL. However, when someone has invoked rpl_find_parent(dag, from)
-     and thereafter invokes find_parent_dag(instance, from) because there was no parent in the
-     given dag, then, if find_parent_dag returns NULL, the caller might erroneously assume that
-     "from" (which is the address of p) is not a member of rpl_parents while in fact it is but
-     p->dag is simply NULL (meaning that it belongs to no dag) */
   rpl_parent_t *p = NULL;
   /* Is the parent known by ds6? Drop this request if not.
    * Typically, the parent is added upon receiving a DIO. */

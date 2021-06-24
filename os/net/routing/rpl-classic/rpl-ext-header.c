@@ -144,6 +144,7 @@ rpl_ext_header_hbh_update(uint8_t *ext_buf, int opt_offset)
     }
   }
 
+  /* REVIEW maybe we should compare with DAG_RANK instead */
   sender_closer = sender_rank < instance->current_dag->rank;
 
   LOG_DBG("Packet going %s, sender closer %d (%d < %d)\n", down == 1 ? "down" : "up",
