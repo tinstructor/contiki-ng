@@ -69,10 +69,12 @@ clock_time_t RPL_PROBING_DELAY_FUNC(rpl_dag_t *dag);
 /*---------------------------------------------------------------------------*/
 static struct ctimer periodic_timer;
 static struct ctimer interface_weights_timer;
+static struct ctimer poison_timer;
 static struct ctimer child_unicast_dio_timer;
 
 static void handle_periodic_timer(void *ptr);
 static void handle_interface_weights_timer(void *ptr);
+static void handle_poison_timer(void *ptr);
 static void handle_child_unicast_dio_timer(void *ptr);
 static void new_dio_interval(rpl_instance_t *instance);
 static void handle_dio_timer(void *ptr);
@@ -102,7 +104,7 @@ handle_periodic_timer(void *ptr)
   /* handle DIS */
 #if RPL_DIS_SEND
   next_dis++;
-  if((dag == NULL || dag->instance->current_dag->rank == RPL_INFINITE_RANK) && next_dis >= RPL_DIS_INTERVAL) {
+  if((dag == NULL || (dag->instance->current_dag->rank == RPL_INFINITE_RANK && dag->instance != poisoning_instance)) && next_dis >= RPL_DIS_INTERVAL) {
     next_dis = 0;
     dis_output(NULL);
   }
@@ -119,6 +121,12 @@ handle_interface_weights_timer(void *ptr)
 #endif
   num_tx_preferred = 0;
   ctimer_reset(&interface_weights_timer);
+}
+/*---------------------------------------------------------------------------*/
+static void
+handle_poison_timer(void *ptr)
+{
+  poisoning_instance = NULL;
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -231,6 +239,13 @@ rpl_reset_interface_weights_timer(void)
 {
   num_tx_preferred = 0;
   ctimer_set(&interface_weights_timer, RPL_IF_WEIGHTS_WINDOW, handle_interface_weights_timer, NULL);
+}
+/*---------------------------------------------------------------------------*/
+void
+rpl_reset_poison_timer(rpl_instance_t *instance)
+{
+  poisoning_instance = instance;
+  ctimer_set(&poison_timer, RPL_POISON_PERIOD, handle_poison_timer, NULL);
 }
 /*---------------------------------------------------------------------------*/
 /* Resets the DIO timer in the instance to its minimal interval. */

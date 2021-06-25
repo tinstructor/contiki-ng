@@ -314,6 +314,10 @@ rpl_ipv6_neighbor_callback(uip_ds6_nbr_t *nbr)
     if(instance->used == 1 ) {
       p = rpl_find_parent_any_dag(instance, &nbr->ipaddr);
       if(p != NULL) {
+        /* Setting p->rank to RPL_INFINITE_RANK will cause the parent to be removed from
+           the rpl_parents table (and therefore the parent set) when rpl_process_parent_event
+           is called for said parent at the end of the next periodic timer period (provided
+           we set the RPL_PARENT_FLAG_UPDATED for the parent) */
         p->rank = RPL_INFINITE_RANK;
         /* Make sure the normalized metrics of all parents are up to date
            Don't defer if the given parent is the preferred parent in the current

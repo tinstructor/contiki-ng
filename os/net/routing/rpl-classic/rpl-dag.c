@@ -95,6 +95,9 @@ NBR_TABLE_GLOBAL(rpl_parent_t, rpl_parents);
 rpl_instance_t instance_table[RPL_MAX_INSTANCES];
 rpl_instance_t *default_instance;
 /*---------------------------------------------------------------------------*/
+/* Pointer to the instance we are currently poisoning if any, NULL otherwise */
+rpl_instance_t *poisoning_instance;
+/*---------------------------------------------------------------------------*/
 /* A collection of interface IDs together with their weight */
 #if RPL_WEIGHTED_INTERFACES
 static rpl_ifw_collection_t rpl_ifw_collection  = { .size = 0 };
@@ -566,21 +569,21 @@ remove_parents(rpl_dag_t *dag, rpl_rank_t minimum_rank)
   }
 }
 /*---------------------------------------------------------------------------*/
-static void
-nullify_parents(rpl_dag_t *dag, rpl_rank_t minimum_rank)
-{
-  rpl_parent_t *p;
+// static void
+// nullify_parents(rpl_dag_t *dag, rpl_rank_t minimum_rank)
+// {
+//   rpl_parent_t *p;
 
-  LOG_INFO("Nullifying parents (minimum rank %u)\n", minimum_rank);
+//   LOG_INFO("Nullifying parents (minimum rank %u)\n", minimum_rank);
 
-  p = nbr_table_head(rpl_parents);
-  while(p != NULL) {
-    if(dag == p->dag && p->rank >= minimum_rank) {
-      rpl_nullify_parent(p);
-    }
-    p = nbr_table_next(rpl_parents, p);
-  }
-}
+//   p = nbr_table_head(rpl_parents);
+//   while(p != NULL) {
+//     if(dag == p->dag && p->rank >= minimum_rank) {
+//       rpl_nullify_parent(p);
+//     }
+//     p = nbr_table_next(rpl_parents, p);
+//   }
+// }
 /*---------------------------------------------------------------------------*/
 static int
 should_refresh_routes(rpl_instance_t *instance, rpl_dio_t *dio, rpl_parent_t *p)
@@ -1796,16 +1799,20 @@ rpl_local_repair(rpl_instance_t *instance)
     return;
   }
 
-#if RPL_WEIGHTED_INTERFACES
-  /* TODO do we need to reset wifsel flags here? */
-#endif
-
-  /* TODO make sure local repairs work with the new rpl_parents logic */
+  /* According to RFC 8036 Section 7.1.5., a local repair consists of a node detaching
+     from a DAG and then reattaching to the same or to a different DAG at a later time.
+     A node becomes detached from a DAG when it has an empty parent set. While detached,
+     a node must advertise RPL_INFINITE_RANK such that its children may select a new
+     preferred parent (this process is called "poisoning"). After the detached node has
+     made sufficient effort to send a notification to its children that it is detached,
+     the node can rejoin the same DAG with a higher rank value. */
   LOG_INFO("Starting a local instance repair\n");
   for(i = 0; i < RPL_MAX_DAG_PER_INSTANCE; i++) {
     if(instance->dag_table[i].used) {
+      /* Poison our children by advertising RPL_INFINITE_RANK */
       instance->dag_table[i].rank = RPL_INFINITE_RANK;
-      nullify_parents(&instance->dag_table[i], 0);
+      /* Detach from the DAG by removing all parents from the parent set */
+      remove_parents(&instance->dag_table[i], 0);
     }
   }
 
@@ -1815,7 +1822,10 @@ rpl_local_repair(rpl_instance_t *instance)
   ctimer_stop(&instance->dao_retransmit_timer);
 #endif /* RPL_WITH_DAO_ACK */
 
+  /* Start poisoning ASAP */
   rpl_reset_dio_timer(instance);
+  /* The poisoning DIOs must be sent before we start accepting new DIOs ourselves */
+  rpl_reset_poison_timer(instance);
   if(RPL_IS_STORING(instance)) {
     /* Request refresh of DAO registrations next DIO. Only for storing mode. In
      * non-storing mode, non-root nodes increment DTSN only on when their parent do,
@@ -1900,7 +1910,6 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
     rpl_dag_t *parent_dag = p->dag;
     uint8_t sel_pp = (p->flags & RPL_PARENT_FLAG_SEL_PP);
     rpl_remove_parent(p);
-    /* REVIEW should we check if we're root? */
     /* We should only select a preferred parent (and thereby recalulate ranks
        for all parents in the parent set, i.e., go through the rank computation sub-
        process) if p was part of the parent set prior to DIO processing (which then
@@ -1911,6 +1920,7 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
       LOG_DBG_(" in DAG ");
       LOG_DBG_6ADDR(&parent_dag->dag_id);
       LOG_DBG_("\n");
+      /* REVIEW should we set last_parent? */
     }
     p = NULL;
     return_value = 0;
@@ -2039,6 +2049,15 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
   dag = get_dag(dio->instance_id, &dio->dag_id);
   instance = rpl_get_instance(dio->instance_id);
 
+  /* FIXME it's definitely not appropriate to check this here but for testing purposes
+     we make sure we don't process any DIOs for an instance if we're currently poisoning it. */
+  if(instance != NULL && poisoning_instance == instance) {
+    LOG_DBG("Not processing DIO from ");
+    LOG_DBG_6ADDR(from);
+    LOG_DBG_(" because we are currently poisoning instance with ID = %u\n", instance->instance_id);
+    return;
+  }
+
   /* If both dag and instance are != NULL we know that the DIO corresponds
      to a given dag in a given instance of which we've at least already been
      a part in the past (however, we might currently have joined another dag) */
@@ -2056,9 +2075,10 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
       } else {
         /* Migrate to the new DODAG version */
         /* We can perform a global repair here regardless of the fact we have currently
-           joined the given dag. That's because a global repair operation operates on the
+           joined the given DAG. That's because a global repair operation operates on the
            parents of the given dag only and so it should (theoretically) not affect
-           correct operation in another dag */
+           correct operation in another DAG. Remember that a global repair is initiated
+           by the root by incrementing the DAG version (see RFC 6550 Section 3.2.2.). */
         LOG_DBG("Global repair\n");
         if(dio->prefix_info.length != 0) {
           if(dio->prefix_info.flags & UIP_ND6_RA_FLAG_AUTONOMOUS) {
@@ -2372,6 +2392,10 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
       LOG_DBG("Not executing normalized metric logic because ");
       LOG_DBG_6ADDR(from);
       LOG_DBG_(" was part of another DAG and shall be removed immediately\n");
+      /* The trick here is setting the rank of p to infinity such that it kicked out of
+         the parent set when rpl_process_parent_event() is called. This also ensures that
+         a local repair operation is performed should there be no suitable parents left
+         after kicking p */
       p->rank = RPL_INFINITE_RANK;
     }
   }

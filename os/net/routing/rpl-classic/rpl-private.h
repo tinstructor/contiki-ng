@@ -191,6 +191,14 @@
 #define RPL_IF_WEIGHTS_WINDOW       (60U * CLOCK_SECOND)
 #endif /* RPL_CONF_IF_WEIGHTS_WINDOW */
 
+/* Period during which we can't join any DAG within an instance
+   if we're currently poisoning it */
+#ifdef RPL_CONF_POISON_PERIOD
+#define RPL_POISON_PERIOD           RPL_CONF_POISON_PERIOD
+#else /* RPL_CONF_POISON_PERIOD */
+#define RPL_POISON_PERIOD           (10U * CLOCK_SECOND)
+#endif /* RPL_CONF_POISON_PERIOD */
+
 #ifdef RPL_CONF_WEIGHTED_INTERFACES
 #if (LINK_STATS_WITH_WEIGHTS != 1) && (RPL_CONF_WEIGHTED_INTERFACES == 1)
 #error "RPL can't use interface weighting because link-stats is not weight-based!"
@@ -334,6 +342,10 @@ typedef struct {
    parent within current window */
 extern uint16_t num_tx_preferred;
 
+/* Pointer to the instance we are currently poisoning if any,
+   NULL otherwise */
+extern rpl_instance_t *poisoning_instance;
+
 /* Instances */
 extern rpl_instance_t instance_table[];
 extern rpl_instance_t *default_instance;
@@ -400,6 +412,7 @@ void rpl_schedule_probing_now(rpl_instance_t *instance);
 void rpl_reset_dio_timer(rpl_instance_t *);
 void rpl_reset_periodic_timer(void);
 void rpl_reset_interface_weights_timer(void);
+void rpl_reset_poison_timer(rpl_instance_t *);
 
 /* Route poisoning. */
 void rpl_poison_routes(rpl_dag_t *, rpl_parent_t *);
