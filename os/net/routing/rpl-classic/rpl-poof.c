@@ -55,11 +55,14 @@
 
 #ifdef RPL_POOF_CONF_STEP_OF_RANK
 #define STEP_OF_RANK        RPL_POOF_CONF_STEP_OF_RANK
+#define NP_STEP_OF_RANK     RPL_POOF_CONF_STEP_OF_RANK
 #else /* RPL_POOF_CONF_STEP_OF_RANK */
 #if LINK_STATS_INTERFACES_WITH_ETX
 #define STEP_OF_RANK(p)     (((3 * parent_link_metric(p)) / LINK_STATS_ETX_DIVISOR) - 2)
+#define NP_STEP_OF_RANK(p)  (((3 * non_parent_link_metric(p)) / LINK_STATS_ETX_DIVISOR) - 2)
 #else /* LINK_STATS_INTERFACES_WITH_ETX */
 #define STEP_OF_RANK(p)     parent_link_metric(p)
+#define NP_STEP_OF_RANK(p)  non_parent_link_metric(p)
 #endif /* LINK_STATS_INTERFACES_WITH_ETX */
 #endif /* RPL_POOF_CONF_STEP_OF_RANK */
 
@@ -90,6 +93,17 @@ parent_link_metric(rpl_parent_t *p)
 }
 /*---------------------------------------------------------------------------*/
 static uint16_t
+non_parent_link_metric(rpl_parent_t *p)
+{
+  if(p == NULL) {
+    return 0xffff;
+  }
+
+  const struct link_stats *stats = rpl_get_non_parent_link_stats(p);
+  return stats != NULL ? stats->normalized_metric : 0xffff;
+}
+/*---------------------------------------------------------------------------*/
+static uint16_t
 parent_rank_increase(rpl_parent_t *p)
 {
   uint16_t min_hoprankinc;
@@ -98,6 +112,17 @@ parent_rank_increase(rpl_parent_t *p)
   }
   min_hoprankinc = p->dag->instance->min_hoprankinc;
   return (RANK_FACTOR * STEP_OF_RANK(p) + RANK_STRETCH) * min_hoprankinc;
+}
+/*---------------------------------------------------------------------------*/
+static uint16_t
+non_parent_rank_increase(rpl_parent_t *p)
+{
+  uint16_t min_hoprankinc;
+  if(p == NULL || p->dag == NULL || p->dag->instance == NULL) {
+    return RPL_INFINITE_RANK;
+  }
+  min_hoprankinc = p->dag->instance->min_hoprankinc;
+  return (RANK_FACTOR * NP_STEP_OF_RANK(p) + RANK_STRETCH) * min_hoprankinc;
 }
 /*---------------------------------------------------------------------------*/
 static uint16_t
@@ -110,6 +135,16 @@ parent_path_cost(rpl_parent_t *p)
   return MIN((uint32_t)p->rank + parent_link_metric(p), 0xffff);
 }
 /*---------------------------------------------------------------------------*/
+static uint16_t
+non_parent_path_cost(rpl_parent_t *p)
+{
+  if(p == NULL) {
+    return 0xffff;
+  }
+  /* path cost upper bound: 0xffff */
+  return MIN((uint32_t)p->rank + non_parent_link_metric(p), 0xffff);
+}
+/*---------------------------------------------------------------------------*/
 static rpl_rank_t
 rank_via_parent(rpl_parent_t *p)
 {
@@ -117,6 +152,16 @@ rank_via_parent(rpl_parent_t *p)
     return RPL_INFINITE_RANK;
   } else {
     return MIN((uint32_t)p->rank + parent_rank_increase(p), RPL_INFINITE_RANK);
+  }
+}
+/*---------------------------------------------------------------------------*/
+static rpl_rank_t
+rank_via_non_parent(rpl_parent_t *p)
+{
+  if(p == NULL) {
+    return RPL_INFINITE_RANK;
+  } else {
+    return MIN((uint32_t)p->rank + non_parent_rank_increase(p), RPL_INFINITE_RANK);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -210,9 +255,12 @@ rpl_of_t rpl_poof = {
   dao_ack_callback,
 #endif
   parent_link_metric,
+  non_parent_link_metric,
   parent_has_usable_link,
   parent_path_cost,
+  non_parent_path_cost,
   rank_via_parent,
+  rank_via_non_parent,
   best_parent,
   best_dag,
   update_metric_container,

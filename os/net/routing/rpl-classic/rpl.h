@@ -216,9 +216,12 @@ struct rpl_of {
   void (*dao_ack_callback)(rpl_parent_t *, int status);
 #endif
   uint16_t (*parent_link_metric)(rpl_parent_t *);
+  uint16_t (*non_parent_link_metric)(rpl_parent_t *);
   int (*parent_has_usable_link)(rpl_parent_t *);
   uint16_t (*parent_path_cost)(rpl_parent_t *);
+  uint16_t (*non_parent_path_cost)(rpl_parent_t *);
   rpl_rank_t (*rank_via_parent)(rpl_parent_t *);
+  rpl_rank_t (*rank_via_non_parent)(rpl_parent_t *);
   rpl_parent_t *(*best_parent)(rpl_parent_t *, rpl_parent_t *);
   rpl_dag_t *(*best_dag)(rpl_dag_t *, rpl_dag_t *);
   void (*update_metric_container)( rpl_instance_t *);
@@ -293,14 +296,21 @@ int rpl_ext_header_hbh_update(uint8_t *, int);
 void rpl_insert_header(void);
 bool rpl_ext_header_remove(void);
 const struct link_stats *rpl_get_parent_link_stats(rpl_parent_t *p);
+const struct link_stats *rpl_get_non_parent_link_stats(rpl_parent_t *p);
 int rpl_parent_is_fresh(rpl_parent_t *p);
+int rpl_non_parent_is_fresh(rpl_parent_t *p);
 int rpl_parent_is_stale(rpl_parent_t *p);
+int rpl_non_parent_is_stale(rpl_parent_t *p);
 int rpl_parent_is_reachable(rpl_parent_t *p);
 uint16_t rpl_get_parent_link_metric(rpl_parent_t *p);
+uint16_t rpl_get_non_parent_link_metric(rpl_parent_t *p);
 rpl_rank_t rpl_rank_via_parent(rpl_parent_t *p);
+rpl_rank_t rpl_rank_via_non_parent(rpl_parent_t *p);
 rpl_rank_t rpl_rank_via_dag(rpl_dag_t *dag, linkaddr_t *blame);
 const linkaddr_t *rpl_get_parent_lladdr(rpl_parent_t *p);
+const linkaddr_t *rpl_get_non_parent_lladdr(rpl_parent_t *p);
 uip_ipaddr_t *rpl_parent_get_ipaddr(rpl_parent_t *nbr);
+uip_ipaddr_t *rpl_non_parent_get_ipaddr(rpl_parent_t *p);
 rpl_parent_t *rpl_get_parent(const uip_lladdr_t *addr);
 rpl_rank_t rpl_get_parent_rank(uip_lladdr_t *addr);
 void rpl_dag_init(void);
@@ -311,6 +321,7 @@ int rpl_ext_header_srh_get_next_hop(uip_ipaddr_t *ipaddr);
 void rpl_link_callback(const linkaddr_t *addr, int status, int numtx);
 /* Per-parent RPL information */
 NBR_TABLE_DECLARE(rpl_parents);
+NBR_TABLE_DECLARE(rpl_non_parents);
 
 /**
  * RPL modes

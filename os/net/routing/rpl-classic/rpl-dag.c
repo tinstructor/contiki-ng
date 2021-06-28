@@ -90,6 +90,7 @@ static rpl_of_t * const objective_functions[] = RPL_SUPPORTED_OFS;
 /*---------------------------------------------------------------------------*/
 /* Per-parent RPL information */
 NBR_TABLE_GLOBAL(rpl_parent_t, rpl_parents);
+NBR_TABLE_GLOBAL(rpl_parent_t, rpl_non_parents);
 /*---------------------------------------------------------------------------*/
 /* Allocate instance table. */
 rpl_instance_t instance_table[RPL_MAX_INSTANCES];
@@ -118,7 +119,7 @@ rpl_print_neighbor_list(void)
     while(p != NULL) {
       const struct link_stats *stats = rpl_get_parent_link_stats(p);
       uip_ipaddr_t *parent_addr = rpl_parent_get_ipaddr(p);
-      LOG_DBG("RPL: nbr ");
+      LOG_DBG("RPL: parent ");
       LOG_DBG_6ADDR(parent_addr);
       LOG_DBG_(" %5u, %5u => %5u -- %c%c",
           p->rank,
@@ -137,6 +138,29 @@ rpl_print_neighbor_list(void)
       }
       LOG_DBG_("\n");
       p = nbr_table_next(rpl_parents, p);
+    }
+    p = nbr_table_head(rpl_non_parents);
+    while(p != NULL) {
+      const struct link_stats *stats = rpl_get_non_parent_link_stats(p);
+      uip_ipaddr_t *non_parent_addr = rpl_non_parent_get_ipaddr(p);
+      LOG_DBG("RPL: non-parent ");
+      LOG_DBG_6ADDR(non_parent_addr);
+      LOG_DBG_(" %5u, %5u => %5u -- %c",
+          p->rank,
+          rpl_get_non_parent_link_metric(p),
+          rpl_rank_via_non_parent(p),
+          rpl_non_parent_is_fresh(p) ? 'f' : (rpl_non_parent_is_stale(p) ? 's' : 'u')
+      );
+      if(stats != NULL) {
+        struct interface_list_entry *ile;
+        ile = list_head(stats->interface_list);
+        while(ile != NULL) {
+          LOG_DBG_(" (ID: %u, fcnt: %2u, ltx: %u)", ile->if_id, ile->freshness, (unsigned)((clock_now - ile->last_tx_time) / CLOCK_SECOND));
+          ile = list_item_next(ile);
+        }
+      }
+      LOG_DBG_("\n");
+      p = nbr_table_next(rpl_non_parents, p);
     }
     LOG_DBG("RPL: end of list\n");
   }
@@ -163,6 +187,7 @@ void
 rpl_dag_init(void)
 {
   nbr_table_register(rpl_parents, (nbr_table_callback *)nbr_callback);
+  nbr_table_register(rpl_non_parents, NULL);
 }
 /*---------------------------------------------------------------------------*/
 rpl_parent_t *
@@ -195,6 +220,18 @@ rpl_get_parent_link_metric(rpl_parent_t *p)
   return 0xffff;
 }
 /*---------------------------------------------------------------------------*/
+uint16_t
+rpl_get_non_parent_link_metric(rpl_parent_t *p)
+{
+  if(p != NULL && p->dag != NULL) {
+    rpl_instance_t *instance = p->dag->instance;
+    if(instance != NULL && instance->of != NULL && instance->of->non_parent_link_metric != NULL) {
+      return instance->of->non_parent_link_metric(p);
+    }
+  }
+  return 0xffff;
+}
+/*---------------------------------------------------------------------------*/
 rpl_rank_t
 rpl_rank_via_parent(rpl_parent_t *p)
 {
@@ -202,6 +239,18 @@ rpl_rank_via_parent(rpl_parent_t *p)
     rpl_instance_t *instance = p->dag->instance;
     if(instance != NULL && instance->of != NULL && instance->of->rank_via_parent != NULL) {
       return instance->of->rank_via_parent(p);
+    }
+  }
+  return RPL_INFINITE_RANK;
+}
+/*---------------------------------------------------------------------------*/
+rpl_rank_t
+rpl_rank_via_non_parent(rpl_parent_t *p)
+{
+  if(p != NULL && p->dag != NULL) {
+    rpl_instance_t *instance = p->dag->instance;
+    if(instance != NULL && instance->of != NULL && instance->of->rank_via_non_parent != NULL) {
+      return instance->of->rank_via_non_parent(p);
     }
   }
   return RPL_INFINITE_RANK;
@@ -235,6 +284,12 @@ rpl_get_parent_lladdr(rpl_parent_t *p)
   return nbr_table_get_lladdr(rpl_parents, p);
 }
 /*---------------------------------------------------------------------------*/
+const linkaddr_t *
+rpl_get_non_parent_lladdr(rpl_parent_t *p)
+{
+  return nbr_table_get_lladdr(rpl_non_parents, p);
+}
+/*---------------------------------------------------------------------------*/
 uip_ipaddr_t *
 rpl_parent_get_ipaddr(rpl_parent_t *p)
 {
@@ -245,10 +300,27 @@ rpl_parent_get_ipaddr(rpl_parent_t *p)
   return uip_ds6_nbr_ipaddr_from_lladdr((uip_lladdr_t *)lladdr);
 }
 /*---------------------------------------------------------------------------*/
+uip_ipaddr_t *
+rpl_non_parent_get_ipaddr(rpl_parent_t *p)
+{
+  const linkaddr_t *lladdr = rpl_get_non_parent_lladdr(p);
+  if(lladdr == NULL) {
+    return NULL;
+  }
+  return uip_ds6_nbr_ipaddr_from_lladdr((uip_lladdr_t *)lladdr);
+}
+/*---------------------------------------------------------------------------*/
 const struct link_stats *
 rpl_get_parent_link_stats(rpl_parent_t *p)
 {
   const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
+  return link_stats_from_lladdr(lladdr);
+}
+/*---------------------------------------------------------------------------*/
+const struct link_stats *
+rpl_get_non_parent_link_stats(rpl_parent_t *p)
+{
+  const linkaddr_t *lladdr = rpl_get_non_parent_lladdr(p);
   return link_stats_from_lladdr(lladdr);
 }
 /*---------------------------------------------------------------------------*/
@@ -271,11 +343,49 @@ rpl_parent_is_fresh(rpl_parent_t *p)
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+/* True if all of p's interfaces have fresh statistics, false otherwise. */
+int
+rpl_non_parent_is_fresh(rpl_parent_t *p)
+{
+  const struct link_stats *stats = rpl_get_non_parent_link_stats(p);
+  if(stats == NULL) {
+    return 0;
+  }
+  struct interface_list_entry *ile;
+  ile = list_head(stats->interface_list);
+  while(ile != NULL) {
+    if(!link_stats_interface_is_fresh(ile)) {
+      return 0;
+    }
+    ile = list_item_next(ile);
+  }
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
 /* True if none of p's interfaces has fresh statistics, false otherwise. */
 int 
 rpl_parent_is_stale(rpl_parent_t *p)
 {
   const struct link_stats *stats = rpl_get_parent_link_stats(p);
+  if(stats == NULL) {
+    return 1;
+  }
+  struct interface_list_entry *ile;
+  ile = list_head(stats->interface_list);
+  while(ile != NULL) {
+    if(link_stats_interface_is_fresh(ile)) {
+      return 0;
+    }
+    ile = list_item_next(ile);
+  }
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
+/* True if none of p's interfaces has fresh statistics, false otherwise. */
+int 
+rpl_non_parent_is_stale(rpl_parent_t *p)
+{
+  const struct link_stats *stats = rpl_get_non_parent_link_stats(p);
   if(stats == NULL) {
     return 1;
   }
@@ -1004,6 +1114,11 @@ rpl_add_parent(rpl_dag_t *dag, rpl_dio_t *dio, uip_ipaddr_t *addr)
 #endif /* RPL_WEIGHTED_INTERFACES */
       link_stats_reset_defer_flags((const linkaddr_t *)lladdr);
       link_stats_update_norm_metric((const linkaddr_t *)lladdr);
+      rpl_parent_t *np = nbr_table_get_from_lladdr(rpl_non_parents, (const linkaddr_t *)lladdr);
+      if(np != NULL) {
+        LOG_DBG("Removing former non-parent from rpl_non_parents table\n");
+        nbr_table_remove(rpl_non_parents, np);
+      }
     }
   }
 
@@ -1016,6 +1131,14 @@ find_parent_any_dag_any_instance(uip_ipaddr_t *addr)
   uip_ds6_nbr_t *ds6_nbr = uip_ds6_nbr_lookup(addr);
   const uip_lladdr_t *lladdr = uip_ds6_nbr_get_ll(ds6_nbr);
   return nbr_table_get_from_lladdr(rpl_parents, (linkaddr_t *)lladdr);
+}
+/*---------------------------------------------------------------------------*/
+static rpl_parent_t *
+find_non_parent_any_dag_any_instance(uip_ipaddr_t *addr)
+{
+  uip_ds6_nbr_t *ds6_nbr = uip_ds6_nbr_lookup(addr);
+  const uip_lladdr_t *lladdr = uip_ds6_nbr_get_ll(ds6_nbr);
+  return nbr_table_get_from_lladdr(rpl_non_parents, (linkaddr_t *)lladdr);
 }
 /*---------------------------------------------------------------------------*/
 rpl_parent_t *
@@ -1307,13 +1430,13 @@ rpl_remove_parent(rpl_parent_t *parent)
   LOG_INFO_6ADDR(rpl_parent_get_ipaddr(parent));
   LOG_INFO_("\n");
 
+  const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
 #if RPL_WEIGHTED_INTERFACES
   /* In any conceivable case, when a parent is removed from the rpl_parents table,
      preferred interface selection for that neighbor should no longer be based on 
      weights and thus its wifsel flag must be unset in the corresponding link_stats 
      table entry. No additional checks are needed, we can simply override the current
      wifsel flag state in the corresponding ile */
-  const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
   if(lladdr != NULL) {
     link_stats_modify_wifsel_flag(lladdr, LINK_STATS_WIFSEL_FLAG_FALSE);
   }
@@ -1361,6 +1484,29 @@ rpl_remove_parent(rpl_parent_t *parent)
      that are not our parents, nor our children (I realize that all this effort would not
      have been necessary if Contiki-NG implemented RFC 6775 / RFC 8505 instead of using
      the non-standard RPL probing mechanism, but I guess that's wishfull thinking). */
+  rpl_parent_t *np = nbr_table_add_lladdr(rpl_non_parents, lladdr,
+                                          NBR_TABLE_REASON_RPL_NON_PARENT, NULL);
+  if(!np) {
+    LOG_DBG("Could not add former parent ");
+    LOG_DBG_6ADDR(rpl_parent_get_ipaddr(parent));
+    LOG_DBG_(" to rpl_non_parents table\n");
+  } else {
+    LOG_DBG("Added former parent ");
+    LOG_DBG_6ADDR(rpl_parent_get_ipaddr(parent));
+    LOG_DBG_(" to rpl_non_parents table\n");
+    np->dag = parent->dag;
+    np->rank = parent->rank;
+    /* REVIEW is this appropriate? After all, a node advertising an acceptable rank but which has
+       too high of a metric shall continuously be added to rpl_parents and immediately be removed
+       and put in rpl_non_parents again, meaning that its freshness is reset continuously until
+       either its advertised rank exceeds or equals our advertised rank (meaning it shall not be
+       added to rpl_parents when processing the corresponding DIO) or its metric has improved
+       sufficiently for it to remain a parent. The only way for a non-parent to have its metrics
+       updated is for it to be probed and / or for it to probe us (depending on the kind of metric
+       used). A non-parent will probably only be probed if its not fresh because the rank through
+       it can't be better than that of a parent. */
+    link_stats_reset_freshness(lladdr);
+  }
   nbr_table_remove(rpl_parents, parent);
 }
 /*---------------------------------------------------------------------------*/
@@ -2293,6 +2439,12 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
           LOG_DBG("Ignoring DIO from ");
           LOG_DBG_6ADDR(from);
           LOG_DBG_("\n");
+          // TODO check rpl_non_parents and modify here?
+          rpl_parent_t *np = find_non_parent_any_dag_any_instance(from);
+          if(np != NULL) {
+            np->dag = get_dag(dio->instance_id, &dio->dag_id);
+            np->rank = dio->rank;
+          }
           return;
         }
         LOG_DBG("Existing entry found for ");
@@ -2371,6 +2523,12 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
         LOG_DBG("Ignoring DIO from ");
         LOG_DBG_6ADDR(from);
         LOG_DBG_("\n");
+        // TODO check rpl_non_parents and modify here?
+        rpl_parent_t *np = find_non_parent_any_dag_any_instance(from);
+        if(np != NULL) {
+          np->dag = get_dag(dio->instance_id, &dio->dag_id);
+          np->rank = dio->rank;
+        }
         return;
       }
       LOG_DBG("Existing entry found for ");

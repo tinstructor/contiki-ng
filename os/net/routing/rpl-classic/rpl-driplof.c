@@ -91,6 +91,17 @@ parent_link_metric(rpl_parent_t *p)
 }
 /*---------------------------------------------------------------------------*/
 static uint16_t
+non_parent_link_metric(rpl_parent_t *p)
+{
+  if(p == NULL) {
+    return 0xffff;
+  }
+
+  const struct link_stats *stats = rpl_get_non_parent_link_stats(p);
+  return stats != NULL ? stats->normalized_metric : 0xffff;
+}
+/*---------------------------------------------------------------------------*/
+static uint16_t
 parent_path_cost(rpl_parent_t *p)
 {
   uint16_t base;
@@ -113,6 +124,31 @@ parent_path_cost(rpl_parent_t *p)
 
   /* path cost upper bound: 0xffff */
   return MIN((uint32_t)base + parent_link_metric(p), 0xffff);
+}
+/*---------------------------------------------------------------------------*/
+static uint16_t
+non_parent_path_cost(rpl_parent_t *p)
+{
+  uint16_t base;
+
+  if(p == NULL || p->dag == NULL || p->dag->instance == NULL) {
+    return 0xffff;
+  }
+
+#if RPL_WITH_MC
+  /* Handle the different MC types */
+  switch(p->dag->instance->mc.type) {
+    /* TODO add case for yet to be defined metric container */
+    default:
+      base = p->rank;
+      break;
+  }
+#else /* RPL_WITH_MC */
+  base = p->rank;
+#endif /* RPL_WITH_MC */
+
+  /* path cost upper bound: 0xffff */
+  return MIN((uint32_t)base + non_parent_link_metric(p), 0xffff);
 }
 /*---------------------------------------------------------------------------*/
 #if RPL_WITH_MC
@@ -151,6 +187,23 @@ rank_via_parent(rpl_parent_t *p)
 
   min_hoprankinc = p->dag->instance->min_hoprankinc;
   path_cost = parent_path_cost(p);
+
+  /* Rank lower-bound: parent rank + min_hoprankinc */
+  return MAX(MIN((uint32_t)p->rank + min_hoprankinc, 0xffff), path_cost);
+}
+/*---------------------------------------------------------------------------*/
+static rpl_rank_t
+rank_via_non_parent(rpl_parent_t *p)
+{
+  uint16_t min_hoprankinc;
+  uint16_t path_cost;
+
+  if(p == NULL || p->dag == NULL || p->dag->instance == NULL) {
+    return RPL_INFINITE_RANK;
+  }
+
+  min_hoprankinc = p->dag->instance->min_hoprankinc;
+  path_cost = non_parent_path_cost(p);
 
   /* Rank lower-bound: parent rank + min_hoprankinc */
   return MAX(MIN((uint32_t)p->rank + min_hoprankinc, 0xffff), path_cost);
@@ -310,9 +363,12 @@ rpl_of_t rpl_driplof = {
   dao_ack_callback,
 #endif
   parent_link_metric,
+  non_parent_link_metric,
   parent_has_usable_link,
   parent_path_cost,
+  non_parent_path_cost,
   rank_via_parent,
+  rank_via_non_parent,
   best_parent,
   best_dag,
   update_metric_container,

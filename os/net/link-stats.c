@@ -422,6 +422,27 @@ link_stats_interface_is_fresh(const struct interface_list_entry *ile)
       && ile->freshness >= FRESHNESS_TARGET;
 }
 /*---------------------------------------------------------------------------*/
+int 
+link_stats_reset_freshness(const linkaddr_t *lladdr)
+{
+  struct link_stats *stats;
+  stats = nbr_table_get_from_lladdr(link_stats, lladdr);
+  if(stats == NULL) {
+    LOG_DBG("Could not find link stats table entry for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(", aborting freshness reset\n");
+    return 0;
+  }
+  stats->freshness = 0;
+  struct interface_list_entry *ile;
+  ile = list_head(stats->interface_list);
+  while(ile != NULL) {
+    ile->freshness = 0;
+    ile = list_item_next(ile);
+  }
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
 #if LINK_STATS_INIT_ETX_FROM_RSSI
 #define ETX_INIT_MAX 3
 uint16_t

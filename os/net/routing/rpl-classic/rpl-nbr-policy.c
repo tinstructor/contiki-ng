@@ -118,6 +118,7 @@ rpl_nbr_can_accept_new(const linkaddr_t *new, const linkaddr_t *candidate_for_re
   case NBR_TABLE_REASON_LLSEC:
   case NBR_TABLE_REASON_LINK_STATS:
   case NBR_TABLE_REASON_IPV6_ND_AUTOFILL:
+  case NBR_TABLE_REASON_RPL_NON_PARENT: /* REVIEW should this case be handled like NBR_TABLE_REASON_RPL_DIO instead? */
   default:
     /* Behavior for all but new RPL parents/children: accept anything until table is full. */
     accept = (candidate_for_removal == NULL);
