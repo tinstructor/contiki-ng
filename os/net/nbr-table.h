@@ -51,7 +51,6 @@ typedef enum {
   NBR_TABLE_REASON_LINK_STATS,
   NBR_TABLE_REASON_IPV6_ND_AUTOFILL,
   NBR_TABLE_REASON_SIXTOP,
-  NBR_TABLE_REASON_RPL_NON_PARENT,
 } nbr_table_reason_t;
 
 /* Neighbor table size */

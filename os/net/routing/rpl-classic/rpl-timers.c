@@ -472,8 +472,8 @@ get_probing_target(rpl_dag_t *dag)
     return dag->preferred_parent;
   }
 
-  /* With 66% probability: probe best parent / non-parent with at least 1 non-fresh interface */
-  if(random_rand() % 3 != 0) {
+  /* With 50% probability: probe best parent with at least 1 non-fresh interface */
+  if(random_rand() % 2 == 0) {
     p = nbr_table_head(rpl_parents);
     while(p != NULL) {
       /* Check if p needs probing. We don't call rpl_parent_is_stale()
@@ -489,20 +489,9 @@ get_probing_target(rpl_dag_t *dag)
       }
       p = nbr_table_next(rpl_parents, p);
     }
-    p = nbr_table_head(rpl_non_parents);
-    while(p != NULL) {
-      if(p->dag == dag && !rpl_non_parent_is_fresh(p)) {
-        rpl_rank_t p_rank = rpl_rank_via_non_parent(p);
-        if(probing_target == NULL || p_rank < probing_target_rank) {
-          probing_target = p;
-          probing_target_rank = p_rank;
-        }
-      }
-      p = nbr_table_next(rpl_non_parents, p);
-    }
   }
 
-  /* If we still do not have a probing target: pick the parent / non-parent with the least recently
+  /* If we still do not have a probing target: pick the parent with the least recently
      updated interface */
   if(probing_target == NULL) {
     p = nbr_table_head(rpl_parents);
@@ -526,22 +515,6 @@ get_probing_target(rpl_dag_t *dag)
         }
       }
       p = nbr_table_next(rpl_parents, p);
-    }
-    p = nbr_table_head(rpl_non_parents);
-    while(p != NULL) {
-      const struct link_stats *stats = rpl_get_non_parent_link_stats(p);
-      if(p->dag == dag && stats != NULL) {
-        struct interface_list_entry *ile;
-        ile = list_head(stats->interface_list);
-        while(ile != NULL) {
-          if(probing_target == NULL || clock_now - ile->last_tx_time > probing_target_age) {
-            probing_target = p;
-            probing_target_age = clock_now - ile->last_tx_time;
-          }
-          ile = list_item_next(ile);
-        }
-      }
-      p = nbr_table_next(rpl_non_parents, p);
     }
   }
 
@@ -578,48 +551,11 @@ handle_probing_timer(void *ptr)
     const struct link_stats *stats = rpl_get_parent_link_stats(probing_target);
     const linkaddr_t *lladdr = rpl_get_parent_lladdr(probing_target);
     LOG_INFO("probing %u %s last tx %u min ago\n",
-             lladdr != NULL ? lladdr->u8[7] : 0x0,
-             instance->urgent_probing_target != NULL ? "(urgent)" : "",
-             probing_target != NULL && stats != NULL ?
-             (unsigned)((clock_time() - stats->last_tx_time) / (60 * CLOCK_SECOND)) : 0);
-
-#if RPL_PROBING_STALE_INTERFACES_ONLY == 1
-    /* Instead of just blanket sending a probe over all interfaces, only 
-       probe the interfaces of a parent that are not considered fresh */
-    if(stats != NULL) {
-      struct interface_list_entry *ile;
-      ile = list_head(stats->interface_list);
-      while(ile != NULL) {
-        if(!link_stats_interface_is_fresh(ile)) {
-          /* Send probe, e.g. unicast DIO or DIS */
-          LOG_DBG("Inferred metric for interface with ID = %d of ", ile->if_id);
-          LOG_DBG_LLADDR(lladdr);
-          LOG_DBG_(" is not fresh, sending probe\n");
-          uipbuf_set_attr(UIPBUF_ATTR_INTERFACE_ID, ile->if_id);
-          uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_MANDATORY_INTERFACE_ID);
-          RPL_PROBING_SEND_FUNC(instance, target_ipaddr);
-        } else {
-          LOG_DBG("Inferred metric for interface with ID = %d of ", ile->if_id);
-          LOG_DBG_LLADDR(lladdr);
-          LOG_DBG_(" is fresh, no probing needed\n");
-        }
-        ile = list_item_next(ile);
-      }
-    }
-#else /* RPL_PROBING_STALE_INTERFACES_ONLY == 1 */
-    /* Send probe, e.g. unicast DIO or DIS */
-    LOG_DBG("Setting the UIPBUF_ATTR_FLAGS_ALL_INTERFACES flag\n");
-    uipbuf_set_attr_flag(UIPBUF_ATTR_FLAGS_ALL_INTERFACES);
-    RPL_PROBING_SEND_FUNC(instance, target_ipaddr);
-#endif /* RPL_PROBING_STALE_INTERFACES_ONLY == 1 */
-  } else if((target_ipaddr = rpl_non_parent_get_ipaddr(probing_target)) != NULL) {
-    const struct link_stats *stats = rpl_get_non_parent_link_stats(probing_target);
-    const linkaddr_t *lladdr = rpl_get_non_parent_lladdr(probing_target);
-    LOG_INFO("probing non-parent %u %s last tx %u min ago\n",
-             lladdr != NULL ? lladdr->u8[7] : 0x0,
-             instance->urgent_probing_target != NULL ? "(urgent)" : "",
-             probing_target != NULL && stats != NULL ?
-             (unsigned)((clock_time() - stats->last_tx_time) / (60 * CLOCK_SECOND)) : 0);
+          lladdr != NULL ? lladdr->u8[7] : 0x0,
+          instance->urgent_probing_target != NULL ? "(urgent)" : "",
+          probing_target != NULL && stats != NULL ?
+           (unsigned)((clock_time() - stats->last_tx_time) / (60 * CLOCK_SECOND)) : 0
+      );
 
 #if RPL_PROBING_STALE_INTERFACES_ONLY == 1
     /* Instead of just blanket sending a probe over all interfaces, only 

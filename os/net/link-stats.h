@@ -261,8 +261,6 @@ const linkaddr_t *link_stats_get_lladdr(const struct link_stats *);
 int link_stats_is_fresh(const struct link_stats *stats);
 /* Are the statistics fresh for interface? */
 int link_stats_interface_is_fresh(const struct interface_list_entry *ile);
-/* Reset all freshness counters to zero */
-int link_stats_reset_freshness(const linkaddr_t *lladdr);
 /* Resets link-stats module */
 void link_stats_reset(void);
 /* Initializes link-stats module */
