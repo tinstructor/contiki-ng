@@ -1821,10 +1821,9 @@ rpl_add_dag(uip_ipaddr_t *from, rpl_dio_t *dio)
   instance = dag->instance;
 
   previous_dag = find_parent_dag(instance, from);
-  /* We might wan't to keep a neighbor in the rpl_parents table but set its
-     DAG to NULL, indicating that it isn't part of any DAG (and thus does not
-     belong to any parent set, meaning it is effectively not a parent) */
-  if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL) {
+  /* TODO we might as well change this to the following */
+  // if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL)
+  if(previous_dag == NULL) {
     LOG_DBG("Adding ");
     LOG_DBG_6ADDR(from);
     LOG_DBG_(" as a parent: ");
@@ -2355,10 +2354,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
            might have previously advertised membership of a different DAG within
            the given instance. */
         previous_dag = find_parent_dag(instance, from);
-        /* We might wan't to keep a neighbor in the rpl_parents table but set its
-           DAG to NULL, indicating that it isn't part of any DAG (and thus does not
-           belong to any parent set, meaning it is effectively not a parent) */
-        if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL) {
+        /* TODO we might as well change this to the following */
+        // if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL)
+        if(previous_dag == NULL) {
           LOG_DBG("No existing entry found for ");
           LOG_DBG_6ADDR(from);
           LOG_DBG_(" in any other DAG\n");
@@ -2382,15 +2380,8 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
           LOG_DBG("Existing entry found for ");
           LOG_DBG_6ADDR(from);
           LOG_DBG_(" in DAG ");
-          if(rpl_find_parent(NULL, from) == NULL) {
-            /* The rpl_parents member p stores an actual DAG in p->dag */
-            LOG_DBG_6ADDR(&previous_dag->dag_id);
-          } else {
-            /* The rpl_parents member p stores NULL in p->dag, meaning it
-               is currently not an actual parent of ours in any DAG */
-            LOG_DBG_("NULL");
-          }
-          LOG_DBG_(" (DIO advertises DAG ");
+          LOG_DBG_6ADDR(&previous_dag->dag_id);
+          LOG_DBG_("(DIO advertises DAG ");
           LOG_DBG_6ADDR(&dio->dag_id);
           LOG_DBG_(")\n");
           /* If p has previously advertised membership of a different DAG we must move
@@ -2429,10 +2420,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
          merely a housekeeping operation because it will thereafter be removed. */
       if(p == NULL) {
         previous_dag = find_parent_dag(instance, from);
-        /* We might wan't to keep a neighbor in the rpl_parents table but set its
-           DAG to NULL, indicating that it isn't part of any DAG (and thus does not
-           belong to any parent set, meaning it is effectively not a parent) */
-        if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL) {
+        /* TODO we might as well change this to the following */
+        // if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL)
+        if(previous_dag == NULL) {
           /* The DIO sender is not part of the DAG it currently advertises, nor has it
              previously advertised membership of a different DAG and so we can simply
              ignore the DIO altogether. */
@@ -2450,15 +2440,8 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
         LOG_DBG("Existing entry found for ");
         LOG_DBG_6ADDR(from);
         LOG_DBG_(" in DAG ");
-        if(rpl_find_parent(NULL, from) == NULL) {
-          /* The rpl_parents member p stores an actual DAG in p->dag */
-          LOG_DBG_6ADDR(&previous_dag->dag_id);
-        } else {
-          /* The rpl_parents member p stores NULL in p->dag, meaning it
-             is currently not an actual parent of ours in any DAG */
-          LOG_DBG_("NULL");
-        }
-        LOG_DBG_(" (DIO advertises DAG ");
+        LOG_DBG_6ADDR(&previous_dag->dag_id);
+        LOG_DBG_("(DIO advertises DAG ");
         LOG_DBG_6ADDR(&dio->dag_id);
         LOG_DBG_(")\n");
         p = rpl_find_parent(previous_dag, from);
@@ -2491,10 +2474,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
       LOG_DBG("DIO advertises a rank (%u) < DAG rank (%u)\n",
               (unsigned)dio->rank, (unsigned)dag->rank);
       previous_dag = find_parent_dag(instance, from);
-      /* We might wan't to keep a neighbor in the rpl_parents table but set its
-         DAG to NULL, indicating that it isn't part of any DAG (and thus does not
-         belong to any parent set, meaning it is effectively not a parent) */
-      if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL) {
+      /* TODO we might as well change this to the following */
+      // if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL)
+      if(previous_dag == NULL) {
         p = rpl_add_parent(dag, dio, from);
         if(p == NULL) {
           LOG_WARN("Failed to add a new parent (");
@@ -2516,10 +2498,7 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
       LOG_DBG("DIO advertises a rank (%u) >= DAG rank (%u)\n",
               (unsigned)dio->rank, (unsigned)dag->rank);
       previous_dag = find_parent_dag(instance, from);
-      /* We might wan't to keep a neighbor in the rpl_parents table but set its
-         DAG to NULL, indicating that it isn't part of any DAG (and thus does not
-         belong to any parent set, meaning it is effectively not a parent) */
-      if(previous_dag == NULL && rpl_find_parent(NULL, from) == NULL) {
+      if(previous_dag == NULL) {
         LOG_DBG("Ignoring DIO from ");
         LOG_DBG_6ADDR(from);
         LOG_DBG_("\n");
@@ -2534,15 +2513,8 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
       LOG_DBG("Existing entry found for ");
       LOG_DBG_6ADDR(from);
       LOG_DBG_(" in DAG ");
-      if(rpl_find_parent(NULL, from) == NULL) {
-        /* The rpl_parents member p stores an actual DAG in p->dag */
-        LOG_DBG_6ADDR(&previous_dag->dag_id);
-      } else {
-        /* The rpl_parents member p stores NULL in p->dag, meaning it
-           is currently not an actual parent of ours in any DAG */
-        LOG_DBG_("NULL");
-      }
-      LOG_DBG_(" (DIO advertises DAG ");
+      LOG_DBG_6ADDR(&previous_dag->dag_id);
+      LOG_DBG_("(DIO advertises DAG ");
       LOG_DBG_6ADDR(&dio->dag_id);
       LOG_DBG_(")\n");
       p = rpl_find_parent(previous_dag, from);
