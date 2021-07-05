@@ -284,13 +284,27 @@ rpl_link_callback(const linkaddr_t *addr, int status, int numtx)
           /* Not += num_tx as we're only interested in successful attempts */
           num_tx_preferred++;
         }
-        /* Make sure the normalized metrics of all parents are up to date and
-           follow the complete logic, including resetting the defer flags of
-           all parents */
-        rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
-        /* Trigger DAG rank recalculation. */
-        LOG_DBG("rpl_link_callback triggering update\n");
-        parent->flags |= RPL_PARENT_FLAG_UPDATED;
+        if(parent->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE) {
+          link_stats_update_norm_metric(rpl_get_parent_lladdr(parent));
+          if(parent->rank < parent->dag->rank && rpl_acceptable_rank(parent->dag, rpl_rank_via_parent(parent))) {
+            parent->flags &= ~RPL_PARENT_FLAG_NOT_ELIGIBLE;
+            rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
+            /* Trigger DAG rank recalculation. */
+            LOG_DBG("rpl_link_callback: triggering update because parent became eligible\n");
+            parent->flags |= RPL_PARENT_FLAG_UPDATED;
+          } else {
+            /* REVIEW is the following required? */
+            link_stats_reset_defer_flags(rpl_get_parent_lladdr(parent));
+          }
+        } else {
+          /* Make sure the normalized metrics of all parents are up to date and
+             follow the complete logic, including resetting the defer flags of
+             all parents */
+          rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
+          /* Trigger DAG rank recalculation. */
+          LOG_DBG("rpl_link_callback: triggering update because eligible parent was updated\n");
+          parent->flags |= RPL_PARENT_FLAG_UPDATED;
+        }
       }
     }
   }

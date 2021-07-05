@@ -388,7 +388,7 @@ void rpl_recalculate_ranks(void);
 int rpl_set_interface_weights(rpl_parent_t *p);
 void rpl_recalculate_interface_weights(void);
 void rpl_reset_defer_flags(void);
-int rpl_parent_set_is_empty(rpl_dio_t *dio);
+int rpl_acceptable_rank(rpl_dag_t *dag, rpl_rank_t rank);
 
 /* RPL routing table functions. */
 void rpl_remove_routes(rpl_dag_t *dag);

@@ -121,7 +121,8 @@ struct rpl_dag;
 /*---------------------------------------------------------------------------*/
 #define RPL_PARENT_FLAG_UPDATED           0x01
 #define RPL_PARENT_FLAG_LINK_METRIC_VALID 0x02
-#define RPL_PARENT_FLAG_SEL_PP            0x04
+#define RPL_PARENT_FLAG_NOT_ELIGIBLE      0x04
+#define RPL_PARENT_FLAG_WAS_KICKED        0x08
 
 struct rpl_parent {
   struct rpl_dag *dag;

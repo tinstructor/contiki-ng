@@ -111,10 +111,12 @@ link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_flag_t
     LOG_DBG_(", aborting wifsel flag modification\n");
     return 0;
   }
-  stats->wifsel_flag = value;
-  LOG_DBG("Wifsel flag for ");
-  LOG_DBG_LLADDR(lladdr);
-  LOG_DBG_(" modified to %d\n", stats->wifsel_flag);
+  if(stats->wifsel_flag != value) {
+    stats->wifsel_flag = value;
+    LOG_DBG("Wifsel flag for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(" modified to %d\n", stats->wifsel_flag);
+  }
   return 1;
 #else /* LINK_STATS_WITH_WEIGHTS */
   return 0;

@@ -284,7 +284,7 @@ rank_via_dag(rpl_dag_t *dag, linkaddr_t *blame)
   rpl_parent_t *p;
   p = nbr_table_head(rpl_parents);
   while(p != NULL) {
-    if(p->dag != NULL && p->dag == dag) {
+    if(p->dag != NULL && p->dag == dag && !(p->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE)) {
       uint32_t next_higher_rank = min_hoprankinc * (1 + ((uint32_t)p->rank / min_hoprankinc));
       if(next_higher_rank > rank) {
         rank = next_higher_rank;
