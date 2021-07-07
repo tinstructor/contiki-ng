@@ -126,18 +126,11 @@ rpl_ext_header_hbh_update(uint8_t *ext_buf, int opt_offset)
     if(RPL_IS_NON_STORING(instance)) {
       /* Select DAG and preferred parent only in non-storing mode. In storing mode,
        * a parent switch would result in an immediate No-path DAO transmission, dropping
-       * current incoming packet. The normalized metric of all parents must be updated
-       * prior to selecting a DAG and preferred parent in an effort to repair the
-       * rank mismatch. However, if the sender of the message resulting in the mismatch
-       * is the preferred parent of the current DAG in the default instance, we should
-       * not defer metric normalization in order to recover as quickly as possible. Also,
-       * don't reset any defer flags after running through the metric normalization logic
-       * so that if the sender was not preferred (in the current DAG of the default 
-       * instance), the actual preferred parent may remain stable.*/
-      const linkaddr_t *lladdr = packetbuf_addr(PACKETBUF_ADDR_SENDER);
+       * current incoming packet.*/
+      /* TODO move away from using default instance */
       if(default_instance != NULL && default_instance->current_dag != NULL &&
-         sender == default_instance->current_dag->preferred_parent && lladdr != NULL) {
-        link_stats_reset_defer_flags(lladdr);
+         sender == default_instance->current_dag->preferred_parent) {
+        link_stats_reset_defer_flags(packetbuf_addr(PACKETBUF_ADDR_SENDER));
       }
       rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);
       rpl_select_dag(instance, sender);

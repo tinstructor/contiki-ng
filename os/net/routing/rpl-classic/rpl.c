@@ -286,16 +286,18 @@ rpl_link_callback(const linkaddr_t *addr, int status, int numtx)
         }
         if(parent->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE) {
           link_stats_update_norm_metric(rpl_get_parent_lladdr(parent));
-          if(parent->rank < parent->dag->rank && rpl_acceptable_rank(parent->dag, rpl_rank_via_parent(parent))) {
-            parent->flags &= ~RPL_PARENT_FLAG_NOT_ELIGIBLE;
-            rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
-            /* Trigger DAG rank recalculation. */
-            LOG_DBG("rpl_link_callback: triggering update because parent became eligible\n");
-            parent->flags |= RPL_PARENT_FLAG_UPDATED;
-          } else {
-            /* REVIEW is the following required? */
-            link_stats_reset_defer_flags(rpl_get_parent_lladdr(parent));
-          }
+          // if(parent->dag->rank != RPL_INFINITE_RANK && parent->rank < parent->dag->rank &&
+          //    rpl_acceptable_rank(parent->dag, rpl_rank_via_parent(parent))) {
+          //   parent->flags &= ~RPL_PARENT_FLAG_NOT_ELIGIBLE;
+          //   rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
+          //   /* Trigger DAG rank recalculation. */
+          //   LOG_DBG("rpl_link_callback: triggering update because parent became eligible\n");
+          //   parent->flags |= RPL_PARENT_FLAG_UPDATED;
+          // } else {
+          //   link_stats_reset_defer_flags(rpl_get_parent_lladdr(parent));
+          // }
+          /* REVIEW should we simply do the following instead of the previous if branch? */
+          link_stats_reset_defer_flags(rpl_get_parent_lladdr(parent));
         } else {
           /* Make sure the normalized metrics of all parents are up to date and
              follow the complete logic, including resetting the defer flags of
@@ -328,22 +330,15 @@ rpl_ipv6_neighbor_callback(uip_ds6_nbr_t *nbr)
     if(instance->used == 1 ) {
       p = rpl_find_parent_any_dag(instance, &nbr->ipaddr);
       if(p != NULL) {
-        /* Setting p->rank to RPL_INFINITE_RANK will cause the parent to be removed from
-           the rpl_parents table (and therefore the parent set) when rpl_process_parent_event
-           is called for said parent at the end of the next periodic timer period (provided
-           we set the RPL_PARENT_FLAG_UPDATED for the parent) */
+        /* Setting the parent's rank to RPL_INFINITE_RANK ensures that it may only become
+           eligible again after we've received a new DIO from it */
         p->rank = RPL_INFINITE_RANK;
-        /* Make sure the normalized metrics of all parents are up to date
-           Don't defer if the given parent is the preferred parent in the current
-           DAG of the default instance so that we may recover as quickly as possible. 
-           Also, don't reset any defer flags after running through the metric
-           normalization logic so that if the parent was not preferred (in the
-           current DAG of the default instance), the actual preferred parent may 
-           remain stable.*/
-        const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
+        p->flags |= RPL_PARENT_FLAG_NOT_ELIGIBLE;
+        p->flags |= RPL_PARENT_FLAG_WAS_KICKED;
+        /* TODO move away from using default instance */
         if(default_instance != NULL && default_instance->current_dag != NULL &&
-          p == default_instance->current_dag->preferred_parent && lladdr != NULL) {
-          link_stats_reset_defer_flags(lladdr);
+           p == default_instance->current_dag->preferred_parent) {
+          link_stats_reset_defer_flags(rpl_get_parent_lladdr(p));
         }
         rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);
         /* Trigger DAG rank recalculation. */

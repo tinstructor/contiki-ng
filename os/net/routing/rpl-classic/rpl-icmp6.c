@@ -738,60 +738,17 @@ dao_input_storing(void)
   if(learned_from == RPL_ROUTE_FROM_UNICAST_DAO) {
     /* Check whether this is a DAO forwarding loop. */
     parent = rpl_find_parent(dag, &dao_sender_addr);
-    /* check if this is a new DAO registration with an "illegal" rank */
-    /* if we already route to this node it is likely */
-    /* REVIEW does this mechanism still function properly with parents being removed from
-       the rpl_parents table if they are not suitable parents? */
-    if(parent != NULL &&
-       DAG_RANK(parent->rank, instance) <= DAG_RANK(dag->rank, instance)) {
-       /* According to rule 1 of RFC6550 Section 8.2.2.4. a child node is not allowed
-          to advertise a rank lesser than OR EQUAL TO the rank advertised by any of its parents.
-          Thus, since we receive a DAO from a node we are presumably its parent, and so we might
-          want to check if DAG_RANK(parent->rank, instance) <= DAG_RANK(dag->rank, instance)
-          instead of simply checking "lesser than" */
-      LOG_WARN("Loop detected when receiving unicast DAO from node with rank %u <= DAG rank %u\n",
-               DAG_RANK(parent->rank, instance), DAG_RANK(dag->rank, instance));
-      /* Setting parent->rank to RPL_INFINITE_RANK will cause the parent to be removed from
-         the rpl_parents table (and therefore the parent set) when rpl_process_parent_event
-         is called for said parent at the end of the next periodic timer period (provided
-         we set the RPL_PARENT_FLAG_UPDATED for the parent) */
+    if(parent != NULL && !(parent->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE)) {
+      LOG_WARN("Loop detected when receiving unicast DAO from eligible parent\n");
+      /* Setting the parent's rank to RPL_INFINITE_RANK ensures that it may only become
+         eligible again after we've received a new DIO from it */
       parent->rank = RPL_INFINITE_RANK;
-      /* Make sure the normalized metrics of all parents are up to date
-         Don't defer if the given parent is the preferred parent in the current
-         DAG of the default instance so that we may recover from a loop as quickly 
-         as possible. Also, don't reset any defer flags after running through the metric
-         normalization logic so that if the parent was not preferred (in the
-         current DAG of the default instance), the actual preferred parent may 
-         remain stable.*/
-      const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
+      parent->flags |= RPL_PARENT_FLAG_NOT_ELIGIBLE;
+      parent->flags |= RPL_PARENT_FLAG_WAS_KICKED;
+      /* TODO move away from using default instance */
       if(default_instance != NULL && default_instance->current_dag != NULL &&
-         parent == default_instance->current_dag->preferred_parent && lladdr != NULL) {
-        link_stats_reset_defer_flags(lladdr);
-      }
-      rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);
-      parent->flags |= RPL_PARENT_FLAG_UPDATED;
-      return;
-    }
-
-    /* If we get the DAO from our own preferred parent, we also have a loop. */
-    if(parent != NULL && parent == dag->preferred_parent) {
-      LOG_WARN("Loop detected when receiving a unicast DAO from our preferred parent\n");
-      /* Setting parent->rank to RPL_INFINITE_RANK will cause the parent to be removed from
-         the rpl_parents table (and therefore the parent set) when rpl_process_parent_event
-         is called for said parent at the end of the next periodic timer period (provided
-         we set the RPL_PARENT_FLAG_UPDATED for the parent) */
-      parent->rank = RPL_INFINITE_RANK;
-      /* Make sure the normalized metrics of all parents are up to date
-         Don't defer if the given parent is the preferred parent in the current
-         DAG of the default instance so that we may recover from a loop as quickly 
-         as possible. Also, don't reset any defer flags after running through the metric
-         normalization logic so that if the parent was not preferred (in the
-         current DAG of the default instance), the actual preferred parent may 
-         remain stable.*/
-      const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
-      if(default_instance != NULL && default_instance->current_dag != NULL &&
-         parent == default_instance->current_dag->preferred_parent && lladdr != NULL) {
-        link_stats_reset_defer_flags(lladdr);
+         parent == default_instance->current_dag->preferred_parent) {
+        link_stats_reset_defer_flags(rpl_get_parent_lladdr(parent));
       }
       rpl_exec_norm_metric_logic(RPL_RESET_DEFER_FALSE);
       parent->flags |= RPL_PARENT_FLAG_UPDATED;

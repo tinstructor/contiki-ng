@@ -338,15 +338,21 @@ rpl_exec_norm_metric_logic(rpl_reset_defer_t reset_defer)
   rpl_parent_t *p;
 
   p = nbr_table_head(rpl_parents);
+  if(p != NULL) {
+    LOG_DBG("Executing normalized metric logic\n");
+  }
   while(p != NULL) {
     const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
     if(lladdr != NULL) {
-      LOG_DBG("Executing normalized metric logic for ");
-      LOG_DBG_LLADDR(lladdr);
-      LOG_DBG_("\n");
+      if(p->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE) {
+        LOG_DBG("Non-eligible");
+      } else {
+        LOG_DBG("Eligible");
+      }
+      /* TODO move away from using default instance */
       if(default_instance != NULL && default_instance->current_dag != NULL &&
          p == default_instance->current_dag->preferred_parent) {
-        LOG_DBG("Parent ");
+        LOG_DBG_(" parent ");
         LOG_DBG_LLADDR(lladdr);
         LOG_DBG_(" is preferred for current DAG ");
         LOG_DBG_6ADDR(&default_instance->current_dag->dag_id);
@@ -358,13 +364,13 @@ rpl_exec_norm_metric_logic(rpl_reset_defer_t reset_defer)
           LOG_DBG("Deferring normalized metric update\n");
         }
       } else {
-        LOG_DBG("Parent ");
+        LOG_DBG_(" parent ");
         LOG_DBG_LLADDR(lladdr);
         LOG_DBG_(" is not preferred for current DAG, updating normalized metric\n");
         link_stats_update_norm_metric(lladdr);
       }
       if(reset_defer) {
-        LOG_DBG("Resetting all defer flags for parent ");
+        LOG_DBG("Resetting all defer flags for ");
         LOG_DBG_LLADDR(lladdr);
         LOG_DBG_("\n");
         link_stats_reset_defer_flags(lladdr);
@@ -1168,7 +1174,7 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
        becoming preferred. Remember that best_dag always has a preferred parent because otherwise
        we would have already returned NULL */
     rpl_set_default_route(instance, rpl_parent_get_ipaddr(best_dag->preferred_parent));
-    LOG_INFO("Changed preferred parent, rank changed from %u to %u\n",
+    LOG_INFO("RPL: Changed preferred parent, rank changed from %u to %u\n",
            (unsigned)old_rank, best_dag->rank);
     RPL_STAT(rpl_stats.parent_switch++);
     if(RPL_IS_STORING(instance)) {
@@ -1187,8 +1193,13 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
       rpl_print_neighbor_list();
     }
   } else if(best_dag->rank != old_rank) {
-    LOG_DBG("RPL: Preferred parent update, rank changed from %u to %u\n",
+    LOG_DBG("RPL: Eligible parent update, rank changed from %u to %u\n",
            (unsigned)old_rank, best_dag->rank);
+    if(best_dag->rank != RPL_INFINITE_RANK && old_rank != RPL_INFINITE_RANK &&
+       ABS((int32_t)best_dag->rank - old_rank) > RPL_SIGNIFICANT_CHANGE_THRESHOLD) {
+      LOG_DBG("Significant rank update!\n");
+      rpl_reset_dio_timer(instance);
+    }
   } else if(best_dag->preferred_parent != NULL) {
     LOG_DBG("RPL: ");
     LOG_DBG_6ADDR(rpl_parent_get_ipaddr(best_dag->preferred_parent));
@@ -1859,47 +1870,36 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
     rpl_remove_routes_by_nexthop(rpl_parent_get_ipaddr(p), p->dag);
   }
 
-  if(!rpl_acceptable_rank(p->dag, rpl_rank_via_parent(p))) {
-    if(!(p->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE)) {
-      /* The candidate parent is no longer valid: the max possible rank increase
-         resulting from the choice of it as a parent (meaning it may thereafter
-         become the preferred parent too) would be too high according to rule
-         3 of RFC6550 Section 8.2.2.4. For OF0-based OFs the rank via the preferred
-         parent is also the advertised rank and so if the rank via p is not acceptable
-         it should not be in the parent set because it may become preferred at some
-         point. For MRHOF-based OFs, the rank via p is the highest rank we may ever
-         advertise for which p is to blame and so if it is not acceptable, it is
-         probably a safe bet to not have p as a member of the parent set. */
-      LOG_WARN("Stored rank %u of ",(unsigned)p->rank);
-      if(p == p->dag->preferred_parent) {
-        LOG_WARN_("preferred ");
-      }
-      LOG_WARN_("parent ");
-      LOG_WARN_6ADDR(rpl_parent_get_ipaddr(p));
-      LOG_WARN_(" may cause unacceptable advertised rank %u in worst case (Current min %u, MaxRankInc %u)\n",
-                (unsigned)rpl_rank_via_parent(p), p->dag->min_rank, p->dag->instance->max_rankinc);
-      rpl_nullify_parent(p);
-    } else {
-      // TODO log statement
+  if(!rpl_acceptable_rank(p->dag, rpl_rank_via_parent(p)) && !(p->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE)) {
+    /* The candidate parent is no longer valid: the max possible rank increase
+       resulting from the choice of it as a parent (meaning it may thereafter
+       become the preferred parent too) would be too high according to rule
+       3 of RFC6550 Section 8.2.2.4. For OF0-based OFs the rank via the preferred
+       parent is also the advertised rank and so if the rank via p is not acceptable
+       it should not be in the parent set because it may become preferred at some
+       point. For MRHOF-based OFs, the rank via p is the highest rank we may ever
+       advertise for which p is to blame and so if it is not acceptable, it is
+       probably a safe bet to not have p as a member of the parent set. */
+    LOG_WARN("Stored rank %u of ",(unsigned)p->rank);
+    if(p == p->dag->preferred_parent) {
+      LOG_WARN_("preferred ");
     }
-  } else if((p->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE) && p->rank < p->dag->rank) {
-    /* We know that p advertises an appropriate rank and that the rank computed for the
-       path to the root through p is acceptable but yet it is still marked ineligible.
-       Hence, we mark p as eligible once again. */
-    p->flags &= ~RPL_PARENT_FLAG_NOT_ELIGIBLE;
+    LOG_WARN_("parent ");
+    LOG_WARN_6ADDR(rpl_parent_get_ipaddr(p));
+    LOG_WARN_(" may cause unacceptable advertised rank %u in worst case (Current min %u, MaxRankInc %u)\n",
+              (unsigned)rpl_rank_via_parent(p), p->dag->min_rank, p->dag->instance->max_rankinc);
+    rpl_nullify_parent(p);
   }
 
   if((p->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE) && p == p->dag->preferred_parent) {
     /* This may happen when the preferred parent is marked ineligible outside of
-       a call to rpl_nullify_parent, e.g., when processing a DIO. */
+       a call to rpl_nullify_parent. */
     rpl_nullify_parent(p);
   }
 
-  // TODO return value must be assigned something
   return_value = !(p->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE);
 
 #if RPL_WEIGHTED_INTERFACES
-  // TODO set / unset the wifsel flag
   if(default_instance != NULL) {
     link_stats_wifsel_flag_t wifsel_flag;
     wifsel_flag = (p->dag == default_instance->current_dag && return_value) ? LINK_STATS_WIFSEL_FLAG_TRUE : LINK_STATS_WIFSEL_FLAG_FALSE;
@@ -1974,7 +1974,7 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
 
   /* FIXME it's definitely not appropriate to check this here but for testing purposes
      we make sure we don't process any DIOs for an instance if we're currently poisoning it. */
-  if(instance != NULL && poisoning_instance == instance) {
+  if(instance != NULL && poisoning_instance == instance && dio->rank != RPL_INFINITE_RANK) {
     LOG_DBG("Not processing DIO from ");
     LOG_DBG_6ADDR(from);
     LOG_DBG_(", currently poisoning instance %u\n", instance->instance_id);
@@ -2110,6 +2110,19 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
      in the DIO and our last stored version of that same DAG are identical because
      otherwise we'd have returned already. */
   p = rpl_find_parent(dag, from);
+  if(p == NULL) {
+    LOG_DBG("No parent with address ");
+    LOG_DBG_6ADDR(from);
+    LOG_DBG_(" present in DAG ");
+    LOG_DBG_6ADDR(&dag->dag_id);
+    LOG_DBG_("\n");
+  } else {
+    LOG_DBG("Parent ");
+    LOG_DBG_6ADDR(from);
+    LOG_DBG_(" found in DAG ");
+    LOG_DBG_6ADDR(&dag->dag_id);
+    LOG_DBG_("\n");
+  }
   /* REVIEW maybe we should compare with DAG_RANK instead */
   if(dio->rank < dag->rank) {
     LOG_DBG("DIO advertises a rank (%u) < DAG rank (%u)\n",
@@ -2131,6 +2144,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
         p = rpl_find_parent(previous_dag, from);
         rpl_move_parent(previous_dag, dag, p);
       }
+      /* Init parent as eligible in given DAG */
+      p->flags &= ~RPL_PARENT_FLAG_NOT_ELIGIBLE;
+      p->flags &= ~RPL_PARENT_FLAG_WAS_KICKED;
     } else {
       if(p->rank == dio->rank) {
         LOG_INFO("Received consistent DIO\n");
@@ -2140,10 +2156,19 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
       }
     }
     p->rank = dio->rank;
-    rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
-    /* REVIEW the following branch may not even be necessary */
-    if(rpl_acceptable_rank(dag, rpl_rank_via_parent(p))) {
-      p->flags &= ~RPL_PARENT_FLAG_NOT_ELIGIBLE;
+    if(p->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE) {
+      LOG_DBG("Originator of DIO is currently ineligible\n");
+      link_stats_update_norm_metric(rpl_get_parent_lladdr(p));
+      if(rpl_acceptable_rank(dag, rpl_rank_via_parent(p))) {
+        LOG_DBG("Originator of DIO will be marked eligible\n");
+        p->flags &= ~RPL_PARENT_FLAG_NOT_ELIGIBLE;
+        rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
+      } else {
+        link_stats_reset_defer_flags(rpl_get_parent_lladdr(p));
+      }
+    } else {
+      LOG_DBG("Originator of DIO is currently eligible\n");
+      rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
     }
   } else {
     LOG_DBG("DIO advertises a rank (%u) >= DAG rank (%u)\n",
@@ -2184,12 +2209,16 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
     LOG_DBG_(" was part of parent set and will be marked ineligible\n");
     p->flags |= RPL_PARENT_FLAG_NOT_ELIGIBLE;
     p->flags |= RPL_PARENT_FLAG_WAS_KICKED;
+    /* Make sure the normalized metric of the parent is updated even if it is
+       currently preferred because it will no longer be preferred soon enough */
+    /* TODO move away from using default instance */
+    if(default_instance != NULL && default_instance->current_dag != NULL &&
+       p == default_instance->current_dag->preferred_parent) {
+      link_stats_reset_defer_flags(rpl_get_parent_lladdr(p));
+    }
     rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
   }
 
-  /* Instead of checking p->rank we operate on dio->rank because we might have
-     artificially set p->rank to RPL_INFINITE_RANK whereas dio->rank is left
-     untouched */
   if(dio->rank == RPL_INFINITE_RANK && p == dag->preferred_parent) {
     /* Our preferred parent advertised an infinite rank, reset DIO timer */
     LOG_DBG("Preferred parent ");
