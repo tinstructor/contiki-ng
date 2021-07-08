@@ -458,7 +458,9 @@ update_interface_weight(uint8_t if_id, uint8_t weight)
 }
 #endif
 /*---------------------------------------------------------------------------*/
-void
+/* Recalculate the weight for all types of interfaces.
+   Returns 1 if any weights were updated and 0 otherwise. */ 
+int
 rpl_recalculate_interface_weights(void)
 {
 #if RPL_WEIGHTED_INTERFACES
@@ -467,7 +469,7 @@ rpl_recalculate_interface_weights(void)
   if(default_instance != NULL && default_instance->current_dag != NULL &&
      default_instance->current_dag->rank == ROOT_RANK(default_instance)) {
     LOG_DBG("Not recalculating interface weights because we are root!\n");
-    return;
+    return 0;
   }
 #endif
   LOG_DBG("Recalculating interface weights\n");
@@ -487,7 +489,7 @@ rpl_recalculate_interface_weights(void)
                                sizeof(if_id_collection)) == RADIO_RESULT_OK) {
     if(if_id_collection.size > RADIO_MAX_INTERFACES) {
       LOG_DBG("Size of if_id collection exceeds RADIO_MAX_INTERFACES. Aborting weight recalculation.\n");
-      return;
+      return 0;
     }
     uint8_t weights_updated = 0;
     for(uint8_t i = 0; i < if_id_collection.size; i++) {
@@ -503,14 +505,11 @@ rpl_recalculate_interface_weights(void)
       weight = (uint8_t)(precise_weight + 0.5);
       weights_updated |= update_interface_weight(if_id, weight);
     }
-    if(weights_updated) {
-      link_stats_select_pref_interfaces();
-    }
-  } else {
-    LOG_DBG("Could not retrieve if_id collection from radio driver. Aborting weight recalculation.\n");
-    return;
+    return weights_updated;
   }
+  LOG_DBG("Could not retrieve if_id collection from radio driver. Aborting weight recalculation.\n");
 #endif
+  return 0;
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -1011,6 +1010,11 @@ rpl_add_parent(rpl_dag_t *dag, rpl_dio_t *dio, uip_ipaddr_t *addr)
          parent and so if p is immediately removed from the rpl_parents_table
          after adding it, the normalized metric value can be whatever. Put
          differently, it doesn't matter if we set the weights here */
+      /* FIXME the following function is called immediately after adding a parent,
+         i.e., after receiving the first DIO on any interface. However, at that point,
+         we have not yet had the time to receive any messages on the secondary interface
+         and thus no corresponding ile shall be found and hence its weight is not
+         correctly initialized. */
       rpl_set_interface_weights(p);
 #endif /* RPL_WEIGHTED_INTERFACES */
       link_stats_reset_defer_flags((const linkaddr_t *)lladdr);

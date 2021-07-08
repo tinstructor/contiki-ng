@@ -392,7 +392,7 @@ rpl_parent_t *rpl_select_parent(rpl_dag_t *dag);
 rpl_dag_t *rpl_select_dag(rpl_instance_t *instance,rpl_parent_t *parent);
 void rpl_recalculate_ranks(void);
 int rpl_set_interface_weights(rpl_parent_t *p);
-void rpl_recalculate_interface_weights(void);
+int rpl_recalculate_interface_weights(void);
 void rpl_reset_defer_flags(void);
 int rpl_acceptable_rank(rpl_dag_t *dag, rpl_rank_t rank);
 
