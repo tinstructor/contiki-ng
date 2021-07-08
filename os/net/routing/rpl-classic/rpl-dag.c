@@ -1324,18 +1324,6 @@ rpl_remove_parent(rpl_parent_t *parent)
   LOG_INFO_6ADDR(rpl_parent_get_ipaddr(parent));
   LOG_INFO_("\n");
 
-#if RPL_WEIGHTED_INTERFACES
-  /* In any conceivable case, when a parent is removed from the rpl_parents table,
-     preferred interface selection for that neighbor should no longer be based on 
-     weights and thus its wifsel flag must be unset in the corresponding link_stats 
-     table entry. No additional checks are needed, we can simply override the current
-     wifsel flag state in the corresponding ile */
-  const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
-  if(lladdr != NULL) {
-    link_stats_modify_wifsel_flag(lladdr, LINK_STATS_WIFSEL_FLAG_FALSE);
-  }
-#endif
-
   rpl_nullify_parent(parent);
 
   nbr_table_remove(rpl_parents, parent);
@@ -1352,6 +1340,17 @@ rpl_nullify_parent(rpl_parent_t *parent)
     parent->flags |= RPL_PARENT_FLAG_NOT_ELIGIBLE;
     parent->flags |= RPL_PARENT_FLAG_WAS_KICKED;
   }
+
+#if RPL_WEIGHTED_INTERFACES
+  /* In any case, when a parent is nullified, it is not longer eligible and thus
+     effectively no longer part of our logical parent set. Hence, we can simply
+     reset its weighted interface selection flag */
+  const linkaddr_t *lladdr = rpl_get_parent_lladdr(parent);
+  if(lladdr != NULL) {
+    link_stats_modify_wifsel_flag(lladdr, LINK_STATS_WIFSEL_FLAG_FALSE);
+  }
+#endif
+
   /* This function can be called when the preferred parent is NULL, so we
      need to handle this condition in order to trigger uip_ds6_defrt_rm. */
   if(parent == dag->preferred_parent || dag->preferred_parent == NULL) {
@@ -1411,17 +1410,6 @@ rpl_move_parent(rpl_dag_t *dag_src, rpl_dag_t *dag_dst, rpl_parent_t *parent)
     /* REVIEW check if this branch needs more strict requirements. */
     link_stats_reset_defer_flags(lladdr);
     link_stats_update_norm_metric(lladdr);
-#if RPL_WEIGHTED_INTERFACES
-    /* Set the wifsel flag if the parent is a candidate parent in the current DAG
-       of the default instance. For now, this functionality is limited to the default
-       instance because the link-stats module would otherwise need to keep a link_stats
-       table for every instance. */
-    if(default_instance != NULL) {
-      link_stats_wifsel_flag_t wifsel_flag;
-      wifsel_flag = (parent->dag == default_instance->current_dag) ? LINK_STATS_WIFSEL_FLAG_TRUE : LINK_STATS_WIFSEL_FLAG_FALSE;
-      link_stats_modify_wifsel_flag(lladdr, wifsel_flag);
-    }
-#endif
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -1561,6 +1549,9 @@ rpl_join_instance(uip_ipaddr_t *from, rpl_dio_t *dio)
   }
   p->dtsn = dio->dtsn;
   LOG_DBG_("succeeded\n");
+  /* Init parent as eligible in given DAG */
+  p->flags &= ~RPL_PARENT_FLAG_NOT_ELIGIBLE;
+  p->flags &= ~RPL_PARENT_FLAG_WAS_KICKED;
 
   /* Autoconfigure an address if this node does not already have an address
      with this prefix. */
@@ -1610,14 +1601,12 @@ rpl_join_instance(uip_ipaddr_t *from, rpl_dio_t *dio)
 
 #if RPL_WEIGHTED_INTERFACES
   const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
-  /* Set the wifsel flag if the parent is a candidate parent in the current DAG
-     of the default instance. For now, this functionality is limited to the default
-     instance because the link-stats module would otherwise need to keep a link_stats
-     table for every instance. */
   if(lladdr != NULL) {
-    link_stats_wifsel_flag_t wifsel_flag;
-    wifsel_flag = (p->dag == default_instance->current_dag) ? LINK_STATS_WIFSEL_FLAG_TRUE : LINK_STATS_WIFSEL_FLAG_FALSE;
-    link_stats_modify_wifsel_flag(lladdr, wifsel_flag);
+    /* Since the parent is our only parent and it is in fact in our parent set
+       because we've marked it eligible and set it as our preferred parent we
+       can be certain that preferred interface selection must be weighted for
+       said parent. */
+    link_stats_modify_wifsel_flag(lladdr, LINK_STATS_WIFSEL_FLAG_TRUE);
   }
 #endif
 
@@ -1675,6 +1664,9 @@ rpl_add_dag(uip_ipaddr_t *from, rpl_dio_t *dio)
     rpl_move_parent(previous_dag, dag, p);
   }
   p->rank = dio->rank;
+  /* Init parent as eligible in given DAG */
+  p->flags &= ~RPL_PARENT_FLAG_NOT_ELIGIBLE;
+  p->flags &= ~RPL_PARENT_FLAG_WAS_KICKED;
 
   /* Determine the objective function by using the
      objective code point of the DIO. */
@@ -1721,6 +1713,8 @@ rpl_add_dag(uip_ipaddr_t *from, rpl_dio_t *dio)
 
   LOG_ANNOTATE("#A join=%u\n", dag->dag_id.u8[sizeof(dag->dag_id) - 1]);
 
+  /* This call also ensures that the wifsel flag will be set appropriately
+     so there's no reason to set it manually here. */
   rpl_process_parent_event(instance, p);
   p->dtsn = dio->dtsn;
 
@@ -1900,11 +1894,14 @@ rpl_process_parent_event(rpl_instance_t *instance, rpl_parent_t *p)
   return_value = !(p->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE);
 
 #if RPL_WEIGHTED_INTERFACES
-  if(default_instance != NULL) {
-    link_stats_wifsel_flag_t wifsel_flag;
-    wifsel_flag = (p->dag == default_instance->current_dag && return_value) ? LINK_STATS_WIFSEL_FLAG_TRUE : LINK_STATS_WIFSEL_FLAG_FALSE;
-    link_stats_modify_wifsel_flag(rpl_get_parent_lladdr(p), wifsel_flag);
-  }
+  /* Even though the wifsel flag is reset in rpl_nullify_parent, we still reset it here
+     if the parent is marked ineligible because it may have been marked that way outside
+     of rpl_nullify_parent, e.g., after receiving a DIO with an innapropriate rank from
+     a new parent, a parent moved from a different DAG, or from a parent that was not our
+     preferred parent. */
+  link_stats_wifsel_flag_t wifsel_flag;
+  wifsel_flag = return_value ? LINK_STATS_WIFSEL_FLAG_TRUE : LINK_STATS_WIFSEL_FLAG_FALSE;
+  link_stats_modify_wifsel_flag(rpl_get_parent_lladdr(p), wifsel_flag);
 #endif
 
   if(return_value || (p->flags & RPL_PARENT_FLAG_WAS_KICKED)) {

@@ -278,6 +278,7 @@ rpl_link_callback(const linkaddr_t *addr, int status, int numtx)
 #endif /* RPL_WITH_PROBING */
         /* Increase the count of packets successfully transmitted to a
            preferred parent during the current RPL_IF_WEIGHTS_WINDOW */
+        /* TODO move away from using default instance */
         if(default_instance != NULL && default_instance->current_dag != NULL &&
            parent == default_instance->current_dag->preferred_parent &&
            status == MAC_TX_OK) {
@@ -306,6 +307,19 @@ rpl_link_callback(const linkaddr_t *addr, int status, int numtx)
           /* Trigger DAG rank recalculation. */
           LOG_DBG("rpl_link_callback: triggering update because eligible parent was updated\n");
           parent->flags |= RPL_PARENT_FLAG_UPDATED;
+          /* NOTE assume a situation wherein our preferred parent should become ineligible at this
+             point. Then, if a DIO came in from another eligible parent advertising RPL_INFINITE_RANK
+             (meaning it should become ineligible too) prior to rpl_recalculate_ranks() being called,
+             our preferred parent is still eligible when rpl_process_parent() event is called for the
+             other parent. Hence, the other parent will be kicked and rpl_select_dag() will be called
+             which in turn calls rpl_select_parent(). Since rpl_select_parent() doesn't account for
+             acceptable rank (only OF specific rules for path costs etc.), it could happen that we
+             reselect the current preferred parent to remain preferred even though the rank associated
+             with the path (to the root) through it, as given by rpl_rank_via_parent(), is not acceptable
+             according to rpl_acceptable_rank() (which is the original reason why we want it to become
+             ineligible but that can only happen when rpl_process_parent_event() is called for it).
+             However, we also check if the new rank we'll advertise is acceptable in rpl_select_dag()
+             and if not we nullify the parent responsible for the unacceptable advertised rank. */
         }
       }
     }

@@ -551,11 +551,10 @@ handle_probing_timer(void *ptr)
     const struct link_stats *stats = rpl_get_parent_link_stats(probing_target);
     const linkaddr_t *lladdr = rpl_get_parent_lladdr(probing_target);
     LOG_INFO("probing %u %s last tx %u min ago\n",
-          lladdr != NULL ? lladdr->u8[7] : 0x0,
-          instance->urgent_probing_target != NULL ? "(urgent)" : "",
-          probing_target != NULL && stats != NULL ?
-           (unsigned)((clock_time() - stats->last_tx_time) / (60 * CLOCK_SECOND)) : 0
-      );
+             lladdr != NULL ? lladdr->u8[7] : 0x0,
+             instance->urgent_probing_target != NULL ? "(urgent)" : "",
+             probing_target != NULL && stats != NULL ?
+             (unsigned)((clock_time() - stats->last_tx_time) / (60 * CLOCK_SECOND)) : 0);
 
 #if RPL_PROBING_STALE_INTERFACES_ONLY == 1
     /* Instead of just blanket sending a probe over all interfaces, only 
