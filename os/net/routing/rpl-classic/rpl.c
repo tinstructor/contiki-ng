@@ -400,7 +400,7 @@ init(void)
 
   rpl_dag_init();
   rpl_reset_periodic_timer();
-  rpl_reset_interface_weights_timer();
+  rpl_reset_ifw_recalc_timer();
   rpl_icmp6_register_handlers();
 
   /* add rpl multicast address */

@@ -998,24 +998,10 @@ rpl_add_parent(rpl_dag_t *dag, rpl_dio_t *dio, uip_ipaddr_t *addr)
       memcpy(&p->mc, &dio->mc, sizeof(p->mc));
 #endif /* RPL_WITH_MC */
 #if RPL_WEIGHTED_INTERFACES
-      /* Set the interface weights of the newly added parent here. If the parent
-         is added prior to the first call to rpl_recalculate_interface_weights()
-         this function will simply return without modifying any weights (because
-         there aren't any yet). Otherwise, calling rpl_set_interface_weights()
-         with a non-NULL parent pointer argument will cause all interfaces of
-         the parent for which a weight was previously calculated to be modified
-         in their respective ile. If we then call link_stats_update_norm_metric(),
-         the normalized metric shall be calculated using weights (if enabled).
-         This is OK since the normalized metric is only used to select the preferred
-         parent and so if p is immediately removed from the rpl_parents_table
-         after adding it, the normalized metric value can be whatever. Put
-         differently, it doesn't matter if we set the weights here */
-      /* FIXME the following function is called immediately after adding a parent,
-         i.e., after receiving the first DIO on any interface. However, at that point,
-         we have not yet had the time to receive any messages on the secondary interface
-         and thus no corresponding ile shall be found and hence its weight is not
-         correctly initialized. */
-      rpl_set_interface_weights(p);
+      LOG_DBG("Scheduling interface weighting for ");
+      LOG_DBG_LLADDR((const linkaddr_t *)lladdr);
+      LOG_DBG_(" %.3f seconds from now\n", (float)RPL_IF_WEIGHTS_DELAY / CLOCK_SECOND);
+      rpl_schedule_interface_weighting(p);
 #endif /* RPL_WEIGHTED_INTERFACES */
       link_stats_reset_defer_flags((const linkaddr_t *)lladdr);
       link_stats_update_norm_metric((const linkaddr_t *)lladdr);

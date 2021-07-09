@@ -188,7 +188,7 @@
 #define RPL_MAX_RANKINC             RPL_CONF_MAX_RANKINC
 #endif /* RPL_CONF_MAX_RANKINC */
 
-/* The window (in milliseconds) during which the number of
+/* The window during which the number of
    packets successfully transmitted to the preferred
    parent is kept for interface weight recalculation */
 #ifdef RPL_CONF_IF_WEIGHTS_WINDOW
@@ -196,6 +196,15 @@
 #else /* RPL_CONF_IF_WEIGHTS_WINDOW */
 #define RPL_IF_WEIGHTS_WINDOW       (60U * CLOCK_SECOND)
 #endif /* RPL_CONF_IF_WEIGHTS_WINDOW */
+
+/* Amount of time for which setting interface weights is delayed
+   after adding a neighbor to the rpl_parents table such that we
+   may have stored an ile for its secondary interface too */
+#ifdef RPL_CONF_IF_WEIGHTS_DELAY
+#define RPL_IF_WEIGHTS_DELAY RPL_CONF_IF_WEIGHTS_DELAY
+#else /* RPL_CONF_IF_WEIGHTS_DELAY */
+#define RPL_IF_WEIGHTS_DELAY        ((CLOCK_SECOND + 4U) / 8U) /* Nearest integer equivalent to 125ms */
+#endif /* RPL_CONF_IF_WEIGHTS_DELAY */
 
 /* Period during which we can't join any DAG within an instance
    if we're currently poisoning it */
@@ -411,13 +420,14 @@ void rpl_schedule_dao(rpl_instance_t *);
 void rpl_schedule_dao_immediately(rpl_instance_t *);
 void rpl_schedule_unicast_dio_immediately(rpl_instance_t *instance);
 void rpl_schedule_child_unicast_dio_immediately(rpl_instance_t *instance);
+void rpl_schedule_interface_weighting(rpl_parent_t *p);
 void rpl_cancel_dao(rpl_instance_t *instance);
 void rpl_schedule_probing(rpl_instance_t *instance);
 void rpl_schedule_probing_now(rpl_instance_t *instance);
 
 void rpl_reset_dio_timer(rpl_instance_t *);
 void rpl_reset_periodic_timer(void);
-void rpl_reset_interface_weights_timer(void);
+void rpl_reset_ifw_recalc_timer(void);
 void rpl_reset_poison_timer(rpl_instance_t *);
 
 /* Route poisoning. */

@@ -68,12 +68,14 @@ clock_time_t RPL_PROBING_DELAY_FUNC(rpl_dag_t *dag);
 
 /*---------------------------------------------------------------------------*/
 static struct ctimer periodic_timer;
-static struct ctimer interface_weights_timer;
+static struct ctimer ifw_recalc_timer;
+static struct ctimer ifw_delay_timer;
 static struct ctimer poison_timer;
 static struct ctimer child_unicast_dio_timer;
 
 static void handle_periodic_timer(void *ptr);
-static void handle_interface_weights_timer(void *ptr);
+static void handle_ifw_recalc_timer(void *ptr);
+static void handle_ifw_delay_timer(void *ptr);
 static void handle_poison_timer(void *ptr);
 static void handle_child_unicast_dio_timer(void *ptr);
 static void new_dio_interval(rpl_instance_t *instance);
@@ -113,7 +115,7 @@ handle_periodic_timer(void *ptr)
 }
 /*---------------------------------------------------------------------------*/
 static void
-handle_interface_weights_timer(void *ptr)
+handle_ifw_recalc_timer(void *ptr)
 {
 #if RPL_WEIGHTED_INTERFACES
   if(rpl_recalculate_interface_weights()) {
@@ -122,7 +124,26 @@ handle_interface_weights_timer(void *ptr)
   }
 #endif
   num_tx_preferred = 0;
-  ctimer_reset(&interface_weights_timer);
+  ctimer_reset(&ifw_recalc_timer);
+}
+/*---------------------------------------------------------------------------*/
+static void
+handle_ifw_delay_timer(void *ptr)
+{
+#if RPL_WEIGHTED_INTERFACES
+  rpl_parent_t *p;
+  p = (rpl_parent_t *)ptr;
+  if(p != NULL) {
+    rpl_set_interface_weights(p);
+    const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
+    if(lladdr != NULL) {
+      LOG_DBG("Initiating preferred interface selection for ");
+      LOG_DBG_LLADDR(lladdr);
+      LOG_DBG_(" because interfaces were weighted\n");
+      link_stats_select_pref_interface(lladdr);
+    }
+  }
+#endif
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -237,10 +258,10 @@ rpl_reset_periodic_timer(void)
 }
 /*---------------------------------------------------------------------------*/
 void 
-rpl_reset_interface_weights_timer(void)
+rpl_reset_ifw_recalc_timer(void)
 {
   num_tx_preferred = 0;
-  ctimer_set(&interface_weights_timer, RPL_IF_WEIGHTS_WINDOW, handle_interface_weights_timer, NULL);
+  ctimer_set(&ifw_recalc_timer, RPL_IF_WEIGHTS_WINDOW, handle_ifw_recalc_timer, NULL);
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -432,6 +453,16 @@ rpl_schedule_unicast_dio_immediately(rpl_instance_t *instance)
 {
   ctimer_set(&instance->unicast_dio_timer, 0,
                   handle_unicast_dio_timer, instance);
+}
+/*---------------------------------------------------------------------------*/
+void 
+rpl_schedule_interface_weighting(rpl_parent_t *p)
+{
+  if(ctimer_expired(&ifw_delay_timer)) {
+    ctimer_set(&ifw_delay_timer, RPL_IF_WEIGHTS_DELAY, handle_ifw_delay_timer, p);
+  } else {
+    LOG_DBG("Delay timer already scheduled!\n");
+  }
 }
 /*---------------------------------------------------------------------------*/
 #if RPL_WITH_PROBING
