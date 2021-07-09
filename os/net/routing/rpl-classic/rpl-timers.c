@@ -47,6 +47,8 @@
 #include "net/ipv6/multicast/uip-mcast6.h"
 #include "net/ipv6/uip-sr.h"
 #include "lib/random.h"
+#include "lib/list.h"
+#include "lib/memb.h"
 #include "sys/ctimer.h"
 #include "sys/log.h"
 
@@ -65,6 +67,27 @@ rpl_parent_t *RPL_PROBING_SELECT_FUNC(rpl_dag_t *dag);
 #ifdef RPL_PROBING_DELAY_FUNC
 clock_time_t RPL_PROBING_DELAY_FUNC(rpl_dag_t *dag);
 #endif /* RPL_PROBING_DELAY_FUNC */
+
+/*---------------------------------------------------------------------------*/
+/* All things related to the interface weighting queue */
+
+/* An entry in the weighting queue */
+struct weighting_queue_entry {
+  struct weighting_queue_entry *next;
+  linkaddr_t lladdr;
+  clock_time_t timestamp;
+};
+
+/* The maximum amount of entries allowed i */
+#ifdef RPL_CONF_MAX_WEIGHTING_QUEUE_ENTRIES
+#define RPL_MAX_WEIGHTING_QUEUE_ENTRIES RPL_CONF_MAX_WEIGHTING_QUEUE_ENTRIES
+#else /* RPL_CONF_MAX_WEIGHTING_QUEUE_ENTRIES */
+#define RPL_MAX_WEIGHTING_QUEUE_ENTRIES 4
+#endif /* RPL_CONF_MAX_WEIGHTING_QUEUE_ENTRIES */
+
+/* The actual weigthing queue */
+LIST(weighting_queue);
+MEMB(weighting_memb, struct weighting_queue_entry, RPL_MAX_WEIGHTING_QUEUE_ENTRIES);
 
 /*---------------------------------------------------------------------------*/
 static struct ctimer periodic_timer;
@@ -142,6 +165,21 @@ handle_ifw_delay_timer(void *ptr)
       LOG_DBG_(" because interfaces were weighted\n");
       link_stats_select_pref_interface(lladdr);
     }
+  }
+  struct weighting_queue_entry *wqe;
+  wqe = list_head(weighting_queue);
+  if(wqe != NULL) {
+    p = rpl_get_parent((const uip_lladdr_t *)&wqe->lladdr);
+    if(p != NULL) {
+      clock_time_t delta = clock_time() - wqe->timestamp;
+      clock_time_t delay = (clock_time_t)MAX(0, (int64_t)RPL_IF_WEIGHTS_DELAY - delta);
+      LOG_DBG("Scheduling interface weighting for ");
+      LOG_DBG_LLADDR(&wqe->lladdr);
+      LOG_DBG_(" (queued) %.3f seconds from now\n", (float)delay / CLOCK_SECOND);
+      ctimer_set(&ifw_delay_timer, delay, handle_ifw_delay_timer, p);
+    }
+    list_remove(weighting_queue, wqe);
+    memb_free(&weighting_memb, wqe);
   }
 #endif
 }
@@ -458,11 +496,30 @@ rpl_schedule_unicast_dio_immediately(rpl_instance_t *instance)
 void 
 rpl_schedule_interface_weighting(rpl_parent_t *p)
 {
+#if RPL_WEIGHTED_INTERFACES
   if(ctimer_expired(&ifw_delay_timer)) {
     ctimer_set(&ifw_delay_timer, RPL_IF_WEIGHTS_DELAY, handle_ifw_delay_timer, p);
   } else {
     LOG_DBG("Delay timer already scheduled!\n");
+    struct weighting_queue_entry *wqe;
+    if(list_length(weighting_queue) < RPL_MAX_WEIGHTING_QUEUE_ENTRIES) {
+      wqe = memb_alloc(&weighting_memb);
+      if(wqe != NULL) {
+        const linkaddr_t *lladdr = rpl_get_parent_lladdr(p);
+        if(lladdr != NULL) {
+          LOG_DBG("Adding ");
+          LOG_DBG_LLADDR(lladdr);
+          LOG_DBG_(" to weighting queue\n");
+          linkaddr_copy(&wqe->lladdr, lladdr);
+          wqe->timestamp = clock_time();
+          list_add(weighting_queue, wqe);
+        }
+      }
+    } else {
+      LOG_DBG("Weighting queue already full\n");
+    }
   }
+#endif
 }
 /*---------------------------------------------------------------------------*/
 #if RPL_WITH_PROBING
