@@ -116,6 +116,12 @@ link_stats_modify_wifsel_flag(const linkaddr_t *lladdr, link_stats_wifsel_flag_t
     LOG_DBG("Wifsel flag for ");
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_(" modified to %d\n", stats->wifsel_flag);
+    /* Since the wifsel flag has changed we must check if the current preferred
+       interface for the given neighbor should still be preferred at this point */
+    LOG_DBG("Initiating preferred interface selection for ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(" because wifsel flag changed\n");
+    link_stats_select_pref_interface(lladdr);
   }
   return 1;
 #else /* LINK_STATS_WITH_WEIGHTS */
