@@ -97,7 +97,7 @@ parent_rank_increase(rpl_parent_t *p)
     return RPL_INFINITE_RANK;
   }
   min_hoprankinc = p->dag->instance->min_hoprankinc;
-  return (RANK_FACTOR * STEP_OF_RANK(p) + RANK_STRETCH) * min_hoprankinc;
+  return MIN(((uint32_t)RANK_FACTOR * STEP_OF_RANK(p) + RANK_STRETCH) * min_hoprankinc, 0xffff);
 }
 /*---------------------------------------------------------------------------*/
 static uint16_t
