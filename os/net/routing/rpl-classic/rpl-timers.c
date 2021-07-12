@@ -85,20 +85,25 @@ struct weighting_queue_entry {
 #define RPL_MAX_WEIGHTING_QUEUE_ENTRIES 4
 #endif /* RPL_CONF_MAX_WEIGHTING_QUEUE_ENTRIES */
 
+#if RPL_WEIGHTED_INTERFACES
 /* The actual weigthing queue */
 LIST(weighting_queue);
 MEMB(weighting_memb, struct weighting_queue_entry, RPL_MAX_WEIGHTING_QUEUE_ENTRIES);
-
+#endif
 /*---------------------------------------------------------------------------*/
 static struct ctimer periodic_timer;
 static struct ctimer ifw_recalc_timer;
+#if RPL_WEIGHTED_INTERFACES
 static struct ctimer ifw_delay_timer;
+#endif
 static struct ctimer poison_timer;
 static struct ctimer child_unicast_dio_timer;
 
 static void handle_periodic_timer(void *ptr);
 static void handle_ifw_recalc_timer(void *ptr);
+#if RPL_WEIGHTED_INTERFACES
 static void handle_ifw_delay_timer(void *ptr);
+#endif
 static void handle_poison_timer(void *ptr);
 static void handle_child_unicast_dio_timer(void *ptr);
 static void new_dio_interval(rpl_instance_t *instance);
@@ -150,10 +155,10 @@ handle_ifw_recalc_timer(void *ptr)
   ctimer_reset(&ifw_recalc_timer);
 }
 /*---------------------------------------------------------------------------*/
+#if RPL_WEIGHTED_INTERFACES
 static void
 handle_ifw_delay_timer(void *ptr)
 {
-#if RPL_WEIGHTED_INTERFACES
   rpl_parent_t *p;
   p = (rpl_parent_t *)ptr;
   if(p != NULL) {
@@ -181,8 +186,8 @@ handle_ifw_delay_timer(void *ptr)
     list_remove(weighting_queue, wqe);
     memb_free(&weighting_memb, wqe);
   }
-#endif
 }
+#endif
 /*---------------------------------------------------------------------------*/
 static void
 handle_poison_timer(void *ptr)
