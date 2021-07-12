@@ -2151,9 +2151,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
         p->flags &= ~RPL_PARENT_FLAG_NOT_ELIGIBLE;
         rpl_exec_norm_metric_logic(RPL_RESET_DEFER_TRUE);
       } else {
-        LOG_WARN("Parent ");
-        LOG_WARN_6ADDR(rpl_parent_get_ipaddr(p));
-        LOG_WARN_(" may cause unacceptable advertised rank %u in worst case (Current min %u, MaxRankInc %u)\n",
+        LOG_DBG("Parent ");
+        LOG_DBG_6ADDR(rpl_parent_get_ipaddr(p));
+        LOG_DBG_(" may cause unacceptable advertised rank %u in worst case (Current min %u, MaxRankInc %u)\n",
                   (unsigned)rpl_rank_via_parent(p), p->dag->min_rank, p->dag->instance->max_rankinc);
         link_stats_reset_defer_flags(rpl_get_parent_lladdr(p));
       }
