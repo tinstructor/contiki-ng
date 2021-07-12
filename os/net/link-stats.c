@@ -300,11 +300,17 @@ link_stats_update_norm_metric(const linkaddr_t *lladdr)
   struct interface_list_entry *ile;
   ile = list_head(stats->interface_list);
   uint8_t num_if = 0;
+  uint8_t num_worse = 0;
   uint32_t numerator = 0;
   uint16_t denominator = 0;
   while(ile != NULL) {
     uint32_t inferred_metric;
-    inferred_metric = LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric) ? LINK_STATS_METRIC_PLACEHOLDER : ile->inferred_metric;
+    if(LINK_STATS_WORSE_THAN_THRESH(ile->inferred_metric)) {
+      inferred_metric = LINK_STATS_METRIC_PLACEHOLDER;
+      num_worse++;
+    } else {
+      inferred_metric = ile->inferred_metric;
+    }
 #if LINK_STATS_WITH_WEIGHTS
     uint8_t weight;
     weight = ile->weight ? ile->weight : LINK_STATS_DEFAULT_WEIGHT;
@@ -321,6 +327,14 @@ link_stats_update_norm_metric(const linkaddr_t *lladdr)
     LOG_DBG("Num ifaces found > LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR ");
     LOG_DBG_LLADDR(lladdr);
     LOG_DBG_(", aborting normalized metric update\n");
+    stats->normalized_metric = 0xffff;
+    return 0;
+  }
+  if(num_worse == LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR) {
+    LOG_DBG("All interfaces of ");
+    LOG_DBG_LLADDR(lladdr);
+    LOG_DBG_(" are down, setting normalized metric to 0xffff\n");
+    stats->normalized_metric = 0xffff;
     return 0;
   }
   uint8_t num_if_left = LINK_STATS_NUM_INTERFACES_PER_NEIGHBOR - num_if;
