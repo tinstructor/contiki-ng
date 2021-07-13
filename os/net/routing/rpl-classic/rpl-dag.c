@@ -1154,7 +1154,10 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
        rank. However, if (with the current implementation) we keep a parent with too high
        a rank in the parent set (whilst still making sure it's not preferred) it could
        happen that our advertised rank becomes too high */
-    rpl_nullify_parent(rpl_get_parent((uip_lladdr_t *)&blame));
+    rpl_parent_t *to_nullify = rpl_get_parent((uip_lladdr_t *)&blame);
+    if(to_nullify != NULL) {
+      rpl_nullify_parent(to_nullify);
+    }
     return NULL;
   }
 

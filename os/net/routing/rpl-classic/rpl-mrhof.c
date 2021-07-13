@@ -339,7 +339,7 @@ rank_via_dag(rpl_dag_t *dag, linkaddr_t *blame)
         through said node), rounded to the next higher integral rank.
      3. The largest computed rank among paths through the parent set,
         minus MaxRankIncrease. */
-  if(dag == NULL || dag->preferred_parent == NULL || dag->instance == NULL) {
+  if(dag == NULL || dag->preferred_parent == NULL || dag->instance == NULL || !parent_is_acceptable(dag->preferred_parent)) {
     return RPL_INFINITE_RANK;
   }
   uint32_t min_hoprankinc = dag->instance->min_hoprankinc;
@@ -349,7 +349,7 @@ rank_via_dag(rpl_dag_t *dag, linkaddr_t *blame)
   rpl_parent_t *p;
   p = nbr_table_head(rpl_parents);
   while(p != NULL) {
-    if(p->dag != NULL && p->dag == dag && !(p->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE)) {
+    if(p->dag != NULL && p->dag == dag && !(p->flags & RPL_PARENT_FLAG_NOT_ELIGIBLE) && parent_is_acceptable(p)) {
       uint32_t next_higher_rank = min_hoprankinc * (1 + ((uint32_t)p->rank / min_hoprankinc));
       if(next_higher_rank > rank) {
         rank = next_higher_rank;
