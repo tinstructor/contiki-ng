@@ -1179,6 +1179,12 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
        * Only for storing mode, see RFC6550 section 9.6. */
       RPL_LOLLIPOP_INCREMENT(instance->dtsn_out);
     }
+
+    /* Since our rank has probably changed we must check that the rank we will
+       hereafter advertise is greater than the rank advertised by any eligible parent.
+       If not the case, the parents that violate this rule should be marked ineligible. */
+    nullify_parents(best_dag, best_dag->rank);
+
     /* The DAO parent set changed - schedule a DAO transmission. */
     rpl_schedule_dao(instance);
     rpl_reset_dio_timer(instance);
@@ -1188,6 +1194,12 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
   } else if(best_dag->rank != old_rank) {
     LOG_DBG("RPL: Eligible parent update, rank changed from %u to %u\n",
            (unsigned)old_rank, best_dag->rank);
+
+    /* Since our rank has probably changed we must check that the rank we will
+       hereafter advertise is greater than the rank advertised by any eligible parent.
+       If not the case, the parents that violate this rule should be marked ineligible. */
+    nullify_parents(best_dag, best_dag->rank);
+
     if(best_dag->rank != RPL_INFINITE_RANK && old_rank != RPL_INFINITE_RANK &&
        ABS((int32_t)best_dag->rank - old_rank) > RPL_SIGNIFICANT_CHANGE_THRESHOLD) {
       LOG_DBG("Significant rank update!\n");
